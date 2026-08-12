@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { LoginPage } from './pages/LoginPage';
@@ -9,11 +10,24 @@ import { AudioReviewPage } from './pages/AudioReviewPage';
 import { RoomsPage } from './pages/RoomsPage';
 import { RoomControlPage } from './pages/RoomControlPage';
 
-const MainApp: React.FC = () => {
+// Layout wrapper — shows sidebar + main content for authenticated pages
+const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  const activeTab = location.pathname.split('/')[1] || 'maps';
+
+  return (
+    <div className="min-h-screen bg-[#09090B] flex w-full">
+      <Sidebar activeTab={activeTab} />
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto w-full">
+        {children}
+      </main>
+    </div>
+  );
+};
+
+// Guard — redirects unauthenticated users to /login
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  const [authView, setAuthView] = useState<'login' | 'register'>('login');
-  const [activeTab, setActiveTab] = useState<string>('maps');
-  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   if (loading) {
     return (
@@ -26,49 +40,41 @@ const MainApp: React.FC = () => {
     );
   }
 
-  if (!user) {
-    return authView === 'login' ? (
-      <LoginPage onSwitchToRegister={() => setAuthView('register')} />
-    ) : (
-      <RegisterPage onSwitchToLogin={() => setAuthView('login')} />
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#09090B] flex w-full">
-      {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={(tab) => {
-        setActiveTab(tab);
-        setSelectedRoomId(null);
-      }} />
-
-      {/* Main Content Viewport — Full width responsive container */}
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto w-full">
-        {selectedRoomId ? (
-          <RoomControlPage
-            roomId={selectedRoomId}
-            onBack={() => setSelectedRoomId(null)}
-          />
-        ) : activeTab === 'maps' ? (
-          <MapsPage />
-        ) : activeTab === 'questions' ? (
-          <QuestionsPage />
-        ) : activeTab === 'audio' ? (
-          <AudioReviewPage />
-        ) : (
-          <RoomsPage onSelectRoom={(id) => setSelectedRoomId(id)} />
-        )}
-      </main>
-    </div>
-  );
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-export const App: React.FC = () => {
-  return (
+// Guard — redirects authenticated users away from login/register
+const GuestRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? <Navigate to="/maps" replace /> : <>{children}</>;
+};
+
+const AppRoutes: React.FC = () => (
+  <Routes>
+    {/* Guest-only routes */}
+    <Route path="/login"    element={<GuestRoute><LoginPage /></GuestRoute>} />
+    <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+
+    {/* Protected routes */}
+    <Route path="/maps"       element={<ProtectedRoute><AppLayout><MapsPage /></AppLayout></ProtectedRoute>} />
+    <Route path="/questions"  element={<ProtectedRoute><AppLayout><QuestionsPage /></AppLayout></ProtectedRoute>} />
+    <Route path="/audio"      element={<ProtectedRoute><AppLayout><AudioReviewPage /></AppLayout></ProtectedRoute>} />
+    <Route path="/rooms"      element={<ProtectedRoute><AppLayout><RoomsPage /></AppLayout></ProtectedRoute>} />
+    <Route path="/rooms/:id"  element={<ProtectedRoute><AppLayout><RoomControlPage /></AppLayout></ProtectedRoute>} />
+
+    {/* Default redirect */}
+    <Route path="*" element={<Navigate to="/maps" replace />} />
+  </Routes>
+);
+
+export const App: React.FC = () => (
+  <BrowserRouter>
     <AuthProvider>
-      <MainApp />
+      <AppRoutes />
     </AuthProvider>
-  );
-};
+  </BrowserRouter>
+);
 
 export default App;
+

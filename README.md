@@ -275,3 +275,82 @@ npm run dev
 - **Backend**: PHP 8.2, Laravel 12, Laravel Sanctum, SQLite, PestPHP
 - **Teacher Portal**: React 19, TypeScript, Vite 8, Tailwind CSS 4, Lucide React
 - **Student Game**: Vanilla TypeScript, Vite 8, HTML5 Canvas 2D API
+
+---
+
+## 🚀 Deploying to Production
+
+> **Stack**: Backend → [Render](https://render.com) | Frontends → [Cloudflare Pages](https://pages.cloudflare.com)
+
+### Step 1 — Deploy Backend to Render
+
+1. Go to https://render.com → **New Web Service** → connect your GitHub repo
+2. Set these settings:
+   - **Root Directory**: `backend`
+   - **Build Command**: `composer install --no-dev --optimize-autoloader && php artisan migrate --force && php artisan storage:link`
+   - **Start Command**: `php artisan serve --host=0.0.0.0 --port=10000`
+3. Add these **Environment Variables** in Render dashboard:
+   ```
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_KEY=<generate with: php artisan key:generate --show>
+   APP_URL=https://your-backend.onrender.com
+
+   DB_CONNECTION=sqlite
+
+   FILESYSTEM_DISK=local
+
+   FRONTEND_ORIGINS=https://your-portal.pages.dev,https://your-game.pages.dev
+   ```
+4. After deploy, copy your Render URL (e.g. `https://vocab-quest-api.onrender.com`)
+
+---
+
+### Step 2 — Deploy Teacher Portal to Cloudflare Pages
+
+1. Go to https://pages.cloudflare.com → **Create a project** → connect GitHub repo
+2. Set these settings:
+   - **Root Directory**: `frontend-portal`
+   - **Build Command**: `npm install && npm run build`
+   - **Output Directory**: `dist`
+3. Add **Environment Variable**:
+   ```
+   VITE_API_URL=https://your-backend.onrender.com/api
+   ```
+4. Deploy — Cloudflare gives you a URL like `https://vocab-quest-portal.pages.dev`
+
+---
+
+### Step 3 — Deploy Student Game to Cloudflare Pages
+
+1. Create **another** Cloudflare Pages project from the same repo
+2. Set these settings:
+   - **Root Directory**: `frontend-game`
+   - **Build Command**: `npm install && npm run build`
+   - **Output Directory**: `dist`
+3. Add **Environment Variable**:
+   ```
+   VITE_API_URL=https://your-backend.onrender.com/api
+   ```
+4. Deploy — you get a URL like `https://vocab-quest-game.pages.dev`
+
+---
+
+### Step 4 — Update Backend CORS
+
+Go back to your Render dashboard → **Environment** tab → update:
+```
+FRONTEND_ORIGINS=https://vocab-quest-portal.pages.dev,https://vocab-quest-game.pages.dev
+```
+Then redeploy the backend. Done! ✅
+
+---
+
+### Production Environment Variable Summary
+
+| Variable | Where to set | Example value |
+|---|---|---|
+| `VITE_API_URL` | Cloudflare Pages (both frontends) | `https://vocab-quest-api.onrender.com/api` |
+| `FRONTEND_ORIGINS` | Render (backend) | `https://your-portal.pages.dev,https://your-game.pages.dev` |
+| `APP_URL` | Render (backend) | `https://vocab-quest-api.onrender.com` |
+| `APP_KEY` | Render (backend) | Run `php artisan key:generate --show` locally |

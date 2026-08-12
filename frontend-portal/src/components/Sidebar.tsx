@@ -1,13 +1,14 @@
 import React from 'react';
 import { Map, HelpCircle, Volume2, Users, LogOut, Terminal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   activeTab: string;
-  setActiveTab: (tab: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab }) => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   const navItems = [
@@ -39,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => navigate(`/${item.id}`)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-xs transition-all ${
                   isActive
                     ? 'bg-zinc-800/90 text-zinc-100 font-semibold border-l-2 border-emerald-500 pl-2.5'

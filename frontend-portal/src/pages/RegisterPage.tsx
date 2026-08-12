@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Terminal, UserPlus, Lock, Mail, User, AlertCircle } from 'lucide-react';
 
-interface RegisterPageProps {
-  onSwitchToLogin: () => void;
-}
-
-export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) => {
+export const RegisterPage: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -149,7 +147,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
             <p className="text-xs text-zinc-500">
               Already have an account?{' '}
               <button
-                onClick={onSwitchToLogin}
+                onClick={() => navigate('/login')}
                 type="button"
                 className="text-emerald-400 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 ml-1"
               >

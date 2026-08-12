@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type RoomData } from '../services/api';
 import { Users, Plus, Play, BarChart2 } from 'lucide-react';
 
-interface RoomsPageProps {
-  onSelectRoom: (roomId: number) => void;
-}
-
-export const RoomsPage: React.FC<RoomsPageProps> = ({ onSelectRoom }) => {
+export const RoomsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<RoomData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -113,7 +111,7 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({ onSelectRoom }) => {
 
                 <div className="pt-2">
                   <button
-                    onClick={() => onSelectRoom(room.id)}
+                    onClick={() => navigate(`/rooms/${room.id}`)}
                     className="w-full btn-secondary justify-center text-xs py-2.5"
                   >
                     {isClosed ? (

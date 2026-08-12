@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api, type RoomResultsData } from '../services/api';
 import { ArrowLeft, Play, Square, Users, Trophy, BarChart2, CheckCircle2 } from 'lucide-react';
 
-interface RoomControlPageProps {
-  roomId: number;
-  onBack: () => void;
-}
-
-export const RoomControlPage: React.FC<RoomControlPageProps> = ({ roomId, onBack }) => {
+export const RoomControlPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const roomId = Number(id);
   const [data, setData] = useState<RoomResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -73,7 +72,7 @@ export const RoomControlPage: React.FC<RoomControlPageProps> = ({ roomId, onBack
       {/* Top Navigation */}
       <div className="flex items-center justify-between">
         <button
-          onClick={onBack}
+          onClick={() => navigate('/rooms')}
           className="btn-secondary text-xs"
         >
           <ArrowLeft className="w-3.5 h-3.5" />

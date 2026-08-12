@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Terminal, LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
 
-interface LoginPageProps {
-  onSwitchToRegister: () => void;
-}
-
-export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
+export const LoginPage: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +104,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             <p className="text-xs text-zinc-500">
               Don't have a teacher account?{' '}
               <button
-                onClick={onSwitchToRegister}
+                onClick={() => navigate('/register')}
                 type="button"
                 className="text-emerald-400 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 ml-1"
               >
