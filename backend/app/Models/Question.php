@@ -21,6 +21,9 @@ class Question extends Model
         'image_cloudinary_public_id',
         'has_context_highlight',
         'has_image',
+        'voice_audio_url',
+        'voice_video_url',
+        'voice_media_type',
     ];
 
     protected $casts = [

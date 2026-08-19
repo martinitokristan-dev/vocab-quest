@@ -19,7 +19,10 @@ class StudentQuestionResource extends JsonResource
             'id'                        => $this->id,
             'sentence'                  => $this->sentence,
             'highlighted_word'          => $this->highlighted_word,
-            'audio_url'                 => $approvedAudio?->url,
+            'audio_url'                 => $this->voice_audio_url ?? $approvedAudio?->url,
+            'voice_audio_url'           => $this->voice_audio_url,
+            'voice_video_url'           => $this->voice_video_url,
+            'voice_media_type'          => $this->voice_media_type ?? 'none',
             'image_url'                 => $this->image_url,
             'answers'                   => $this->answers->map(fn ($ans) => [
                 'id'   => $ans->id,

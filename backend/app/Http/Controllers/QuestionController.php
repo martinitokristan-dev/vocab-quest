@@ -43,19 +43,26 @@ class QuestionController extends Controller
         }
 
         $validated = $request->validate([
-            'order_index'               => ['required', 'integer', 'min:1'],
-            'sentence'                  => ['required', 'string'],
-            'highlighted_word'          => ['required', 'string'],
-            'image_url'                 => ['nullable', 'string'],
-            'image'                     => ['nullable', 'image', 'max:5120'], // 5MB max
-            'image_file'                => ['nullable', 'image', 'max:5120'],
+            'order_index'                => ['required', 'integer', 'min:1'],
+            'sentence'                   => ['required', 'string'],
+            'highlighted_word'           => ['required', 'string'],
+            'image_url'                  => ['nullable', 'string'],
+            'image'                      => ['nullable', 'image', 'max:5120'], // 5MB max
+            'image_file'                 => ['nullable', 'image', 'max:5120'],
             'image_cloudinary_public_id' => ['nullable', 'string'],
-            'answers'                   => ['required', 'array', 'min:2', 'max:4'],
-            'answers.*.text'            => ['required', 'string'],
-            'answers.*.is_correct'      => ['required', 'boolean'],
+            'voice_audio_url'            => ['nullable', 'string'],
+            'voice_audio'                => ['nullable', 'file', 'max:25600'], // 25MB max
+            'voice_audio_file'           => ['nullable', 'file', 'max:25600'],
+            'voice_video_url'            => ['nullable', 'string'],
+            'voice_video'                => ['nullable', 'file', 'max:51200'], // 50MB max
+            'voice_video_file'           => ['nullable', 'file', 'max:51200'],
+            'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
+            'answers'                    => ['required', 'array', 'min:2', 'max:4'],
+            'answers.*.text'             => ['required', 'string'],
+            'answers.*.is_correct'       => ['required', 'boolean'],
         ]);
 
-        // Handle uploaded file if present
+        // Handle uploaded image file if present
         $imageUrl = $validated['image_url'] ?? null;
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('questions', 'public');
@@ -63,6 +70,33 @@ class QuestionController extends Controller
         } elseif ($request->hasFile('image_file')) {
             $path = $request->file('image_file')->store('questions', 'public');
             $imageUrl = asset('storage/' . $path);
+        }
+
+        // Handle uploaded voice audio file if present
+        $voiceAudioUrl = $validated['voice_audio_url'] ?? null;
+        if ($request->hasFile('voice_audio')) {
+            $path = $request->file('voice_audio')->store('questions/audio', 'public');
+            $voiceAudioUrl = asset('storage/' . $path);
+        } elseif ($request->hasFile('voice_audio_file')) {
+            $path = $request->file('voice_audio_file')->store('questions/audio', 'public');
+            $voiceAudioUrl = asset('storage/' . $path);
+        }
+
+        // Handle uploaded voice video file if present
+        $voiceVideoUrl = $validated['voice_video_url'] ?? null;
+        if ($request->hasFile('voice_video')) {
+            $path = $request->file('voice_video')->store('questions/video', 'public');
+            $voiceVideoUrl = asset('storage/' . $path);
+        } elseif ($request->hasFile('voice_video_file')) {
+            $path = $request->file('voice_video_file')->store('questions/video', 'public');
+            $voiceVideoUrl = asset('storage/' . $path);
+        }
+
+        $voiceMediaType = $validated['voice_media_type'] ?? 'none';
+        if ($voiceVideoUrl) {
+            $voiceMediaType = 'video';
+        } elseif ($voiceAudioUrl) {
+            $voiceMediaType = 'audio';
         }
 
         // rules-and-validation §3: highlighted_word must exist inside sentence
@@ -86,6 +120,9 @@ class QuestionController extends Controller
             'highlighted_word'           => strtolower($validated['highlighted_word']),
             'image_url'                  => $imageUrl,
             'image_cloudinary_public_id' => $validated['image_cloudinary_public_id'] ?? null,
+            'voice_audio_url'            => $voiceAudioUrl,
+            'voice_video_url'            => $voiceVideoUrl,
+            'voice_media_type'           => $voiceMediaType,
             'has_context_highlight'      => true,
             'has_image'                  => ! empty($imageUrl),
         ]);
@@ -133,6 +170,13 @@ class QuestionController extends Controller
             'image'                      => ['nullable', 'image', 'max:5120'],
             'image_file'                 => ['nullable', 'image', 'max:5120'],
             'image_cloudinary_public_id' => ['nullable', 'string'],
+            'voice_audio_url'            => ['nullable', 'string'],
+            'voice_audio'                => ['nullable', 'file', 'max:25600'],
+            'voice_audio_file'           => ['nullable', 'file', 'max:25600'],
+            'voice_video_url'            => ['nullable', 'string'],
+            'voice_video'                => ['nullable', 'file', 'max:51200'],
+            'voice_video_file'           => ['nullable', 'file', 'max:51200'],
+            'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
             'answers'                    => ['sometimes', 'required', 'array', 'min:2', 'max:4'],
             'answers.*.text'             => ['required', 'string'],
             'answers.*.is_correct'       => ['required', 'boolean'],
@@ -145,6 +189,33 @@ class QuestionController extends Controller
         } elseif ($request->hasFile('image_file')) {
             $path = $request->file('image_file')->store('questions', 'public');
             $imageUrl = asset('storage/' . $path);
+        }
+
+        $voiceAudioUrl = array_key_exists('voice_audio_url', $validated) ? $validated['voice_audio_url'] : $question->voice_audio_url;
+        if ($request->hasFile('voice_audio')) {
+            $path = $request->file('voice_audio')->store('questions/audio', 'public');
+            $voiceAudioUrl = asset('storage/' . $path);
+        } elseif ($request->hasFile('voice_audio_file')) {
+            $path = $request->file('voice_audio_file')->store('questions/audio', 'public');
+            $voiceAudioUrl = asset('storage/' . $path);
+        }
+
+        $voiceVideoUrl = array_key_exists('voice_video_url', $validated) ? $validated['voice_video_url'] : $question->voice_video_url;
+        if ($request->hasFile('voice_video')) {
+            $path = $request->file('voice_video')->store('questions/video', 'public');
+            $voiceVideoUrl = asset('storage/' . $path);
+        } elseif ($request->hasFile('voice_video_file')) {
+            $path = $request->file('voice_video_file')->store('questions/video', 'public');
+            $voiceVideoUrl = asset('storage/' . $path);
+        }
+
+        $voiceMediaType = $validated['voice_media_type'] ?? $question->voice_media_type;
+        if ($voiceVideoUrl) {
+            $voiceMediaType = 'video';
+        } elseif ($voiceAudioUrl) {
+            $voiceMediaType = 'audio';
+        } elseif (! $voiceAudioUrl && ! $voiceVideoUrl) {
+            $voiceMediaType = 'none';
         }
 
         $sentence = $validated['sentence'] ?? $question->sentence;
@@ -176,6 +247,9 @@ class QuestionController extends Controller
             'highlighted_word'           => $word,
             'image_url'                  => $imageUrl,
             'image_cloudinary_public_id' => $validated['image_cloudinary_public_id'] ?? $question->image_cloudinary_public_id,
+            'voice_audio_url'            => $voiceAudioUrl,
+            'voice_video_url'            => $voiceVideoUrl,
+            'voice_media_type'           => $voiceMediaType,
             'has_image'                  => ! empty($imageUrl),
         ]);
 

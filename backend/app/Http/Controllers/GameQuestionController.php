@@ -28,9 +28,10 @@ class GameQuestionController extends Controller
             ]);
         }
 
-        // Get unanswered questions on the student's current map
+        // Get answered questions that were completed correctly on the student's current map
         $answeredIds = StudentAnswer::where('game_session_id', $session->id)
             ->where('map_id', $session->current_map_id)
+            ->where('is_correct', true)
             ->pluck('question_id');
 
         $nextQuestion = Question::where('map_id', $session->current_map_id)
@@ -91,27 +92,32 @@ class GameQuestionController extends Controller
         $question = Question::findOrFail($validated['question_id']);
         $answer   = Answer::findOrFail($validated['answer_id']);
 
-        // rules-and-validation §5: Prevent duplicate answers for the same question
-        $alreadyAnswered = StudentAnswer::where('game_session_id', $session->id)
+        // rules-and-validation §5: Prevent duplicate answers once correctly completed
+        $alreadyCompleted = StudentAnswer::where('game_session_id', $session->id)
             ->where('question_id', $question->id)
+            ->where('is_correct', true)
             ->exists();
 
-        if ($alreadyAnswered) {
+        if ($alreadyCompleted) {
             throw ValidationException::withMessages([
-                'question_id' => ['You have already submitted an answer for this question.'],
+                'question_id' => ['You have already submitted a correct answer for this question.'],
             ]);
         }
 
         $isCorrect = $answer->is_correct;
 
-        // Record student answer
-        StudentAnswer::create([
-            'game_session_id' => $session->id,
-            'map_id'          => $session->current_map_id,
-            'question_id'     => $question->id,
-            'answer_id'       => $answer->id,
-            'is_correct'      => $isCorrect,
-        ]);
+        // Record or update student answer attempt
+        StudentAnswer::updateOrCreate(
+            [
+                'game_session_id' => $session->id,
+                'question_id'     => $question->id,
+            ],
+            [
+                'map_id'     => $session->current_map_id,
+                'answer_id'  => $answer->id,
+                'is_correct' => $isCorrect,
+            ]
+        );
 
         // Increment score if correct
         if ($isCorrect) {
@@ -121,7 +127,7 @@ class GameQuestionController extends Controller
         return response()->json([
             'is_correct' => $isCorrect,
             'score'      => $session->fresh()->score,
-            'message'    => $isCorrect ? 'Correct answer!' : 'Incorrect answer.',
+            'message'    => $isCorrect ? 'Correct answer!' : 'Incorrect answer. Try again!',
         ]);
     }
 }

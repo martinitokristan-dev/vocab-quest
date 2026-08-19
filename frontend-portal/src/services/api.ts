@@ -33,6 +33,9 @@ export interface QuestionData {
   sentence: string;
   highlighted_word: string;
   image_url?: string | null;
+  voice_audio_url?: string | null;
+  voice_video_url?: string | null;
+  voice_media_type?: 'audio' | 'video' | 'none';
   has_context_highlight: boolean;
   has_image: boolean;
   answers: {
@@ -254,16 +257,36 @@ class ApiClient {
     has_image?: boolean;
     image_url?: string;
     image_file?: File | null;
+    voice_audio_file?: File | Blob | null;
+    voice_video_file?: File | Blob | null;
+    voice_audio_url?: string;
+    voice_video_url?: string;
+    voice_media_type?: 'audio' | 'video' | 'none';
     answers: { text: string; is_correct: boolean }[];
   }) {
-    if (payload.image_file) {
+    const hasFiles = payload.image_file || payload.voice_audio_file || payload.voice_video_file;
+    if (hasFiles) {
       const formData = new FormData();
       formData.append('order_index', String(payload.order_index));
       formData.append('sentence', payload.sentence);
       formData.append('highlighted_word', payload.highlighted_word);
       formData.append('has_context_highlight', payload.has_context_highlight ? '1' : '0');
-      formData.append('has_image', '1');
-      formData.append('image_file', payload.image_file);
+      formData.append('has_image', (payload.image_file || payload.image_url) ? '1' : '0');
+      if (payload.image_file) formData.append('image_file', payload.image_file);
+      if (payload.image_url) formData.append('image_url', payload.image_url);
+
+      if (payload.voice_audio_file) {
+        formData.append('voice_audio_file', payload.voice_audio_file, 'voiceover.webm');
+      }
+      if (payload.voice_audio_url) formData.append('voice_audio_url', payload.voice_audio_url);
+
+      if (payload.voice_video_file) {
+        formData.append('voice_video_file', payload.voice_video_file, 'voiceover.mp4');
+      }
+      if (payload.voice_video_url) formData.append('voice_video_url', payload.voice_video_url);
+
+      if (payload.voice_media_type) formData.append('voice_media_type', payload.voice_media_type);
+
       formData.append('answers', JSON.stringify(payload.answers));
 
       const token = this.getToken();
@@ -297,7 +320,61 @@ class ApiClient {
     });
   }
 
-  async updateQuestion(id: number, payload: Partial<QuestionData>) {
+  async updateQuestion(id: number, payload: Partial<QuestionData> & {
+    image_file?: File | null;
+    voice_audio_file?: File | Blob | null;
+    voice_video_file?: File | Blob | null;
+  }) {
+    const hasFiles = payload.image_file || payload.voice_audio_file || payload.voice_video_file;
+    if (hasFiles) {
+      const formData = new FormData();
+      if (payload.order_index !== undefined) formData.append('order_index', String(payload.order_index));
+      if (payload.sentence !== undefined) formData.append('sentence', payload.sentence);
+      if (payload.highlighted_word !== undefined) formData.append('highlighted_word', payload.highlighted_word);
+      if (payload.image_file) formData.append('image_file', payload.image_file);
+      if (payload.image_url !== undefined) formData.append('image_url', payload.image_url || '');
+
+      if (payload.voice_audio_file) {
+        formData.append('voice_audio_file', payload.voice_audio_file, 'voiceover.webm');
+      }
+      if (payload.voice_audio_url !== undefined) formData.append('voice_audio_url', payload.voice_audio_url || '');
+
+      if (payload.voice_video_file) {
+        formData.append('voice_video_file', payload.voice_video_file, 'voiceover.mp4');
+      }
+      if (payload.voice_video_url !== undefined) formData.append('voice_video_url', payload.voice_video_url || '');
+
+      if (payload.voice_media_type !== undefined) formData.append('voice_media_type', payload.voice_media_type);
+      if (payload.answers) formData.append('answers', JSON.stringify(payload.answers));
+
+      // Laravel needs POST with _method=PUT for multipart/form-data
+      formData.append('_method', 'PUT');
+
+      const token = this.getToken();
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
+        const error: any = new Error(errorMessage);
+        error.status = response.status;
+        error.data = data;
+        throw error;
+      }
+      return data;
+    }
+
     return this.request<{ data: QuestionData }>(`/questions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),

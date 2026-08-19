@@ -34,6 +34,9 @@ export interface CurrentQuestionResponse {
       highlighted_word: string;
       image_url: string | null;
       audio_url: string | null;
+      voice_audio_url?: string | null;
+      voice_video_url?: string | null;
+      voice_media_type?: 'audio' | 'video' | 'none' | null;
       answers: AnswerChoice[];
     };
   };

@@ -1,14 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
 
 :root {
-  --font-heading: 'Outfit', -apple-system, sans-serif;
-  --font-sans: 'Inter', -apple-system, sans-serif;
-  --bg-dark: #09090B;
-  --panel-bg: rgba(18, 18, 21, 0.94);
-  --accent-emerald: #10B981;
-  --accent-cyan: #06B6D4;
-  --accent-amber: #F59E0B;
-  --accent-rose: #F43F5E;
+  --font-primary: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Quicksand', sans-serif;
+  --font-body: 'Quicksand', sans-serif;
+  --font-minecraft: 'Quicksand', sans-serif;
 }
 
 * {
@@ -23,13 +19,14 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: var(--bg-dark);
+  background-color: #0B132B;
   color: #FAFAFA;
-  font-family: var(--font-sans);
+  font-family: var(--font-primary);
   -webkit-font-smoothing: antialiased;
+  user-select: none;
 }
 
-/* Fullscreen Background Layer */
+/* Fullscreen Dynamic Kingdom Background Layer */
 .game-bg-layer {
   position: fixed;
   inset: 0;
@@ -37,9 +34,9 @@ html, body {
   height: 100vh;
   object-fit: cover;
   z-index: 0;
-  opacity: 0.35;
-  filter: brightness(0.7) contrast(1.1);
-  transition: opacity 0.5s ease;
+  opacity: 0.92;
+  filter: brightness(0.88) contrast(1.05);
+  transition: opacity 0.4s ease, filter 0.4s ease;
 }
 
 #app {
@@ -51,334 +48,1243 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
 }
 
-/* Fullscreen Top HUD Overlay Bar */
-.world-map-hud {
+/* ─────────────────────────────────────────────────────────────────────────────
+   TITLE SCREEN (EXACT MINECRAFT VOXEL UI MATCHING REFERENCE)
+───────────────────────────────────────────────────────────────────────────── */
+.title-scene-container {
   position: fixed;
-  top: 20px;
-  left: 20px;
-  right: 20px;
-  z-index: 20;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: url('/assets/title_bg.jpg') no-repeat center center / cover;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  background: rgba(12, 12, 15, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  padding: 14px 24px;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
+  padding: 16px 24px 16px;
+  overflow: hidden;
 }
 
-.hud-title {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 20px;
-  color: #FFFFFF;
+/* Top 3D Voxel VOCAB QUEST Logo */
+.title-logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 20;
+  margin-top: 4px;
 }
 
-.hud-subtitle {
-  font-size: 11px;
-  color: #10B981;
+.title-logo-img {
+  max-width: 480px;
+  width: 82vw;
+  height: auto;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.55));
+  animation: logo-bob 3.2s ease-in-out infinite;
+}
+
+/* Center Stage: Symmetrically Aligned Mascots & Centered Voxel Buttons */
+.title-stage-wrapper {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 max(24px, 3.5vw);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  position: relative;
+  z-index: 15;
+  margin-top: auto;
+}
+
+/* Mascot Containers - Positioned to the far sides for clean school signage visibility */
+.mascot-character-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 12;
+  flex: 0 0 auto;
+  max-width: 330px;
+}
+
+.mascot-character-container.girl {
+  align-items: center;
+  transform: translateX(0);
+}
+
+.mascot-character-container.boy {
+  align-items: center;
+  transform: translateX(0);
+}
+
+.mascot-character-img {
+  height: 380px;
+  max-height: 44vh;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.4));
+  animation: mascot-idle 3.2s ease-in-out infinite;
+  display: block;
+}
+
+.mascot-character-container.girl .mascot-character-img {
+  animation-delay: 0.1s;
+}
+
+.mascot-character-container.boy .mascot-character-img {
+  animation-delay: 0.6s;
+}
+
+/* Speech Bubbles - Directly Over the Character's Head with Tail Pointing Down */
+.pixel-speech-bubble {
+  position: relative;
+  background: #FFFFFF;
+  border: 3.5px solid #1E293B;
+  border-radius: 16px;
+  padding: 8px 18px;
+  text-align: center;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+  margin-bottom: 10px;
+  z-index: 20;
+  animation: speech-pulse 2.8s ease-in-out infinite;
+}
+
+/* Speech Bubble Pointer Tail (Dark Border Outer) */
+.pixel-speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  border-width: 15px 11px 0;
+  border-style: solid;
+  border-color: #1E293B transparent;
+  display: block;
+  width: 0;
+  z-index: 1;
+}
+
+/* Speech Bubble Pointer Tail (White Inner Fill) */
+.pixel-speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  border-width: 12px 8px 0;
+  border-style: solid;
+  border-color: #FFFFFF transparent;
+  display: block;
+  width: 0;
+  z-index: 2;
+}
+
+.pixel-speech-bubble.left::before,
+.pixel-speech-bubble.left::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pixel-speech-bubble.right::before,
+.pixel-speech-bubble.right::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pixel-speech-text {
+  font-family: var(--font-minecraft);
+  font-size: 17px;
+  letter-spacing: 1px;
+  line-height: 1.25;
+  display: flex;
+  flex-direction: column;
+}
+
+.pixel-speech-bubble.left .pixel-speech-text {
+  color: #A21CAF;
+}
+
+.pixel-speech-bubble.right .pixel-speech-text {
+  color: #1D4ED8;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EXACT MINECRAFT VOXEL BUTTONS (VOXEL STEPPED STAIR BORDERS + MINECRAFT FONT)
+───────────────────────────────────────────────────────────────────────────── */
+.voxel-buttons-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 410px;
+  margin-bottom: 24px;
+  z-index: 25;
+}
+
+/* Outer White Stepped / Notched Pixel Border */
+.vocab-btn-frame {
+  width: 100%;
+  background: #FFFFFF;
+  padding: 4px;
+  clip-path: polygon(
+    0 10px, 4px 10px, 4px 6px, 8px 6px, 8px 0, 
+    calc(100% - 8px) 0, calc(100% - 8px) 6px, calc(100% - 4px) 6px, calc(100% - 4px) 10px, 100% 10px, 
+    100% calc(100% - 10px), calc(100% - 4px) calc(100% - 10px), calc(100% - 4px) calc(100% - 6px), calc(100% - 8px) calc(100% - 6px), calc(100% - 8px) 100%, 
+    8px 100%, 8px calc(100% - 6px), 4px calc(100% - 6px), 4px calc(100% - 10px), 0 calc(100% - 10px)
+  );
+  filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.75));
+  transition: transform 0.08s ease, filter 0.08s ease;
+  cursor: pointer;
+}
+
+.vocab-btn-frame:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.85));
+}
+
+.vocab-btn-frame:active {
+  transform: translateY(5px);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
+}
+
+/* Inner Chunky Minecraft Button Body */
+.vocab-btn {
+  width: 100%;
+  height: 64px;
+  border: 4px solid #111827;
+  clip-path: polygon(
+    0 8px, 4px 8px, 4px 4px, 6px 4px, 6px 0, 
+    calc(100% - 6px) 0, calc(100% - 6px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px, 
+    100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 6px) calc(100% - 4px), calc(100% - 6px) 100%, 
+    6px 100%, 6px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-family: var(--font-primary);
+  font-size: 28px;
   font-weight: 700;
+  color: #FFFFFF;
+  text-shadow: 
+    2px 2px 0 #000000, 
+    -1px -1px 0 #000000, 
+    1px -1px 0 #000000, 
+    -1px 1px 0 #000000;
+  outline: none;
+  cursor: pointer;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.hud-player-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  padding: 6px 16px;
-  border-radius: 14px;
+/* Green PLAY Button */
+.vocab-btn-green {
+  background: linear-gradient(180deg, #84CC16 0%, #65A30D 42%, #4D7C0F 100%);
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 #28470B;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* Blue HOW TO PLAY Button */
+.vocab-btn-blue {
+  background: linear-gradient(180deg, #38BDF8 0%, #0284C7 42%, #0369A1 100%);
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 #075985;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* Yellow SETTINGS Button */
+.vocab-btn-yellow {
+  background: linear-gradient(180deg, #FBBF24 0%, #D97706 42%, #B45309 100%);
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.45), inset 0 -4px 0 #78350F;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* Button Icons */
+.vocab-icon-play {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 #000000);
+}
+
+.vocab-icon-book {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 #000000);
+}
+
+.vocab-icon-gear {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 #000000);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   QUESTION GAMEPLAY DUAL-COLUMN LAYOUT
-   ───────────────────────────────────────────────────────────────────────────── */
-.gameplay-container {
-  display: flex;
-  gap: 20px;
-  align-items: stretch;
-  width: 100%;
-  max-width: 1060px;
-}
-
-@media (max-width: 860px) {
-  .gameplay-container {
-    flex-direction: column;
-  }
-}
-
-.main-question-card {
-  flex: 1;
-  background: var(--panel-bg);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(16px);
-}
-
-.sidebar-mascot-card {
-  width: 290px;
-  background: var(--panel-bg);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 24px;
-  padding: 24px;
+   ANIMATED LOADING SCREEN
+───────────────────────────────────────────────────────────────────────────── */
+.loading-scene-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: url('/assets/loading_bg.jpg') no-repeat center center / cover;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 60px;
+  z-index: 50;
+}
+
+.loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 24px 36px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+}
+
+.loading-text-title {
+  font-family: var(--font-minecraft);
+  font-size: 30px;
+  letter-spacing: 3px;
+  color: #FFFFFF;
+  text-shadow: 3px 3px 0 #000000, -2px -2px 0 #000000, 2px -2px 0 #000000, -2px 2px 0 #000000;
+  text-transform: uppercase;
+}
+
+.loading-segmented-bar {
+  display: flex;
+  gap: 6px;
+  background: #111827;
+  border: 4px solid #000000;
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: inset 0 4px 6px rgba(0,0,0,0.8), 0 6px 12px rgba(0,0,0,0.4);
+}
+
+.loading-segment {
+  width: 22px;
+  height: 38px;
+  border-radius: 4px;
+  background: #1F2937;
+  border: 1px solid #374151;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.loading-segment.active {
+  background: linear-gradient(180deg, #A3E635 0%, #65A30D 100%);
+  border-color: #BEF264;
+  box-shadow: 0 0 12px #84CC16, inset 0 2px 0 rgba(255,255,255,0.6);
+}
+
+.loading-text-subtitle {
+  font-family: var(--font-minecraft);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #E2E8F0;
+  text-shadow: 2px 2px 0 #000000;
+  text-transform: uppercase;
+  animation: pulse-glow 1.5s infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODALS (HOW TO PLAY, SETTINGS, IN-GAME PAUSE MENU)
+───────────────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 29, 0.78);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fade-in 0.2s ease-out;
+}
+
+.modal-dialog {
+  background: #1E293B;
+  border: 4px solid #334155;
+  border-radius: 24px;
+  padding: 26px 30px;
+  max-width: 580px;
+  width: 100%;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.85), 0 0 0 4px #0F172A;
+  position: relative;
+  animation: pop-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-voxel-box {
+  background: #1E293B;
+  border: 4px solid #334155;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.85), 0 0 0 4px #0F172A;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.modal-title {
+  font-family: var(--font-minecraft);
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: #F8FAFC;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.minecraft-gold-title {
+  color: #FDE047;
+  text-shadow: 2px 2px 0 #000000;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+
+.modal-close-btn {
+  background: #334155;
+  border: 2px solid #475569;
+  border-radius: 10px;
+  color: #94A3B8;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.voxel-close-btn {
+  background: #DC2626;
+  border: 2.5px solid #991B1B;
+  color: #FFFFFF;
+  font-family: var(--font-minecraft);
+  font-weight: 900;
+  box-shadow: 0 3px 0 #7F1D1D;
+  border-radius: 10px;
+}
+
+.voxel-close-btn:hover {
+  background: #EF4444;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 #7F1D1D;
+}
+
+.voxel-close-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #7F1D1D;
+}
+
+/* Vertical 4-Step Explanation Timeline (Spacious & Clean UI/UX) */
+.how-to-vertical-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.how-to-step-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 2.5px solid #334155;
+  border-radius: 18px;
+  padding: 14px 18px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.how-to-step-item:hover {
+  transform: translateX(6px);
+  border-color: #38BDF8;
+  background: rgba(56, 189, 248, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.step-badge-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-minecraft);
+  font-size: 18px;
+  font-weight: 900;
+  flex-shrink: 0;
+  border: 2.5px solid;
+}
+
+.step-badge-1 {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38BDF8;
+  border-color: #38BDF8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
+}
+
+.step-badge-2 {
+  background: rgba(253, 224, 71, 0.18);
+  color: #FDE047;
+  border-color: #FDE047;
+  box-shadow: 0 0 14px rgba(253, 224, 71, 0.3);
+}
+
+.step-badge-3 {
+  background: rgba(168, 85, 247, 0.18);
+  color: #C084FC;
+  border-color: #C084FC;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.3);
+}
+
+.step-badge-4 {
+  background: rgba(132, 204, 22, 0.18);
+  color: #A3E635;
+  border-color: #84CC16;
+  box-shadow: 0 0 14px rgba(132, 204, 22, 0.3);
+}
+
+.step-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-title-text {
+  font-family: var(--font-minecraft);
+  font-size: 15.5px;
+  color: #F8FAFC;
+  letter-spacing: 0.5px;
+}
+
+.step-desc-text {
+  font-size: 13.5px;
+  color: #CBD5E1;
+  line-height: 1.45;
+}
+
+/* Settings Form Controls */
+.settings-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.settings-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-slider-header {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(16px);
 }
 
-@media (max-width: 860px) {
-  .sidebar-mascot-card {
-    width: 100%;
-  }
+.minecraft-label {
+  font-family: var(--font-minecraft);
+  font-size: 13.5px;
+  color: #F8FAFC;
+  letter-spacing: 0.5px;
 }
 
-.mascot-avatar-box {
+.minecraft-value-badge {
+  font-family: var(--font-minecraft);
+  font-size: 13px;
+  color: #FDE047;
+  background: #090D16;
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 2px solid #334155;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.minecraft-range-slider {
+  -webkit-appearance: none;
   width: 100%;
-  background: #09090B;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  height: 12px;
+  border-radius: 6px;
+  background: #090D16;
+  border: 2px solid #334155;
+  outline: none;
+}
+
+.minecraft-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #F59E0B;
+  border: 2.5px solid #FFFFFF;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #92400E, 0 4px 6px rgba(0,0,0,0.5);
+  transition: transform 0.1s ease;
+}
+
+.minecraft-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #FBBF24;
+}
+
+.minecraft-checkbox {
+  width: 24px;
+  height: 24px;
+  accent-color: #84CC16;
+  cursor: pointer;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.85);
+  border: 2.5px solid #334155;
+  border-radius: 16px;
+  padding: 12px 18px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   IN-GAME HUD & TOP BAR
+───────────────────────────────────────────────────────────────────────────── */
+.game-top-bar {
+  position: fixed;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.88);
+  border: 2px solid rgba(255,255,255,0.15);
   border-radius: 18px;
+  padding: 10px 20px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.hud-btn {
+  background: #334155;
+  border: 2px solid #475569;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.hud-btn:hover {
+  background: #475569;
+  transform: translateY(-1px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   JOIN / ROOM SCREEN (IMMERSIVE EPCES MINECRAFT THEME & STUDENT AVATARS)
+───────────────────────────────────────────────────────────────────────────── */
+.join-scene-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: url('/assets/title_bg.jpg') no-repeat center center / cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
+  overflow-y: auto;
+}
+
+.join-scene-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 19, 43, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 1;
+}
+
+.join-voxel-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 520px;
+  background: #1E293B;
+  border: 4px solid #334155;
+  border-radius: 24px;
+  padding: 28px 32px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 4px #0F172A;
+  animation: pop-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.join-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.vocab-hud-btn {
+  background: #0284C7;
+  border: 2px solid #38BDF8;
+  border-radius: 10px;
+  color: #FFFFFF;
+  font-family: var(--font-minecraft);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #0369A1;
+  transition: all 0.1s ease;
+}
+
+.vocab-hud-btn:hover {
+  background: #0369A1;
+  transform: translateY(-1px);
+}
+
+.vocab-hud-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #0369A1;
+}
+
+.join-school-badge {
+  font-family: var(--font-minecraft);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #FBBF24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.join-title {
+  font-family: var(--font-minecraft);
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: #FFFFFF;
+  text-align: center;
+  text-shadow: 3px 3px 0 #000000;
+  margin-bottom: 4px;
+}
+
+.join-subtitle {
+  font-size: 13px;
+  color: #94A3B8;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.join-error-box {
+  background: rgba(244, 63, 94, 0.15);
+  border: 2px solid rgba(244, 63, 94, 0.4);
+  color: #FB7185;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
   text-align: center;
   margin-bottom: 16px;
 }
 
-.mascot-emoji {
-  font-size: 72px;
-  display: block;
-  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
-}
-
-.mascot-emoji.happy {
-  animation: bounce-happy 0.6s ease infinite alternate;
-}
-
-@keyframes bounce-happy {
-  0% { transform: translateY(0) scale(1.15); }
-  100% { transform: translateY(-10px) scale(1.25); }
-}
-
-.mascot-name {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 16px;
-  color: #FAFAFA;
-  margin-top: 8px;
-}
-
-.mascot-speech-bubble {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #34D399;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 8px 12px;
-  border-radius: 12px;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.mascot-speech-bubble.wrong {
-  background: rgba(244, 63, 94, 0.15);
-  border-color: rgba(244, 63, 94, 0.3);
-  color: #FB7185;
-}
-
-/* Sentence & Answer Styles */
-.sentence-box {
-  background: #09090B;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 16px;
-  padding: 22px;
-  font-size: 19px;
-  line-height: 1.6;
-  color: #F4F4F5;
-  text-align: center;
-}
-
-.highlighted-word {
-  background: rgba(16, 185, 129, 0.25);
-  color: #34D399;
-  border: 1px solid rgba(16, 185, 129, 0.5);
-  padding: 3px 10px;
-  border-radius: 8px;
-  font-weight: 800;
-}
-
-.answers-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.answer-card {
-  background: #09090B;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 14px;
-  padding: 16px;
-  cursor: pointer;
+.join-form {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #FAFAFA;
-  transition: all 0.15s ease;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.answer-card:hover {
-  border-color: var(--accent-emerald);
-  background: rgba(16, 185, 129, 0.08);
-  transform: translateY(-2px);
-}
-
-.answer-badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+.join-field-group {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 13px;
-  color: #A1A1AA;
-}
-
-.answer-card.correct {
-  border-color: #10B981;
-  background: rgba(16, 185, 129, 0.22);
-  color: #34D399;
-}
-
-.answer-card.wrong {
-  border-color: #F43F5E;
-  background: rgba(244, 63, 94, 0.22);
-  color: #FB7185;
-}
-
-.btn-audio {
-  background: rgba(6, 182, 212, 0.15);
-  border: 1px solid rgba(6, 182, 212, 0.35);
-  color: #38BDF8;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 10px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
+}
+
+.join-label {
+  font-family: var(--font-minecraft);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #CBD5E1;
+  text-transform: uppercase;
+}
+
+.join-input {
+  width: 100%;
+  background: #0F172A;
+  border: 2.5px solid #334155;
+  border-radius: 14px;
+  padding: 12px 16px;
+  color: #FFFFFF;
+  font-family: var(--font-minecraft);
+  font-size: 14px;
+  outline: none;
   transition: all 0.15s ease;
 }
 
-.btn-audio:hover {
-  background: rgba(6, 182, 212, 0.3);
+.join-input:focus {
+  border-color: #38BDF8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
-.btn-arcade {
-  width: 100%;
-  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-  color: #FFFFFF;
-  font-family: var(--font-heading);
-  font-weight: 700;
-  font-size: 16px;
-  padding: 14px 20px;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-  transition: transform 0.15s ease;
-}
-
-.btn-arcade:hover {
-  transform: translateY(-2px);
-}
-
-.arcade-card {
-  background: var(--panel-bg);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(16px);
-  width: 100%;
-  max-width: 580px;
-}
-
-.arcade-title {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 28px;
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.join-input-pin {
+  font-size: 24px;
+  letter-spacing: 8px;
   text-align: center;
+  color: #FDE047;
+  text-shadow: 2px 2px 0 #000000;
+  background: #090D16;
 }
 
-.arcade-subtitle {
-  color: #A1A1AA;
-  font-size: 13px;
-  text-align: center;
+/* Relatable Student Avatar Grid - Plain Clean 2D Character Display */
+.student-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
   margin-top: 4px;
 }
 
-.arcade-input {
-  width: 100%;
-  background: #09090B;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 12px;
-  padding: 12px 16px;
-  color: #FAFAFA;
-  font-size: 15px;
-}
-
-.avatar-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.avatar-card {
-  background: #09090B;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 12px 8px;
-  text-align: center;
+.student-avatar-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 6px 8px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 2.5px solid #334155;
+  border-radius: 18px;
   cursor: pointer;
+  height: 124px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.avatar-card.selected {
-  border-color: var(--accent-emerald);
-  background: rgba(16, 185, 129, 0.12);
+.student-avatar-card:hover {
+  border-color: #38BDF8;
+  background: rgba(56, 189, 248, 0.12);
+  transform: translateY(-3px);
 }
 
-.avatar-icon {
-  font-size: 28px;
+.student-avatar-card.selected {
+  background: rgba(132, 204, 22, 0.2);
+  border-color: #84CC16;
+  box-shadow: 0 0 18px rgba(132, 204, 22, 0.45);
+  transform: translateY(-3px);
+}
+
+/* Plain 2D Standing Character Sprite (No inner boxes/borders) */
+.student-avatar-img {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.45));
+  transition: transform 0.15s ease;
   display: block;
 }
 
-.avatar-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #D4D4D8;
+.student-avatar-card:hover .student-avatar-img {
+  transform: scale(1.08);
 }
+
+.student-avatar-card.selected .student-avatar-img {
+  transform: scale(1.05);
+}
+
+.student-avatar-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #84CC16;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 900;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #000000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  z-index: 10;
+  animation: pop-up 0.15s ease-out;
+}
+
+.student-avatar-label {
+  font-family: var(--font-minecraft);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #CBD5E1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.student-avatar-card.selected .student-avatar-label {
+  color: #BEF264;
+  font-weight: bold;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GAMEPLAY SCREEN
+───────────────────────────────────────────────────────────────────────────── */
+.gameplay-container {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  width: 100%;
+  max-width: 1140px;
+  margin: 60px auto 0;
+  z-index: 10;
+}
+
+.main-question-card {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(10px);
+  border: 3.5px solid #334155;
+  border-radius: 24px;
+  padding: 26px 28px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.75), 0 0 0 4px rgba(15, 23, 42, 0.6);
+}
+
+.sentence-box {
+  background: rgba(9, 13, 22, 0.85);
+  border: 2.5px solid #334155;
+  border-radius: 18px;
+  padding: 20px 24px;
+  font-size: 22px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #F8FAFC;
+  margin-bottom: 20px;
+}
+
+.highlighted-word {
+  color: #FDE047;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 #000;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.answers-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.answer-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(9, 13, 22, 0.85);
+  border: 2.5px solid #334155;
+  border-radius: 16px;
+  padding: 14px 20px;
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 500;
+  color: #F8FAFC;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.answer-card:hover {
+  border-color: #38BDF8;
+  background: rgba(56, 189, 248, 0.12);
+  transform: translateX(6px);
+}
+
+.answer-card.correct {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: #22C55E;
+  color: #86EFAC;
+}
+
+.answer-card.wrong {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #EF4444;
+  color: #FCA5A5;
+}
+
+.answer-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-primary);
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.sidebar-mascot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.mascot-avatar-box {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(10px);
+  border: 3.5px solid #334155;
+  border-radius: 24px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.75);
+}
+
+.mascot-speech-bubble {
+  margin-top: 10px;
+  background: #090D16;
+  border: 2px solid #38BDF8;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #E2E8F0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ANIMATIONS
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes logo-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes mascot-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes speech-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop-up {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CANDY CRUSH SMOOTH KID-VIBES TOP HUD
+───────────────────────────────────────────────────────────────────────────── */
+.candy-hud-top-left {
+  position: fixed;
+  top: 18px;
+  left: 20px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.candy-hud-top-right {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.candy-hud-interactive {
+  pointer-events: auto;
+}
+
+/* Character Avatar Framed Card */
+.candy-avatar-box {
+  width: 70px;
+  height: 70px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #FFFBEB 0%, #FEF3C7 45%, #FDE68A 100%);
+  border: 4px solid #F59E0B;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 3px 6px rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  cursor: pointer;
+}
+
+.candy-avatar-box:hover {
+  transform: scale(1.08) rotate(-2deg);
+  box-shadow: 0 12px 28px rgba(245, 158, 11, 0.45), inset 0 3px 6px rgba(255, 255, 255, 0.95);
+}
+
+.candy-avatar-img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.15));
+}
+
+/* Candy Star Progress Bar Widget */
+.candy-star-progress-widget {
+  display: flex;
+  align-items: center;
+  position: relative;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.32));
+  cursor: default;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.candy-star-progress-widget:hover {
+  transform: scale(1.04);
+}
+
+/* Chubby Golden Star Icon */
+.candy-star-badge-wrap {
+  width: 48px;
+  height: 48px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  margin-right: -14px;
+}
+
+.candy-star-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 6px rgba(180, 83, 9, 0.55));
+}
+
+.candy-star-value {
+  position: absolute;
+  font-family: 'Fredoka', 'Nunito', 'Arial Rounded MT Bold', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  color: #451A03;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+  z-index: 4;
+  margin-top: 1px;
+}
+
+/* Smooth Purple Pill Progress Track */
+.candy-pill-progress-track {
+  width: 130px;
+  height: 24px;
+  background: #3B0764;
+  border-radius: 999px;
+  border: 3.5px solid #FEF3C7;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35), inset 0 3px 6px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  position: relative;
+  padding: 2.5px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+/* Liquid Golden Fill Bar */
+.candy-pill-progress-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #FDE047 0%, #EAB308 50%, #CA8A04 100%);
+  border-radius: 999px;
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.9), 0 0 10px rgba(250, 204, 21, 0.7);
+  position: relative;
+  transition: width 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  min-width: 8px;
+}
+
+.candy-pill-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 1.5px;
+  left: 4px;
+  right: 4px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+}
+
+/* Candy Crush Pause / Menu Button */
+.candy-menu-btn {
+  background: linear-gradient(180deg, #FFFBEB 0%, #FDE047 40%, #F59E0B 100%);
+  border: 3.5px solid #FEF3C7;
+  border-radius: 999px;
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #451A03;
+  font-family: 'Fredoka', 'Nunito', 'Minecraft', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.candy-menu-btn:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 22px rgba(245, 158, 11, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.95);
+}
+
+.candy-menu-btn:active {
+  transform: scale(0.96);
+}
+
+/* Floating Kingdom Banner */
+.candy-zone-pill {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.95) 100%);
+  border: 3px solid #38BDF8;
+  border-radius: 999px;
+  padding: 7px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #BAE6FD;
+  font-family: 'Fredoka', 'Nunito', 'Minecraft', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+

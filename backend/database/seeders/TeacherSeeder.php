@@ -32,7 +32,7 @@ class TeacherSeeder extends Seeder
                 'title'                          => 'EPCES Adventure Entrance',
                 'question_count'                 => 3,
                 'published'                      => true,
-                'background_url'                 => 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800',
+                'background_url'                 => '/assets/kingdom_epces.jpg',
                 'background_cloudinary_public_id' => 'map_bg_1',
             ]
         );
@@ -51,10 +51,10 @@ class TeacherSeeder extends Seeder
         $map2 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 2],
             [
-                'title'                          => 'Vocabulary Cavern',
+                'title'                          => 'Bayan ng Prosperidad',
                 'question_count'                 => 5,
                 'published'                      => true,
-                'background_url'                 => 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800',
+                'background_url'                 => '/assets/kingdom_bayan.jpg',
                 'background_cloudinary_public_id' => 'map_bg_2',
             ]
         );
@@ -73,10 +73,10 @@ class TeacherSeeder extends Seeder
         $map3 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 3],
             [
-                'title'                          => 'Master Citadel',
+                'title'                          => 'Provincial Capitol',
                 'question_count'                 => 5,
                 'published'                      => true,
-                'background_url'                 => 'https://images.unsplash.com/photo-1519074069444-1ba4eff56022?w=800',
+                'background_url'                 => '/assets/kingdom_capitol.jpg',
                 'background_cloudinary_public_id' => 'map_bg_3',
             ]
         );
