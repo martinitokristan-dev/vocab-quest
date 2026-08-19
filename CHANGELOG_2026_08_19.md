@@ -6,22 +6,36 @@
 
 ## Summary of Major Changes
 
-### 1. 🗺️ Calibrated 2D Voxel World Map & Camera Lock
-- **New Voxel Map Asset**: Switched to high-resolution `vocab-quest-map.png` (native resolution: **1774 × 887**).
-- **Pixel-Perfect Node Positioning**:
-  - Connected component calibrated coordinates for all 13 quest nodes across the 3 kingdoms:
-    - **Kingdom 1 (EPCES School Grounds)**: Nodes 1–3
-    - **Kingdom 2 (Bayan ng Prosperidad)**: Nodes 4–8
-    - **Kingdom 3 (Provincial Capitol)**: Nodes 9–13
+### 1. 🗺️ Interactive 2D Voxel World Map, Smooth Pan & Boundary-Clamped Zoom
+- **High-Resolution Voxel Map Asset**: Native resolution `1774 × 887` (`vocab-quest-map.png`).
+- **Interactive Drag & Zoom with Strict Boundary Clamping**:
+  - Mouse click-and-drag and touchscreen single-finger panning with grabbing cursor.
+  - Smooth mouse wheel zooming and multi-touch 2-finger pinch-to-zoom up to **2.8x**.
+  - **Strict Edge Clamping**: Map boundaries (`WORLD_WIDTH = 1774`, `WORLD_HEIGHT = 887`) are strictly enforced so panning/zooming never exposes blank or black margins outside the artwork.
+- **Calibrated Top Roof Kingdom Nameplates**:
+  - Moved landmark plaques to the top roof peaks of each kingdom building with a downward triangular pointer notch to keep paths and node platforms fully visible.
+  - Calibrated heights:
+    - **`EPCES Kingdom`**: Positioned at `topBannerY = 265` above the green school roof.
+    - **`Bayan ng Prosperidad`**: Positioned at `topBannerY = 240` resting on the wooden rotunda peak.
+    - **`Provincial Capitol`**: Positioned at `topBannerY = 65` atop the Capitol pediment & dome.
+- **Pixel-Perfect Node Positioning & Paths**:
+  - Connected component calibrated coordinates for all 13 quest nodes across 3 kingdoms.
   - Aligned avatar standing positions on top of the pink voxel platforms (`y - 12`).
-- **Locked Map Camera**:
-  - Disabled map dragging and zooming gestures.
-  - Implemented responsive edge-to-edge scaling (`Math.max(viewportWidth / WORLD_WIDTH, viewportHeight / WORLD_HEIGHT)`) centered on screen without blank margins.
-  - Calibrated cinematic walking transition waypoints across river bridges and mountain paths.
+  - Animated walking transition waypoints across bridges and hillside paths.
 
 ---
 
-### 2. 🎙️ Teacher Voice Recording & Video Voiceover System
+### 2. 🔒 Darkened Locked Kingdoms & Realistic 3D Metallic Padlock (No Emojis)
+- **Locked Kingdom Dark Mist Overlay**:
+  - Locked kingdoms (e.g. Kingdom 2/3 before unlocking) receive a feathered radial dark shadow overlay over their building footprint to visually communicate the locked state.
+- **Realistic 3D Metallic Brass/Steel Padlock Artwork**:
+  - **Chrome Steel Shackle**: Realistic specular reflections, bright highlights, and silver gradient.
+  - **Chamfered Brass/Gold Body**: 3D rounded metallic body with golden bevel edges, rivet studs, and top sheen highlight.
+  - **Inset Keyhole & Amber Glow Aura**: Deep keyhole silhouette with soft floating bob animation and a floating `"LOCKED"` ribbon pill.
+
+---
+
+### 3. 🎙️ Teacher Voice Recording & Video Voiceover System
 - **Teacher Portal (`frontend-portal`)**:
   - **Two-Button Action UX in Question Builder Modal**:
     - **`🎙️ RECORD WITH MIC`**: Direct 1-click in-browser recording using the `MediaRecorder` API with live timer (`🔴 00:05`), audio wave indicator, and instant preview replay.
@@ -40,16 +54,16 @@
 
 ---
 
-### 3. 🔤 Google Fonts "Quicksand" Typography Overhaul
+### 4. 🔤 Google Fonts "Quicksand" Typography Overhaul
 Replaced blocky/pixelated 2D Minecraft fonts with smooth, rounded, modern **Google Fonts Quicksand** (`wght@400;500;600;700`) across both the Student Game and Teacher Portal:
 - **Buttons & Main Action Controls**: **`28px`**, **`font-weight: 700` (Bold)**.
 - **Sentence Prompts & Question Choices**: **`22px`**, **`font-weight: 500` (Medium)** for effortless, clear reading by elementary students.
 - **Subtitles, Badges & Labels**: **`18px` / `16px`**, **`font-weight: 400` (Regular)**.
-- **Canvas 2D Engine**: Updated landmark banners (`700 14px "Quicksand"`), node labels (`700 13px "Quicksand"`), and mascot speech bubbles (`700 12px "Quicksand"`).
+- **Canvas 2D Engine**: Updated landmark banners (`700 16px "Quicksand"`), node labels (`700 13px "Quicksand"`), and mascot speech bubbles (`700 12px "Quicksand"`).
 
 ---
 
-### 4. 🎨 Real Vector SVG Icon System (Zero Emojis)
+### 5. 🎨 Real Vector SVG Icon System (Zero Emojis)
 Created `frontend-game/src/icons.ts` to replace all raw OS emojis with scalable, crisp vector SVG components:
 - **Navigation & Map**: `Icons.map(size)`
 - **Menu / Pause**: `Icons.menu(size)`
@@ -58,11 +72,11 @@ Created `frontend-game/src/icons.ts` to replace all raw OS emojis with scalable,
 - **Trophy & Victory**: `Icons.trophy(size)`
 - **Quest Stars**: `Icons.star(size)` with gradient styling
 - **Buttons & Modals**: `Icons.play()`, `Icons.sparkles()`, `Icons.refresh()`, `Icons.check()`, `Icons.x()`
-- **2D Canvas Map Drawing**: Custom vector routines `drawVectorStar()` and `drawVectorLock()` for canvas rendering.
+- **2D Canvas Vector Drawing**: Custom vector routines `drawVectorStar()` and `drawRealisticPadlock()` for canvas rendering.
 
 ---
 
 ## Verification & Test Results
 - **Backend Tests**: 72 passed, 159 assertions (`php artisan test`).
-- **Frontend Game Build**: Built cleanly with Vite & TypeScript in **430ms**.
+- **Frontend Game Build**: Built cleanly with Vite & TypeScript in **358ms**.
 - **Frontend Portal Build**: Built cleanly with Vite & TypeScript in **802ms**.

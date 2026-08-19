@@ -25,6 +25,8 @@ export interface BuildingKingdom {
   icon: string;
   color: string;
   zone: string;
+  topBannerX?: number;
+  topBannerY?: number;
 }
 
 export class Game2DMapRenderer {
@@ -40,6 +42,16 @@ export class Game2DMapRenderer {
 
   private panOffset = { x: 0, y: 0 };
   private zoomLevel = 1.0;
+  private minZoom = 1.0;
+  private maxZoom = 3.2;
+
+  // Drag & Zoom interaction state
+  private isDragging = false;
+  private hasDragged = false;
+  private dragStart = { x: 0, y: 0 };
+  private dragPanStart = { x: 0, y: 0 };
+  private touchInitialDist = 0;
+  private touchInitialZoom = 1.0;
 
   private playerPos = { x: 174, y: 756 };
   private targetPlayerPos = { x: 174, y: 756 };
@@ -67,7 +79,7 @@ export class Game2DMapRenderer {
   private onWalkArrivalCallback: (() => void) | null = null;
   private lastFrameTime = 0;
 
-  // Kingdom landmarks on the voxel map
+  // Kingdom landmarks on the voxel map (with Top Roof Banner Coordinates)
   private kingdoms: BuildingKingdom[] = [
     {
       id: 1,
@@ -75,14 +87,16 @@ export class Game2DMapRenderer {
       subtitle: 'East Prosperidad Central Elementary School',
       tag: 'School Grounds & Academic Plaza',
       zone: 'Whispering Pine Heights',
-      x: 330,
-      y: 460,
+      x: 310,
+      y: 450,
       width: 310,
       height: 210,
       unlocked: true,
       totalQuestions: 3,
       icon: '🏫',
-      color: '#84CC16',
+      color: '#10B981',
+      topBannerX: 280,
+      topBannerY: 265,
     },
     {
       id: 2,
@@ -98,6 +112,8 @@ export class Game2DMapRenderer {
       totalQuestions: 5,
       icon: '🏛️',
       color: '#0284C7',
+      topBannerX: 910,
+      topBannerY: 240,
     },
     {
       id: 3,
@@ -113,6 +129,8 @@ export class Game2DMapRenderer {
       totalQuestions: 5,
       icon: '🚩',
       color: '#F59E0B',
+      topBannerX: 1530,
+      topBannerY: 65,
     },
   ];
 
@@ -164,17 +182,45 @@ export class Game2DMapRenderer {
     this.startLoop();
   }
 
+  private clampCameraBounds() {
+    const w = this.canvas.width || window.innerWidth;
+    const h = this.canvas.height || window.innerHeight;
+    const scaledW = this.WORLD_WIDTH * this.zoomLevel;
+    const scaledH = this.WORLD_HEIGHT * this.zoomLevel;
+
+    // Strict horizontal boundary clamping (never show outside world map)
+    if (scaledW <= w) {
+      this.panOffset.x = (w - scaledW) / 2;
+    } else {
+      const minX = w - scaledW;
+      const maxX = 0;
+      this.panOffset.x = Math.max(minX, Math.min(maxX, this.panOffset.x));
+    }
+
+    // Strict vertical boundary clamping (never show outside world map)
+    if (scaledH <= h) {
+      this.panOffset.y = (h - scaledH) / 2;
+    } else {
+      const minY = h - scaledH;
+      const maxY = 0;
+      this.panOffset.y = Math.max(minY, Math.min(maxY, this.panOffset.y));
+    }
+  }
+
   private fitCameraToScreen() {
     const w = this.canvas.width || window.innerWidth;
     const h = this.canvas.height || window.innerHeight;
 
-    // Cover the screen edge to edge without any empty background visible
-    const scale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
-    this.zoomLevel = scale;
+    // Minimum zoom covers the screen edge to edge without any empty space
+    const baseScale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
+    this.minZoom = baseScale;
+    this.maxZoom = baseScale * 2.8;
+    this.zoomLevel = baseScale;
 
-    // Center the 1774 x 887 voxel map on screen
-    this.panOffset.x = (w - this.WORLD_WIDTH * scale) / 2;
-    this.panOffset.y = (h - this.WORLD_HEIGHT * scale) / 2;
+    // Center the 1774 x 887 voxel map
+    this.panOffset.x = (w - this.WORLD_WIDTH * baseScale) / 2;
+    this.panOffset.y = (h - this.WORLD_HEIGHT * baseScale) / 2;
+    this.clampCameraBounds();
   }
 
   private resizeCanvas() {
@@ -352,12 +398,118 @@ export class Game2DMapRenderer {
       this.resizeCanvas();
     });
 
-    this.canvas.addEventListener('mousemove', (e) => {
-      this.handleHover(e.clientX, e.clientY);
+    // Mouse Dragging for Panning
+    this.canvas.addEventListener('mousedown', (e) => {
+      this.isDragging = true;
+      this.hasDragged = false;
+      this.dragStart = { x: e.clientX, y: e.clientY };
+      this.dragPanStart = { x: this.panOffset.x, y: this.panOffset.y };
+      this.canvas.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (this.isDragging) {
+        const dx = e.clientX - this.dragStart.x;
+        const dy = e.clientY - this.dragStart.y;
+        if (Math.hypot(dx, dy) > 5) {
+          this.hasDragged = true;
+        }
+        this.panOffset.x = this.dragPanStart.x + dx;
+        this.panOffset.y = this.dragPanStart.y + dy;
+        this.clampCameraBounds();
+      } else {
+        this.handleHover(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.canvas.style.cursor = this.hoveredStepNode || this.hoveredKingdomId ? 'pointer' : 'default';
+      }
+    });
+
+    // Mouse Wheel Zooming (towards cursor position)
+    this.canvas.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        const zoomDelta = e.deltaY < 0 ? 1.15 : 0.87;
+        const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomLevel * zoomDelta));
+
+        if (newZoom !== this.zoomLevel) {
+          const mouseX = e.clientX;
+          const mouseY = e.clientY;
+          const worldX = (mouseX - this.panOffset.x) / this.zoomLevel;
+          const worldY = (mouseY - this.panOffset.y) / this.zoomLevel;
+
+          this.zoomLevel = newZoom;
+          this.panOffset.x = mouseX - worldX * newZoom;
+          this.panOffset.y = mouseY - worldY * newZoom;
+          this.clampCameraBounds();
+        }
+      },
+      { passive: false }
+    );
+
+    // Touch Support: Dragging & 2-Finger Pinch Zoom
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.isDragging = true;
+        this.hasDragged = false;
+        this.dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        this.dragPanStart = { x: this.panOffset.x, y: this.panOffset.y };
+      } else if (e.touches.length === 2) {
+        this.isDragging = false;
+        this.touchInitialDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        this.touchInitialZoom = this.zoomLevel;
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && this.isDragging) {
+        const dx = e.touches[0].clientX - this.dragStart.x;
+        const dy = e.touches[0].clientY - this.dragStart.y;
+        if (Math.hypot(dx, dy) > 5) {
+          this.hasDragged = true;
+        }
+        this.panOffset.x = this.dragPanStart.x + dx;
+        this.panOffset.y = this.dragPanStart.y + dy;
+        this.clampCameraBounds();
+      } else if (e.touches.length === 2 && this.touchInitialDist > 0) {
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = currentDist / this.touchInitialDist;
+        const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.touchInitialZoom * factor));
+
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const worldX = (midX - this.panOffset.x) / this.zoomLevel;
+        const worldY = (midY - this.panOffset.y) / this.zoomLevel;
+
+        this.zoomLevel = newZoom;
+        this.panOffset.x = midX - worldX * newZoom;
+        this.panOffset.y = midY - worldY * newZoom;
+        this.clampCameraBounds();
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        this.isDragging = false;
+        this.touchInitialDist = 0;
+      }
     });
 
     this.canvas.addEventListener('click', (e) => {
-      this.handleClick(e.clientX, e.clientY);
+      if (!this.hasDragged) {
+        this.handleClick(e.clientX, e.clientY);
+      }
     });
   }
 
@@ -522,6 +674,9 @@ export class Game2DMapRenderer {
     // ── LAYER 2: Flowing Water Caustics & Sparkles on Lakes & Waterfalls ──
     this.drawFluidWaterLayer(time);
 
+    // ── LAYER 2.5: Dark Mist Overlay & 3D Metallic Padlocks on Locked Kingdoms ──
+    this.drawLockedKingdoms(time);
+
     // ── LAYER 3: Interactive Kingdom Banners & Badges ──
     this.drawKingdomBanners(time);
 
@@ -616,38 +771,130 @@ export class Game2DMapRenderer {
       const isHovered = this.hoveredKingdomId === k.id;
       this.ctx.save();
 
-      // Floating Minecraft Voxel Nameplate Banner
-      const bannerWidth = Math.max(190, k.name.length * 12 + 34);
-      const bannerHeight = 34;
-      const bannerY = k.y + k.height / 2 + 10;
+      // Top Floating Coordinates (floating above building roof peak)
+      const bx = k.topBannerX ?? k.x;
+      const bob = Math.sin(time * 2.5 + k.id * 1.5) * 3.5;
+      const by = (k.topBannerY ?? (k.y - 130)) + bob;
 
-      // Shadow
-      this.ctx.fillStyle = '#0F172A';
-      this.drawRoundedRect(k.x - bannerWidth / 2 + 3, bannerY - bannerHeight / 2 + 4, bannerWidth, bannerHeight, 8);
+      // Font & Measurement
+      this.ctx.font = '700 16px "Quicksand", sans-serif';
+      const text = k.name.toUpperCase();
+      const textMetrics = this.ctx.measureText(text);
+      const bannerWidth = Math.max(220, textMetrics.width + 56);
+      const bannerHeight = 42;
+      const radius = 14;
+
+      // 1. Ambient Glow Halo (for unlocked kingdoms)
+      if (k.unlocked) {
+        const glowGrad = this.ctx.createRadialGradient(bx, by, bannerHeight * 0.2, bx, by, bannerWidth * 0.7);
+        glowGrad.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+        glowGrad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        this.ctx.fillStyle = glowGrad;
+        this.ctx.beginPath();
+        this.ctx.ellipse(bx, by, bannerWidth * 0.65, bannerHeight * 1.3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      // 2. Heavy Drop Shadow
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      this.drawRoundedRect(bx - bannerWidth / 2 + 2, by - bannerHeight / 2 + 6, bannerWidth, bannerHeight, radius);
       this.ctx.fill();
 
-      // Body
-      this.ctx.fillStyle = k.unlocked ? '#1E293B' : '#0F172A';
+      // 3. Pointer Arrow Notch (Points downward toward the roof)
+      this.ctx.fillStyle = k.unlocked ? '#0F172A' : '#090D16';
       this.ctx.strokeStyle = k.unlocked ? (isHovered ? '#FDE047' : k.color) : '#475569';
-      this.ctx.lineWidth = 3;
-      this.drawRoundedRect(k.x - bannerWidth / 2, bannerY - bannerHeight / 2, bannerWidth, bannerHeight, 8);
+      this.ctx.lineWidth = 2.5;
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(bx - 8, by + bannerHeight / 2 - 1);
+      this.ctx.lineTo(bx, by + bannerHeight / 2 + 8);
+      this.ctx.lineTo(bx + 8, by + bannerHeight / 2 - 1);
+      this.ctx.closePath();
       this.ctx.fill();
       this.ctx.stroke();
 
-      // Text
-      this.ctx.font = '700 14px "Quicksand", sans-serif';
-      this.ctx.fillStyle = k.unlocked ? '#FDE047' : '#94A3B8';
+      // 4. Plaque Body (Linear Gradient)
+      const grad = this.ctx.createLinearGradient(bx, by - bannerHeight / 2, bx, by + bannerHeight / 2);
+      if (k.unlocked) {
+        grad.addColorStop(0, '#1E293B');
+        grad.addColorStop(1, '#0F172A');
+      } else {
+        grad.addColorStop(0, '#181E2C');
+        grad.addColorStop(1, '#090D16');
+      }
+      this.ctx.fillStyle = grad;
+      this.drawRoundedRect(bx - bannerWidth / 2, by - bannerHeight / 2, bannerWidth, bannerHeight, radius);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      // 5. Inner Top Glass Highlight
+      this.ctx.strokeStyle = k.unlocked ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.12)';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(bx - bannerWidth / 2 + radius, by - bannerHeight / 2 + 2);
+      this.ctx.lineTo(bx + bannerWidth / 2 - radius, by - bannerHeight / 2 + 2);
+      this.ctx.stroke();
+
+      // 6. Left Status Indicator Dot / Icon
+      const dotX = bx - bannerWidth / 2 + 20;
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, by, 5, 0, Math.PI * 2);
+      this.ctx.fillStyle = k.unlocked ? '#34D399' : '#64748B';
+      this.ctx.fill();
+      this.ctx.strokeStyle = k.unlocked ? '#059669' : '#334155';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.stroke();
+
+      // 7. High-Contrast Text
+      this.ctx.font = '700 16px "Quicksand", sans-serif';
+      this.ctx.fillStyle = k.unlocked ? (isHovered ? '#FEF08A' : '#FDE047') : '#94A3B8';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(k.name.toUpperCase(), k.x, bannerY);
 
-      // Lock Emblem for locked kingdoms
-      if (!k.unlocked) {
-        const padY = k.y + Math.sin(time * 2.5) * 3;
-        this.drawVectorLock(k.x, padY);
-      }
+      // Soft text shadow for maximum legibility against rich voxel backgrounds
+      this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      this.ctx.shadowBlur = 4;
+      this.ctx.shadowOffsetX = 1;
+      this.ctx.shadowOffsetY = 1;
+      this.ctx.fillText(text, bx + 6, by);
+
+      // Reset shadow
+      this.ctx.shadowColor = 'transparent';
+      this.ctx.shadowBlur = 0;
+      this.ctx.shadowOffsetX = 0;
+      this.ctx.shadowOffsetY = 0;
 
       this.ctx.restore();
+    });
+  }
+
+  /**
+   * Layer 2.5: Dark Mist Overlay & 3D Metallic Padlock on Locked Kingdoms
+   */
+  private drawLockedKingdoms(time: number) {
+    this.kingdoms.forEach((k) => {
+      if (!k.unlocked) {
+        this.ctx.save();
+
+        // 1. Soft Dark Feathered Mask over the locked kingdom structure
+        const maskW = k.width + 80;
+        const maskH = k.height + 60;
+        const darkGrad = this.ctx.createRadialGradient(k.x, k.y, k.width * 0.15, k.x, k.y, maskW * 0.58);
+        darkGrad.addColorStop(0, 'rgba(2, 6, 23, 0.76)');
+        darkGrad.addColorStop(0.55, 'rgba(15, 23, 42, 0.65)');
+        darkGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+
+        this.ctx.fillStyle = darkGrad;
+        this.ctx.beginPath();
+        this.ctx.ellipse(k.x, k.y, maskW * 0.55, maskH * 0.55, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // 2. Realistic 3D Metallic Padlock with gentle floating bob
+        const padBob = Math.sin(time * 3 + k.id * 1.5) * 4;
+        this.drawRealisticPadlock(k.x, k.y + padBob, 42);
+
+        this.ctx.restore();
+      }
     });
   }
 
@@ -681,29 +928,129 @@ export class Game2DMapRenderer {
     this.ctx.stroke();
   }
 
-  private drawVectorLock(x: number, y: number) {
+  /**
+   * Realistic 3D Metallic Brass/Steel Padlock (Not an Emoji)
+   */
+  private drawRealisticPadlock(x: number, y: number, size = 42) {
     this.ctx.save();
-    // Shackle
+
+    // 1. Ambient Glow Aura behind the lock
+    const glow = this.ctx.createRadialGradient(x, y, size * 0.2, x, y, size * 1.35);
+    glow.addColorStop(0, 'rgba(245, 158, 11, 0.42)');
+    glow.addColorStop(0.55, 'rgba(217, 119, 6, 0.18)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    this.ctx.fillStyle = glow;
     this.ctx.beginPath();
-    this.ctx.arc(x, y - 6, 8, Math.PI, 0, false);
-    this.ctx.strokeStyle = '#E2E8F0';
-    this.ctx.lineWidth = 3.5;
+    this.ctx.arc(x, y, size * 1.35, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // 2. Heavy Cast Drop Shadow under padlock
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    this.ctx.beginPath();
+    this.ctx.ellipse(x, y + size * 0.65, size * 0.55, size * 0.2, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // 3. Shackle (Hardened Chrome Steel Arch with Realistic Specular Highlight)
+    const shackleR = size * 0.32;
+    const shackleThick = size * 0.16;
+    const shackleY = y - size * 0.14;
+
+    this.ctx.beginPath();
+    this.ctx.arc(x, shackleY, shackleR, Math.PI, 0, false);
+    this.ctx.lineTo(x + shackleR, y + size * 0.12);
+    this.ctx.lineTo(x + shackleR - shackleThick, y + size * 0.12);
+    this.ctx.lineTo(x + shackleR - shackleThick, shackleY);
+    this.ctx.arc(x, shackleY, shackleR - shackleThick, 0, Math.PI, true);
+    this.ctx.lineTo(x - shackleR, y + size * 0.12);
+    this.ctx.closePath();
+
+    const shackleGrad = this.ctx.createLinearGradient(x - shackleR, shackleY, x + shackleR, shackleY);
+    shackleGrad.addColorStop(0, '#475569');
+    shackleGrad.addColorStop(0.25, '#CBD5E1');
+    shackleGrad.addColorStop(0.48, '#FFFFFF');
+    shackleGrad.addColorStop(0.72, '#94A3B8');
+    shackleGrad.addColorStop(1, '#334155');
+
+    this.ctx.fillStyle = shackleGrad;
+    this.ctx.strokeStyle = '#0F172A';
+    this.ctx.lineWidth = 2.5;
+    this.ctx.fill();
     this.ctx.stroke();
 
-    // Body
-    this.ctx.fillStyle = '#F59E0B';
-    this.ctx.strokeStyle = '#B45309';
+    // 4. Padlock Metallic Body
+    const bodyW = size * 0.96;
+    const bodyH = size * 0.78;
+    const bodyX = x - bodyW / 2;
+    const bodyY = y - size * 0.04;
+    const cornerR = 9;
+
+    // Metallic Brass / Golden Gradient
+    const bodyGrad = this.ctx.createLinearGradient(bodyX, bodyY, bodyX + bodyW, bodyY + bodyH);
+    bodyGrad.addColorStop(0, '#FEF08A');
+    bodyGrad.addColorStop(0.18, '#F59E0B');
+    bodyGrad.addColorStop(0.65, '#D97706');
+    bodyGrad.addColorStop(0.85, '#B45309');
+    bodyGrad.addColorStop(1, '#78350F');
+
+    this.ctx.fillStyle = bodyGrad;
+    this.ctx.strokeStyle = '#451A03';
+    this.ctx.lineWidth = 3;
+    this.drawRoundedRect(bodyX, bodyY, bodyW, bodyH, cornerR);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Inner Metallic Bevel Highlight Line
+    this.ctx.strokeStyle = 'rgba(254, 240, 138, 0.75)';
+    this.ctx.lineWidth = 1.5;
+    this.drawRoundedRect(bodyX + 2.5, bodyY + 2.5, bodyW - 5, bodyH - 5, cornerR - 2);
+    this.ctx.stroke();
+
+    // Top Metallic Sheen Bar
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    this.ctx.beginPath();
+    this.drawRoundedRect(bodyX + 6, bodyY + 4, bodyW - 12, 3, 2);
+    this.ctx.fill();
+
+    // 5. Inset Keyhole
+    const keyY = bodyY + bodyH * 0.44;
+    this.ctx.fillStyle = '#0F172A';
+    this.ctx.strokeStyle = '#78350F';
+    this.ctx.lineWidth = 1.5;
+
+    // Circle
+    this.ctx.beginPath();
+    this.ctx.arc(x, keyY, size * 0.12, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Slot
+    this.ctx.beginPath();
+    this.ctx.moveTo(x - size * 0.06, keyY + size * 0.04);
+    this.ctx.lineTo(x + size * 0.06, keyY + size * 0.04);
+    this.ctx.lineTo(x + size * 0.04, keyY + size * 0.22);
+    this.ctx.lineTo(x - size * 0.04, keyY + size * 0.22);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // 6. Floating "LOCKED" Ribbon Pill Badge Below Padlock
+    const badgeW = 76;
+    const badgeH = 22;
+    const badgeY = bodyY + bodyH + 14;
+
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+    this.ctx.strokeStyle = '#F59E0B';
     this.ctx.lineWidth = 2;
-    this.drawRoundedRect(x - 11, y - 6, 22, 18, 4);
+    this.drawRoundedRect(x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 7);
     this.ctx.fill();
     this.ctx.stroke();
 
-    // Keyhole
-    this.ctx.fillStyle = '#78350F';
-    this.ctx.beginPath();
-    this.ctx.arc(x, y + 1, 2.5, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.fillRect(x - 1.5, y + 2, 3, 5);
+    this.ctx.font = '700 12px "Quicksand", sans-serif';
+    this.ctx.fillStyle = '#FDE047';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText('LOCKED', x, badgeY);
+
     this.ctx.restore();
   }
 
