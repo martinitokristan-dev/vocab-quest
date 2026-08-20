@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const RAW_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000').trim();
+export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
+export const API_BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export interface JoinGameResponse {
   message: string;

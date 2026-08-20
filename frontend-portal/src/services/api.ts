@@ -1,7 +1,8 @@
 // API Client Service for Teacher Portal (architecture.md Â§7)
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+const RAW_URL = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim();
+export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
+export const API_BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export function resolveMediaUrl(url?: string | null): string {
   if (!url) return '';
