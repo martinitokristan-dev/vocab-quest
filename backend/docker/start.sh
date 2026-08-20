@@ -3,17 +3,13 @@ set -e
 
 cd /var/www/html
 
-echo "==> Caching Laravel config..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+echo "==> Caching Laravel config and routes..."
+php artisan config:cache || true
+php artisan route:cache || true
+php artisan view:cache || true
 
 echo "==> Running database migrations..."
-php artisan migrate --force
+php artisan migrate --force || true
 
-echo "==> Creating queue jobs table if missing..."
-php artisan queue:table 2>/dev/null || true
-php artisan migrate --force
-
-echo "==> Starting services..."
+echo "==> Starting Nginx, PHP-FPM, and Queue Worker..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
