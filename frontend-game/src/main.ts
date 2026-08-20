@@ -561,9 +561,16 @@ class StudentArcadeGame {
 
         if (customPraise?.audio_url) {
           // Play teacher's authentic recorded voice praise
-          soundManager.playCustomVoiceRecording(customPraise.audio_url, undefined, () => {
-            setTimeout(advanceToNext, 800);
-          });
+          soundManager.playCustomVoiceRecording(
+            customPraise.audio_url,
+            undefined,
+            () => {
+              setTimeout(advanceToNext, 800);
+            },
+            () => {
+              advanceToNext();
+            }
+          );
         } else {
           // Speak fallback praise and advance
           soundManager.speakPraise(praiseText, () => {
@@ -571,8 +578,8 @@ class StudentArcadeGame {
           });
         }
 
-        // Safety fallback timer
-        setTimeout(advanceToNext, 8000);
+        // Safety fallback timer (advances in max 3.5s if speech is muted/silent)
+        setTimeout(advanceToNext, 3500);
       } else {
         // --- 2. WRONG ANSWER: SHUFFLED TEACHER CHEER-UP ENCOURAGEMENT ---
         const activeCheerClips = this.feedbackAudios.cheer_up.filter((c) => c.is_active !== false);
