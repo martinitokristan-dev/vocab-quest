@@ -359,8 +359,9 @@ class StudentArcadeGame {
 
         let mergedHistory = [...this.state.history];
         if (res.data.completed_questions && res.data.completed_questions.length > 0) {
-          res.data.completed_questions.forEach((cq) => {
+          res.data.completed_questions.forEach((cq: any) => {
             const existingIdx = mergedHistory.findIndex((h) => h.questionId === cq.question_id);
+            const starsCount = cq.stars ?? 3;
             if (existingIdx === -1) {
               mergedHistory.push({
                 questionId: cq.question_id,
@@ -369,7 +370,7 @@ class StudentArcadeGame {
                 questionIndex: cq.order_index,
                 word: cq.word,
                 isCorrect: true,
-                stars: 3,
+                stars: starsCount,
               });
             } else {
               mergedHistory[existingIdx] = {
@@ -377,6 +378,7 @@ class StudentArcadeGame {
                 mapId: cq.map_id,
                 orderIndex: cq.order_index,
                 questionIndex: cq.order_index,
+                stars: starsCount,
               };
             }
           });
@@ -1023,9 +1025,7 @@ class StudentArcadeGame {
       );
 
       this.mapRenderer.onStepClick(() => {
-        const isWaiting = this.state.roomStatus === 'waiting' ||
-                          this.state.currentData?.room_status === 'waiting' ||
-                          this.state.currentData?.data?.room_status === 'waiting';
+        const isWaiting = this.state.roomStatus === 'waiting';
 
         if (isWaiting) {
           soundManager.playHover();
@@ -1045,9 +1045,7 @@ class StudentArcadeGame {
         this.mapRenderer.animateWalkingPath(path, unlockMsg, () => {
           setTimeout(() => {
             if (this.state.screen === 'world_map') {
-              const isWaiting = this.state.roomStatus === 'waiting' ||
-                                this.state.currentData?.room_status === 'waiting' ||
-                                this.state.currentData?.data?.room_status === 'waiting';
+              const isWaiting = this.state.roomStatus === 'waiting';
               if (isWaiting) {
                 this.showToast(
                   'Session Not Started',
