@@ -113,7 +113,11 @@ class SoundManager {
   }
 
   public isNarrating(): boolean {
-    return this.isSpeechActive;
+    return (
+      this.isSpeechActive ||
+      Boolean(this.activeUtterance) ||
+      (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking)
+    );
   }
 
   // --- Sound Effects using Web Audio API ---
@@ -494,7 +498,8 @@ class SoundManager {
   public playCustomVoiceRecording(
     url: string,
     onStart?: () => void,
-    onEnd?: () => void
+    onEnd?: () => void,
+    onErrorFallback?: () => void
   ) {
     if (typeof window === 'undefined') return;
     this.stopSpeech();
@@ -521,17 +526,33 @@ class SoundManager {
       audio.onended = handleEnd;
       audio.onerror = (e) => {
         console.warn('Voice recording audio failed to play:', e);
-        handleEnd();
+        this.isSpeechActive = false;
+        this.currentVoiceAudio = null;
+        if (onErrorFallback) {
+          onErrorFallback();
+        } else {
+          handleEnd();
+        }
       };
 
       audio.play().catch((err) => {
         console.warn('Auto-playback prevented or failed:', err);
-        handleEnd();
+        this.isSpeechActive = false;
+        this.currentVoiceAudio = null;
+        if (onErrorFallback) {
+          onErrorFallback();
+        } else {
+          handleEnd();
+        }
       });
     } catch (err) {
       console.warn('Failed to load voice audio:', err);
       this.isSpeechActive = false;
-      if (onEnd) onEnd();
+      if (onErrorFallback) {
+        onErrorFallback();
+      } else if (onEnd) {
+        onEnd();
+      }
     }
   }
 
