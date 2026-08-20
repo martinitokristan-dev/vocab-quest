@@ -17,6 +17,7 @@ class StudentQuestionResource extends JsonResource
 
         return [
             'id'                        => $this->id,
+            'order_index'               => $this->order_index,
             'sentence'                  => $this->sentence,
             'highlighted_word'          => $this->highlighted_word,
             'audio_url'                 => $this->voice_audio_url ?? $approvedAudio?->url,

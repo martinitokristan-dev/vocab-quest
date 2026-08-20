@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\Services\CloudinaryAudioContract;
 use App\Http\Resources\QuestionResource;
 use App\Models\Map;
 use App\Models\Question;
@@ -9,6 +10,7 @@ use App\Services\Vocabulary\VocabularyCacheService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -18,7 +20,8 @@ class QuestionController extends Controller
     use AuthorizesRequests;
 
     public function __construct(
-        private readonly VocabularyCacheService $vocabCache
+        private readonly VocabularyCacheService $vocabCache,
+        private readonly CloudinaryAudioContract $cloudinaryService
     ) {}
 
     public function index(Map $map): JsonResponse
@@ -64,32 +67,28 @@ class QuestionController extends Controller
 
         // Handle uploaded image file if present
         $imageUrl = $validated['image_url'] ?? null;
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('questions', 'public');
-            $imageUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('image_file')) {
-            $path = $request->file('image_file')->store('questions', 'public');
-            $imageUrl = asset('storage/' . $path);
+        $imagePublicId = $validated['image_cloudinary_public_id'] ?? null;
+        $imageFile = $request->file('image') ?? $request->file('image_file');
+        if ($imageFile) {
+            $upload = $this->cloudinaryService->uploadFile($imageFile, 'questions/images', 'image');
+            $imageUrl = $upload['url'];
+            $imagePublicId = $upload['public_id'];
         }
 
         // Handle uploaded voice audio file if present
         $voiceAudioUrl = $validated['voice_audio_url'] ?? null;
-        if ($request->hasFile('voice_audio')) {
-            $path = $request->file('voice_audio')->store('questions/audio', 'public');
-            $voiceAudioUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('voice_audio_file')) {
-            $path = $request->file('voice_audio_file')->store('questions/audio', 'public');
-            $voiceAudioUrl = asset('storage/' . $path);
+        $audioFile = $request->file('voice_audio') ?? $request->file('voice_audio_file');
+        if ($audioFile) {
+            $upload = $this->cloudinaryService->uploadFile($audioFile, 'questions/audio', 'video');
+            $voiceAudioUrl = $upload['url'];
         }
 
         // Handle uploaded voice video file if present
         $voiceVideoUrl = $validated['voice_video_url'] ?? null;
-        if ($request->hasFile('voice_video')) {
-            $path = $request->file('voice_video')->store('questions/video', 'public');
-            $voiceVideoUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('voice_video_file')) {
-            $path = $request->file('voice_video_file')->store('questions/video', 'public');
-            $voiceVideoUrl = asset('storage/' . $path);
+        $videoFile = $request->file('voice_video') ?? $request->file('voice_video_file');
+        if ($videoFile) {
+            $upload = $this->cloudinaryService->uploadFile($videoFile, 'questions/video', 'video');
+            $voiceVideoUrl = $upload['url'];
         }
 
         $voiceMediaType = $validated['voice_media_type'] ?? 'none';
@@ -119,7 +118,7 @@ class QuestionController extends Controller
             'sentence'                   => $validated['sentence'],
             'highlighted_word'           => strtolower($validated['highlighted_word']),
             'image_url'                  => $imageUrl,
-            'image_cloudinary_public_id' => $validated['image_cloudinary_public_id'] ?? null,
+            'image_cloudinary_public_id' => $imagePublicId,
             'voice_audio_url'            => $voiceAudioUrl,
             'voice_video_url'            => $voiceVideoUrl,
             'voice_media_type'           => $voiceMediaType,
@@ -131,8 +130,9 @@ class QuestionController extends Controller
             $question->answers()->create($ans);
         }
 
-        // Update map question count
+        // Update map question count and clear in-memory questions cache
         $map->update(['question_count' => $map->questions()->count()]);
+        Cache::forget("map_questions_{$map->id}");
 
         // Phase 4 — Auto-check vocabulary audio cache for highlighted word
         $this->vocabCache->getOrTriggerAudio(strtolower($validated['highlighted_word']));
@@ -183,30 +183,26 @@ class QuestionController extends Controller
         ]);
 
         $imageUrl = $validated['image_url'] ?? $question->image_url;
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('questions', 'public');
-            $imageUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('image_file')) {
-            $path = $request->file('image_file')->store('questions', 'public');
-            $imageUrl = asset('storage/' . $path);
+        $imagePublicId = $validated['image_cloudinary_public_id'] ?? $question->image_cloudinary_public_id;
+        $imageFile = $request->file('image') ?? $request->file('image_file');
+        if ($imageFile) {
+            $upload = $this->cloudinaryService->uploadFile($imageFile, 'questions/images', 'image');
+            $imageUrl = $upload['url'];
+            $imagePublicId = $upload['public_id'];
         }
 
         $voiceAudioUrl = array_key_exists('voice_audio_url', $validated) ? $validated['voice_audio_url'] : $question->voice_audio_url;
-        if ($request->hasFile('voice_audio')) {
-            $path = $request->file('voice_audio')->store('questions/audio', 'public');
-            $voiceAudioUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('voice_audio_file')) {
-            $path = $request->file('voice_audio_file')->store('questions/audio', 'public');
-            $voiceAudioUrl = asset('storage/' . $path);
+        $audioFile = $request->file('voice_audio') ?? $request->file('voice_audio_file');
+        if ($audioFile) {
+            $upload = $this->cloudinaryService->uploadFile($audioFile, 'questions/audio', 'video');
+            $voiceAudioUrl = $upload['url'];
         }
 
         $voiceVideoUrl = array_key_exists('voice_video_url', $validated) ? $validated['voice_video_url'] : $question->voice_video_url;
-        if ($request->hasFile('voice_video')) {
-            $path = $request->file('voice_video')->store('questions/video', 'public');
-            $voiceVideoUrl = asset('storage/' . $path);
-        } elseif ($request->hasFile('voice_video_file')) {
-            $path = $request->file('voice_video_file')->store('questions/video', 'public');
-            $voiceVideoUrl = asset('storage/' . $path);
+        $videoFile = $request->file('voice_video') ?? $request->file('voice_video_file');
+        if ($videoFile) {
+            $upload = $this->cloudinaryService->uploadFile($videoFile, 'questions/video', 'video');
+            $voiceVideoUrl = $upload['url'];
         }
 
         $voiceMediaType = $validated['voice_media_type'] ?? $question->voice_media_type;
@@ -254,6 +250,7 @@ class QuestionController extends Controller
         ]);
 
         $this->vocabCache->getOrTriggerAudio($word);
+        Cache::forget("map_questions_{$question->map_id}");
 
         $question->load('answers');
 
@@ -268,6 +265,7 @@ class QuestionController extends Controller
         $question->delete();
 
         $map->update(['question_count' => $map->questions()->count()]);
+        Cache::forget("map_questions_{$map->id}");
 
         return response()->json(null, 204);
     }

@@ -18,6 +18,8 @@ export interface CurrentQuestionResponse {
   message?: string;
   is_completed?: boolean;
   total_correct?: number;
+  is_paused?: boolean;
+  room_status?: string;
   data?: {
     session: {
       score: number;
@@ -27,9 +29,12 @@ export interface CurrentQuestionResponse {
       id: number;
       order_index: number;
       title: string;
+      total_questions?: number;
+      current_question_num?: number;
     };
     question: {
       id: number;
+      order_index?: number;
       sentence: string;
       highlighted_word: string;
       image_url: string | null;
@@ -39,6 +44,14 @@ export interface CurrentQuestionResponse {
       voice_media_type?: 'audio' | 'video' | 'none' | null;
       answers: AnswerChoice[];
     };
+    completed_questions?: Array<{
+      question_id: number;
+      map_id: number;
+      order_index: number;
+      word: string;
+    }>;
+    is_paused?: boolean;
+    room_status?: string;
   };
 }
 
@@ -48,25 +61,60 @@ export interface SubmitAnswerResponse {
   message: string;
 }
 
+export interface GameStatusResponse {
+  is_paused: boolean;
+  is_completed: boolean;
+  room_status: string;
+  score: number;
+}
+
 class StudentGameApiClient {
   private token: string | null = null;
 
   constructor() {
-    this.token = sessionStorage.getItem('student_session_token');
+    this.token = localStorage.getItem('student_session_token');
   }
 
   setToken(token: string) {
     this.token = token;
-    sessionStorage.setItem('student_session_token', token);
+    localStorage.setItem('student_session_token', token);
   }
 
-  getToken() {
-    return this.token || sessionStorage.getItem('student_session_token');
+  getToken(): string | null {
+    return this.token || localStorage.getItem('student_session_token');
+  }
+
+  saveSessionProfile(token: string, playerName: string, avatarSlug: string, pin: string) {
+    this.setToken(token);
+    localStorage.setItem('student_player_name', playerName);
+    localStorage.setItem('student_avatar_slug', avatarSlug);
+    localStorage.setItem('student_pin', pin);
+  }
+
+  getSessionProfile(): {
+    token: string | null;
+    playerName: string;
+    avatarSlug: string;
+    pin: string;
+  } {
+    return {
+      token: this.getToken(),
+      playerName: localStorage.getItem('student_player_name') || '',
+      avatarSlug: localStorage.getItem('student_avatar_slug') || 'learner-girl',
+      pin: localStorage.getItem('student_pin') || '',
+    };
   }
 
   clearToken() {
+    this.clearSession();
+  }
+
+  clearSession() {
     this.token = null;
-    sessionStorage.removeItem('student_session_token');
+    localStorage.removeItem('student_session_token');
+    localStorage.removeItem('student_player_name');
+    localStorage.removeItem('student_avatar_slug');
+    localStorage.removeItem('student_pin');
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -99,7 +147,7 @@ class StudentGameApiClient {
     });
 
     if (res.token) {
-      this.setToken(res.token);
+      this.saveSessionProfile(res.token, player_name, avatar_slug, pin);
     }
 
     return res;
@@ -109,14 +157,32 @@ class StudentGameApiClient {
     return this.request<CurrentQuestionResponse>('/game/question');
   }
 
-  async submitAnswer(questionId: number, answerId: number): Promise<SubmitAnswerResponse> {
+  async getGameStatus(): Promise<GameStatusResponse> {
+    return this.request<GameStatusResponse>('/game/status');
+  }
+
+  async submitAnswer(questionId: number, answerId: number, stars: number = 3): Promise<SubmitAnswerResponse> {
     return this.request<SubmitAnswerResponse>('/game/answer', {
       method: 'POST',
       body: JSON.stringify({
         question_id: questionId,
         answer_id: answerId,
+        stars,
       }),
     });
+  }
+
+  async getFeedbackAudios(): Promise<{
+    praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
+    cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
+  }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/game/feedback-audios`);
+      if (!res.ok) return { praise: [], cheer_up: [] };
+      return res.json();
+    } catch {
+      return { praise: [], cheer_up: [] };
+    }
   }
 }
 

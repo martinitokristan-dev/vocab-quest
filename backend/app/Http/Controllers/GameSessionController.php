@@ -35,6 +35,14 @@ class GameSessionController extends Controller
             ]);
         }
 
+        $currentCount = $room->gameSessions()->count();
+        $maxStudents = $room->max_students ?? 40;
+        if ($currentCount >= $maxStudents) {
+            throw ValidationException::withMessages([
+                'pin' => ["Room is full ({$currentCount}/{$maxStudents} pupils). Ask your teacher to increase capacity or open another room."],
+            ]);
+        }
+
         $session = GameSession::create([
             'room_id'        => $room->id,
             'current_map_id' => $room->current_map_id,

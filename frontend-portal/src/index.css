@@ -26,6 +26,30 @@ input:-webkit-autofill:active {
   box-shadow: inset 0 0 20px 20px #09090B !important;
 }
 
+/* Modern Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(9, 9, 11, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(9, 9, 11, 0.6);
+}
+
 /* Minimalist Surface Card & Glass Panel */
 .surface-card, .glass-panel {
   background-color: #121215;

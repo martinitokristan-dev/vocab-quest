@@ -10,34 +10,70 @@ use App\Models\Question;
 use App\Models\StudentAnswer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
-// Phase 5 — Student Gameplay Controller (architecture.md §6, rules-and-validation §4 + §5)
+// Phase 5 — High-Performance Student Gameplay Controller (RAM Caching & Zero-Lag)
 class GameQuestionController extends Controller
 {
+    public function status(Request $request): JsonResponse
+    {
+        /** @var GameSession $session */
+        $session = $request->attributes->get('game_session');
+
+        // Cache room status for 2 seconds — 500 students polling = 1 DB read per 2s not 500
+        $roomStatus = Cache::remember("room_status_{$session->room_id}", 2, function () use ($session) {
+            $room = $session->room()->first();
+            return $room ? $room->status : 'closed';
+        });
+
+        return response()->json([
+            'is_paused'    => $roomStatus === 'paused',
+            'is_completed' => (bool) $session->is_completed,
+            'room_status'  => $roomStatus,
+            'score'        => $session->score,
+        ]);
+    }
+
     public function show(Request $request): JsonResponse
     {
         /** @var GameSession $session */
         $session = $request->attributes->get('game_session');
+
+        // Cache room status for 2 seconds per room
+        $roomStatus = Cache::remember("room_status_{$session->room_id}", 2, function () use ($session) {
+            $room = $session->room()->first();
+            return $room ? $room->status : 'closed';
+        });
+        $isPaused = $roomStatus === 'paused';
 
         if ($session->is_completed) {
             return response()->json([
                 'message'       => 'Session completed. No more questions available.',
                 'is_completed'  => true,
                 'total_correct' => $session->score,
+                'is_paused'     => $isPaused,
+                'room_status'   => $roomStatus,
             ]);
         }
 
-        // Get answered questions that were completed correctly on the student's current map
-        $answeredIds = StudentAnswer::where('game_session_id', $session->id)
-            ->where('map_id', $session->current_map_id)
-            ->where('is_correct', true)
-            ->pluck('question_id');
+        // Retrieve static stage questions from in-memory file cache (1ms response)
+        $mapQuestions = Cache::remember("map_questions_{$session->current_map_id}", 3600, function () use ($session) {
+            return Question::where('map_id', $session->current_map_id)
+                ->with('answers')
+                ->orderBy('order_index')
+                ->get();
+        });
 
-        $nextQuestion = Question::where('map_id', $session->current_map_id)
-            ->whereNotIn('id', $answeredIds)
-            ->orderBy('order_index')
-            ->first();
+        // Single query for all student answers on current map — avoids two separate DB hits
+        $allAnswers = StudentAnswer::where('game_session_id', $session->id)
+            ->where('map_id', $session->current_map_id)
+            ->with('question:id,map_id,order_index,highlighted_word')
+            ->get();
+
+        $answeredIds = $allAnswers->where('is_correct', true)->pluck('question_id');
+
+        $nextQuestion = $mapQuestions->first(fn ($q) => ! $answeredIds->contains($q->id));
 
         if (! $nextQuestion) {
             $advanceAction = app(AdvanceMapProgressionAction::class);
@@ -48,14 +84,23 @@ class GameQuestionController extends Controller
                     'message'       => 'Session completed. No more questions available.',
                     'is_completed'  => true,
                     'total_correct' => $advancedSession->score,
+                    'is_paused'     => $isPaused,
+                    'room_status'   => $roomStatus,
                 ]);
             }
 
-            // Update the request attribute to the fresh session before recursing
             $request->attributes->set('game_session', $advancedSession);
-
             return $this->show($request);
         }
+
+        $completedQuestions = $allAnswers
+            ->where('is_correct', true)
+            ->map(fn ($sa) => [
+                'question_id' => $sa->question_id,
+                'map_id'      => $sa->map_id,
+                'order_index' => $sa->question?->order_index ?? 1,
+                'word'        => $sa->question?->highlighted_word ?? '',
+            ]);
 
         return response()->json([
             'data' => [
@@ -64,11 +109,16 @@ class GameQuestionController extends Controller
                     'is_completed' => false,
                 ],
                 'map'          => [
-                    'id'          => $session->currentMap->id,
-                    'order_index' => $session->currentMap->order_index,
-                    'title'       => $session->currentMap->title,
+                    'id'                   => $session->currentMap->id,
+                    'order_index'          => $session->currentMap->order_index,
+                    'title'                => $session->currentMap->title,
+                    'total_questions'      => $mapQuestions->count(),
+                    'current_question_num' => $nextQuestion->order_index,
                 ],
-                'question'     => new StudentQuestionResource($nextQuestion),
+                'question'            => new StudentQuestionResource($nextQuestion),
+                'completed_questions' => $completedQuestions,
+                'is_paused'           => $isPaused,
+                'room_status'         => $roomStatus,
             ],
         ]);
     }
@@ -77,6 +127,14 @@ class GameQuestionController extends Controller
     {
         /** @var GameSession $session */
         $session = $request->attributes->get('game_session');
+
+        // Check if teacher has paused the session
+        $room = $session->room;
+        if ($room && $room->status === 'paused') {
+            throw ValidationException::withMessages([
+                'room' => ['Session is currently paused by the teacher.'],
+            ]);
+        }
 
         if ($session->is_completed) {
             throw ValidationException::withMessages([
@@ -87,6 +145,8 @@ class GameQuestionController extends Controller
         $validated = $request->validate([
             'question_id' => ['required', 'exists:questions,id'],
             'answer_id'   => ['required', 'exists:answers,id'],
+            'stars'       => ['nullable', 'integer', 'min:0', 'max:3'],
+            'attempts'    => ['nullable', 'integer', 'min:1'],
         ]);
 
         $question = Question::findOrFail($validated['question_id']);
@@ -105,8 +165,10 @@ class GameQuestionController extends Controller
         }
 
         $isCorrect = $answer->is_correct;
+        $starsAwarded = $isCorrect ? ($validated['stars'] ?? 1) : 0;
+        $attemptsCount = $validated['attempts'] ?? 1;
 
-        // Record or update student answer attempt
+        // Record or update student answer attempt with stars and attempts
         StudentAnswer::updateOrCreate(
             [
                 'game_session_id' => $session->id,
@@ -116,12 +178,17 @@ class GameQuestionController extends Controller
                 'map_id'     => $session->current_map_id,
                 'answer_id'  => $answer->id,
                 'is_correct' => $isCorrect,
+                'stars'      => $starsAwarded,
+                'attempts'   => $attemptsCount,
             ]
         );
 
-        // Increment score if correct
+        // Recalculate total stars for session directly from sum of stars
         if ($isCorrect) {
-            $session->increment('score');
+            $totalSessionStars = StudentAnswer::where('game_session_id', $session->id)
+                ->where('is_correct', true)
+                ->sum('stars');
+            $session->update(['score' => $totalSessionStars]);
         }
 
         return response()->json([

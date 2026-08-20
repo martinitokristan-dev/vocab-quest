@@ -1,14 +1,28 @@
 // 2.5D Minecraft / Voxel Style Grounded Kingdom World Map Engine (EPCES, Bayan ng Prosperidad, Provincial Capitol)
 import { soundManager } from './soundManager';
 
+export interface StarHistoryItem {
+  questionId?: number;
+  mapId?: number;
+  orderIndex?: number;
+  questionIndex?: number;
+  stars: number;
+}
+
 export interface QuestionStepNode {
   mapId: number;
   questionIndex: number;
   label: string;
   x: number;
   y: number;
+  blockW: number;
+  blockH: number;
+  blockR: number;
+  starOffsetY: number;
   completed: boolean;
   current: boolean;
+  locked: boolean;
+  stars: number;
 }
 
 export interface BuildingKingdom {
@@ -135,6 +149,7 @@ export class Game2DMapRenderer {
   ];
 
   private steps: QuestionStepNode[] = [];
+  private starsHistory: StarHistoryItem[] = [];
 
   constructor(
     container: HTMLElement,
@@ -142,9 +157,13 @@ export class Game2DMapRenderer {
     activeMapId = 1,
     currentQuestionIndex = 1,
     customMaps?: Array<{ id: number; title: string; background_url?: string }>,
-    initialPlayerPos?: { x: number; y: number }
+    initialPlayerPos?: { x: number; y: number },
+    starsHistory?: StarHistoryItem[]
   ) {
     this.avatarImgUrl = avatarImgUrl;
+    if (starsHistory) {
+      this.starsHistory = starsHistory;
+    }
 
     this.canvas = document.createElement('canvas');
     this.resizeCanvas();
@@ -170,11 +189,10 @@ export class Game2DMapRenderer {
 
     this.loadAssets();
     this.initSkyEnvironment();
-    this.initLayout(activeMapId, currentQuestionIndex);
+    this.initLayout(activeMapId, currentQuestionIndex, starsHistory);
 
     if (initialPlayerPos) {
       this.playerPos = { x: initialPlayerPos.x, y: initialPlayerPos.y };
-      this.targetPlayerPos = { x: initialPlayerPos.x, y: initialPlayerPos.y };
     }
     this.fitCameraToScreen();
 
@@ -270,24 +288,42 @@ export class Game2DMapRenderer {
   /**
    * Checkpoints physically aligned with the exact 13 voxel pink cubes on vocab-quest-map.png
    */
-  private initLayout(activeMapId: number, currentQuestionIndex: number) {
+  private initLayout(activeMapId: number, currentQuestionIndex: number, starsHistory?: StarHistoryItem[]) {
+    if (starsHistory) {
+      this.starsHistory = starsHistory;
+    }
+
     this.kingdoms.forEach((k) => {
       k.unlocked = k.id <= activeMapId;
     });
 
     this.steps = [];
 
+    const getEarnedStars = (mapId: number, qIndex: number, isCompleted: boolean): number => {
+      if (this.starsHistory && this.starsHistory.length > 0) {
+        const item = this.starsHistory.find(
+          (h) => (h.mapId || 1) === mapId && ((h.orderIndex || h.questionIndex) === qIndex)
+        );
+        if (item && item.stars !== undefined && item.stars !== null) {
+          return item.stars;
+        }
+      }
+      return isCompleted ? 3 : 0;
+    };
+
     // --- LEVEL 1: EPCES Kingdom (Nodes 1, 2, 3) ---
     const epcesStations = [
-      { name: 'I ❤️ EPCES Garden', x: 174, y: 768 },
-      { name: 'School Courtyard',  x: 350, y: 715 },
-      { name: 'EPCES Bridge Ramp', x: 502, y: 661 },
+      { name: 'EPCES Garden',      x: 174, y: 771, blockW: 58, blockH: 70, blockR: 13, starOffsetY: 48 },
+      { name: 'School Courtyard',  x: 351, y: 724, blockW: 58, blockH: 68, blockR: 13, starOffsetY: 46 },
+      { name: 'EPCES Bridge Ramp', x: 504, y: 669, blockW: 56, blockH: 66, blockR: 12, starOffsetY: 44 },
     ];
 
     epcesStations.forEach((st, idx) => {
       const qIndex = idx + 1;
       const isCurrent = activeMapId === 1 && currentQuestionIndex === qIndex;
       const isCompleted = activeMapId > 1 || (activeMapId === 1 && currentQuestionIndex > qIndex);
+      const isLocked = activeMapId < 1 || (activeMapId === 1 && qIndex > currentQuestionIndex);
+      const earnedStars = getEarnedStars(1, qIndex, isCompleted);
 
       this.steps.push({
         mapId: 1,
@@ -295,29 +331,37 @@ export class Game2DMapRenderer {
         label: st.name,
         x: st.x,
         y: st.y,
+        blockW: st.blockW,
+        blockH: st.blockH,
+        blockR: st.blockR,
+        starOffsetY: st.starOffsetY,
         completed: isCompleted,
         current: isCurrent,
+        locked: isLocked,
+        stars: earnedStars,
       });
 
       if (isCurrent) {
-        this.playerPos = { x: st.x, y: st.y - 12 };
-        this.targetPlayerPos = { x: st.x, y: st.y - 12 };
+        this.playerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
+        this.targetPlayerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
       }
     });
 
     // --- LEVEL 2: Bayan ng Prosperidad (Nodes 4, 5, 6, 7, 8) ---
     const bayanStations = [
-      { name: 'Bridge Promenade',       x: 713,  y: 534 },
-      { name: 'West Terrace Walk',      x: 809,  y: 559 },
-      { name: 'Bayan Municipal Plaza',  x: 926,  y: 567 },
-      { name: 'East Terrace Walk',      x: 1043, y: 559 },
-      { name: 'Park Playground Turn',   x: 1152, y: 533 },
+      { name: 'Bridge Promenade',       x: 711,  y: 540, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'West Terrace Walk',      x: 808,  y: 562, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'Bayan Municipal Plaza',  x: 924,  y: 572, blockW: 54, blockH: 60, blockR: 11, starOffsetY: 41 },
+      { name: 'East Terrace Walk',      x: 1042, y: 562, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'Park Playground Turn',   x: 1151, y: 535, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
     ];
 
     bayanStations.forEach((st, idx) => {
       const qIndex = idx + 1;
       const isCurrent = activeMapId === 2 && currentQuestionIndex === qIndex;
       const isCompleted = activeMapId > 2 || (activeMapId === 2 && currentQuestionIndex > qIndex);
+      const isLocked = activeMapId < 2 || (activeMapId === 2 && qIndex > currentQuestionIndex);
+      const earnedStars = getEarnedStars(2, qIndex, isCompleted);
 
       this.steps.push({
         mapId: 2,
@@ -325,29 +369,37 @@ export class Game2DMapRenderer {
         label: st.name,
         x: st.x,
         y: st.y,
+        blockW: st.blockW,
+        blockH: st.blockH,
+        blockR: st.blockR,
+        starOffsetY: st.starOffsetY,
         completed: isCompleted,
         current: isCurrent,
+        locked: isLocked,
+        stars: earnedStars,
       });
 
       if (isCurrent) {
-        this.playerPos = { x: st.x, y: st.y - 12 };
-        this.targetPlayerPos = { x: st.x, y: st.y - 12 };
+        this.playerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
+        this.targetPlayerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
       }
     });
 
     // --- LEVEL 3: Provincial Capitol (Nodes 9, 10, 11, 12, 13) ---
     const capitolStations = [
-      { name: 'Capitol Hill Drive',    x: 1268, y: 363 },
-      { name: 'Highland Incline',      x: 1347, y: 407 },
-      { name: 'Capitol Colonnade Walk',x: 1430, y: 439 },
-      { name: 'Grand Courtyard Loop',  x: 1526, y: 468 },
-      { name: 'Provincial Capitol Steps', x: 1637, y: 483 },
+      { name: 'Capitol Hill Drive',    x: 1268, y: 366, blockW: 48, blockH: 52, blockR: 10, starOffsetY: 36 },
+      { name: 'Highland Incline',      x: 1345, y: 412, blockW: 50, blockH: 54, blockR: 10, starOffsetY: 37 },
+      { name: 'Capitol Colonnade Walk',x: 1428, y: 444, blockW: 52, blockH: 54, blockR: 10, starOffsetY: 37 },
+      { name: 'Grand Courtyard Loop',  x: 1524, y: 471, blockW: 53, blockH: 56, blockR: 10, starOffsetY: 38 },
+      { name: 'Provincial Capitol Steps', x: 1636, y: 486, blockW: 53, blockH: 56, blockR: 10, starOffsetY: 38 },
     ];
 
     capitolStations.forEach((st, idx) => {
       const qIndex = idx + 1;
       const isCurrent = activeMapId === 3 && currentQuestionIndex === qIndex;
       const isCompleted = activeMapId === 3 && currentQuestionIndex > qIndex;
+      const isLocked = activeMapId < 3 || (activeMapId === 3 && qIndex > currentQuestionIndex);
+      const earnedStars = getEarnedStars(3, qIndex, isCompleted);
 
       this.steps.push({
         mapId: 3,
@@ -355,15 +407,25 @@ export class Game2DMapRenderer {
         label: st.name,
         x: st.x,
         y: st.y,
+        blockW: st.blockW,
+        blockH: st.blockH,
+        blockR: st.blockR,
+        starOffsetY: st.starOffsetY,
         completed: isCompleted,
         current: isCurrent,
+        locked: isLocked,
+        stars: earnedStars,
       });
 
       if (isCurrent) {
-        this.playerPos = { x: st.x, y: st.y - 12 };
-        this.targetPlayerPos = { x: st.x, y: st.y - 12 };
+        this.playerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
+        this.targetPlayerPos = { x: st.x, y: st.y - st.blockH / 2 + 10 };
       }
     });
+  }
+
+  public updateProgress(activeMapId: number, currentQuestionIndex: number, starsHistory?: StarHistoryItem[]) {
+    this.initLayout(activeMapId, currentQuestionIndex, starsHistory);
   }
 
   public centerOnLocation(_x: number, _y: number) {
@@ -520,11 +582,23 @@ export class Game2DMapRenderer {
     let hoveredK: number | null = null;
     let hoveredS: QuestionStepNode | null = null;
 
-    for (const step of this.steps) {
-      const dist = Math.hypot(worldX - step.x, worldY - step.y);
-      if (dist < 32) {
-        hoveredS = step;
-        break;
+    // Check player hover
+    if (this.playerPos) {
+      const distToPlayer = Math.hypot(worldX - this.playerPos.x, worldY - (this.playerPos.y - 20));
+      if (distToPlayer < 55) {
+        hoveredS = this.steps.find((s) => s.current) || this.steps[0] || null;
+      }
+    }
+
+    if (!hoveredS) {
+      for (const step of this.steps) {
+        const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
+        const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
+        const dist = Math.hypot(worldX - step.x, worldY - step.y);
+        if (dist < 48 || (inBlockX && inBlockY)) {
+          hoveredS = step;
+          break;
+        }
       }
     }
 
@@ -554,10 +628,25 @@ export class Game2DMapRenderer {
     const worldX = (screenX - this.panOffset.x) / this.zoomLevel;
     const worldY = (screenY - this.panOffset.y) / this.zoomLevel;
 
+    // Check player avatar click
+    if (this.playerPos) {
+      const distToPlayer = Math.hypot(worldX - this.playerPos.x, worldY - (this.playerPos.y - 20));
+      if (distToPlayer < 55) {
+        const currentStep = this.steps.find((s) => s.current) || this.steps[0];
+        if (currentStep && this.onStepClickCallback) {
+          soundManager.playClick();
+          this.onStepClickCallback(currentStep.mapId, currentStep.questionIndex);
+          return;
+        }
+      }
+    }
+
     // Check step nodes
     for (const step of this.steps) {
+      const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
+      const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
       const dist = Math.hypot(worldX - step.x, worldY - step.y);
-      if (dist < 34) {
+      if (dist < 48 || (inBlockX && inBlockY)) {
         if (step.completed || step.current) {
           soundManager.playClick();
           if (this.onStepClickCallback) {
@@ -632,6 +721,7 @@ export class Game2DMapRenderer {
           if (this.currentWaypointIndex >= this.walkingWaypoints.length) {
             this.isWalkingAnimation = false;
             this.walkBubbleText = 'QUEST READY!';
+            this.targetPlayerPos = { x: this.playerPos.x, y: this.playerPos.y };
             soundManager.playSuccess();
             if (this.onWalkArrivalCallback) {
               this.onWalkArrivalCallback();
@@ -898,46 +988,115 @@ export class Game2DMapRenderer {
     });
   }
 
-  private drawVectorStar(cx: number, cy: number, r: number = 7) {
+  /**
+   * Bold 3D Candy Jelly Star with Silver-White Bezel Rim and Yellow Gloss Body (Large & Bold)
+   */
+  private drawCandyStar(cx: number, cy: number, r: number = 16, angle = 0, filled = true) {
+    this.ctx.save();
+    this.ctx.translate(cx, cy);
+    if (angle !== 0) {
+      this.ctx.rotate(angle);
+    }
+
     const spikes = 5;
-    const innerR = r * 0.45;
-    let rot = (Math.PI / 2) * 3;
-    let x = cx;
-    let y = cy;
+    const innerR = r * 0.54;
     const step = Math.PI / spikes;
 
-    this.ctx.beginPath();
-    this.ctx.moveTo(cx, cy - r);
-    for (let i = 0; i < spikes; i++) {
-      x = cx + Math.cos(rot) * r;
-      y = cy + Math.sin(rot) * r;
-      this.ctx.lineTo(x, y);
-      rot += step;
+    const buildStarPath = (radius: number, innerRadius: number) => {
+      this.ctx.beginPath();
+      let curRot = (Math.PI / 2) * 3;
+      this.ctx.moveTo(0, -radius);
+      for (let i = 0; i < spikes; i++) {
+        const x1 = Math.cos(curRot) * radius;
+        const y1 = Math.sin(curRot) * radius;
+        this.ctx.lineTo(x1, y1);
+        curRot += step;
 
-      x = cx + Math.cos(rot) * innerR;
-      y = cy + Math.sin(rot) * innerR;
-      this.ctx.lineTo(x, y);
-      rot += step;
-    }
-    this.ctx.lineTo(cx, cy - r);
-    this.ctx.closePath();
-    this.ctx.fillStyle = '#FACC15';
-    this.ctx.strokeStyle = '#CA8A04';
-    this.ctx.lineWidth = 1.5;
+        const x2 = Math.cos(curRot) * innerRadius;
+        const y2 = Math.sin(curRot) * innerRadius;
+        this.ctx.lineTo(x2, y2);
+        curRot += step;
+      }
+      this.ctx.lineTo(0, -radius);
+      this.ctx.closePath();
+    };
+
+    // 1. Soft Ground Cast Drop Shadow
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+    this.ctx.shadowBlur = 6;
+    this.ctx.shadowOffsetX = 1.5;
+    this.ctx.shadowOffsetY = 3;
+
+    // 2. Thick Silver-White Outer Bezel Rim
+    buildStarPath(r + 2.5, innerR + 1.6);
+    this.ctx.fillStyle = filled ? '#FFFFFF' : 'rgba(226, 232, 240, 0.8)';
+    this.ctx.lineJoin = 'round';
+    this.ctx.lineCap = 'round';
     this.ctx.fill();
-    this.ctx.stroke();
+
+    // Reset shadow for crisp inner layers
+    this.ctx.shadowColor = 'transparent';
+    this.ctx.shadowBlur = 0;
+    this.ctx.shadowOffsetX = 0;
+    this.ctx.shadowOffsetY = 0;
+
+    // 3. Inner Candy Body Fill
+    buildStarPath(r, innerR);
+
+    if (filled) {
+      // Bold, bright, glossy yellow-orange gradient
+      const candyGrad = this.ctx.createLinearGradient(0, -r, 0, r);
+      candyGrad.addColorStop(0, '#FFF566');    // Bright lemon gloss top
+      candyGrad.addColorStop(0.25, '#FFD000'); // Vivid golden yellow
+      candyGrad.addColorStop(0.7, '#FF9900');  // Warm rich orange
+      candyGrad.addColorStop(1, '#E67300');    // Deep amber base
+
+      this.ctx.fillStyle = candyGrad;
+      this.ctx.strokeStyle = '#9A3412';
+      this.ctx.lineWidth = 1.8;
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      // 4. Glossy Jelly Gel Highlights
+      // Curved upper dome reflection
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(0, -r * 0.42, r * 0.35, r * 0.22, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Top point sparkle dot
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.beginPath();
+      this.ctx.arc(0, -r * 0.65, r * 0.13, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Right arm soft candy gleam
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      this.ctx.beginPath();
+      this.ctx.arc(r * 0.35, -r * 0.05, r * 0.15, 0, Math.PI * 2);
+      this.ctx.fill();
+    } else {
+      // Empty slot (translucent dark glass with silver rim)
+      this.ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+      this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.65)';
+      this.ctx.lineWidth = 1.4;
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
   }
 
   /**
-   * Realistic 3D Metallic Brass/Steel Padlock (Not an Emoji)
+   * Realistic 3D Metallic Dark Steel / Gray Padlock (Locked / Inactive)
    */
   private drawRealisticPadlock(x: number, y: number, size = 42) {
     this.ctx.save();
 
-    // 1. Ambient Glow Aura behind the lock
+    // 1. Soft Ambient Shadow behind the lock
     const glow = this.ctx.createRadialGradient(x, y, size * 0.2, x, y, size * 1.35);
-    glow.addColorStop(0, 'rgba(245, 158, 11, 0.42)');
-    glow.addColorStop(0.55, 'rgba(217, 119, 6, 0.18)');
+    glow.addColorStop(0, 'rgba(15, 23, 42, 0.45)');
+    glow.addColorStop(0.55, 'rgba(15, 23, 42, 0.15)');
     glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     this.ctx.fillStyle = glow;
     this.ctx.beginPath();
@@ -965,11 +1124,11 @@ export class Game2DMapRenderer {
     this.ctx.closePath();
 
     const shackleGrad = this.ctx.createLinearGradient(x - shackleR, shackleY, x + shackleR, shackleY);
-    shackleGrad.addColorStop(0, '#475569');
-    shackleGrad.addColorStop(0.25, '#CBD5E1');
-    shackleGrad.addColorStop(0.48, '#FFFFFF');
-    shackleGrad.addColorStop(0.72, '#94A3B8');
-    shackleGrad.addColorStop(1, '#334155');
+    shackleGrad.addColorStop(0, '#334155');
+    shackleGrad.addColorStop(0.25, '#94A3B8');
+    shackleGrad.addColorStop(0.48, '#E2E8F0');
+    shackleGrad.addColorStop(0.72, '#64748B');
+    shackleGrad.addColorStop(1, '#1E293B');
 
     this.ctx.fillStyle = shackleGrad;
     this.ctx.strokeStyle = '#0F172A';
@@ -977,44 +1136,43 @@ export class Game2DMapRenderer {
     this.ctx.fill();
     this.ctx.stroke();
 
-    // 4. Padlock Metallic Body
+    // 4. Padlock Metallic Body (Dark Steel / Slate Gray Gradient)
     const bodyW = size * 0.96;
     const bodyH = size * 0.78;
     const bodyX = x - bodyW / 2;
     const bodyY = y - size * 0.04;
     const cornerR = 9;
 
-    // Metallic Brass / Golden Gradient
     const bodyGrad = this.ctx.createLinearGradient(bodyX, bodyY, bodyX + bodyW, bodyY + bodyH);
-    bodyGrad.addColorStop(0, '#FEF08A');
-    bodyGrad.addColorStop(0.18, '#F59E0B');
-    bodyGrad.addColorStop(0.65, '#D97706');
-    bodyGrad.addColorStop(0.85, '#B45309');
-    bodyGrad.addColorStop(1, '#78350F');
+    bodyGrad.addColorStop(0, '#64748B');
+    bodyGrad.addColorStop(0.2, '#475569');
+    bodyGrad.addColorStop(0.65, '#334155');
+    bodyGrad.addColorStop(0.85, '#1E293B');
+    bodyGrad.addColorStop(1, '#0F172A');
 
     this.ctx.fillStyle = bodyGrad;
-    this.ctx.strokeStyle = '#451A03';
-    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = '#020617';
+    this.ctx.lineWidth = 2.5;
     this.drawRoundedRect(bodyX, bodyY, bodyW, bodyH, cornerR);
     this.ctx.fill();
     this.ctx.stroke();
 
     // Inner Metallic Bevel Highlight Line
-    this.ctx.strokeStyle = 'rgba(254, 240, 138, 0.75)';
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     this.ctx.lineWidth = 1.5;
     this.drawRoundedRect(bodyX + 2.5, bodyY + 2.5, bodyW - 5, bodyH - 5, cornerR - 2);
     this.ctx.stroke();
 
     // Top Metallic Sheen Bar
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
     this.ctx.beginPath();
     this.drawRoundedRect(bodyX + 6, bodyY + 4, bodyW - 12, 3, 2);
     this.ctx.fill();
 
     // 5. Inset Keyhole
     const keyY = bodyY + bodyH * 0.44;
-    this.ctx.fillStyle = '#0F172A';
-    this.ctx.strokeStyle = '#78350F';
+    this.ctx.fillStyle = '#020617';
+    this.ctx.strokeStyle = '#334155';
     this.ctx.lineWidth = 1.5;
 
     // Circle
@@ -1033,20 +1191,20 @@ export class Game2DMapRenderer {
     this.ctx.fill();
     this.ctx.stroke();
 
-    // 6. Floating "LOCKED" Ribbon Pill Badge Below Padlock
-    const badgeW = 76;
+    // 6. Floating "LOCKED" Badge Below Padlock (Clean dark pill, white text, no yellow border)
+    const badgeW = 74;
     const badgeH = 22;
     const badgeY = bodyY + bodyH + 14;
 
-    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-    this.ctx.strokeStyle = '#F59E0B';
-    this.ctx.lineWidth = 2;
-    this.drawRoundedRect(x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 7);
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    this.ctx.lineWidth = 1.5;
+    this.drawRoundedRect(x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6);
     this.ctx.fill();
     this.ctx.stroke();
 
-    this.ctx.font = '700 12px "Quicksand", sans-serif';
-    this.ctx.fillStyle = '#FDE047';
+    this.ctx.font = '700 11px "Fredoka", "Quicksand", sans-serif';
+    this.ctx.fillStyle = '#FFFFFF';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText('LOCKED', x, badgeY);
@@ -1061,86 +1219,125 @@ export class Game2DMapRenderer {
       const isHovered = this.hoveredStepNode === step;
       this.ctx.save();
 
-      const r = 26;
+      // Calibrated 3D Silhouette of the specific Voxel Platform:
+      const bw = step.blockW || 54;
+      const bh = step.blockH || 58;
+      const br = step.blockR || 11;
+      const starY = step.y + (step.starOffsetY || 40);
 
-      // 1. Active Quest Pulsing Halo & Energy Aura
+      // 1. Active Quest: Pulsing Golden Border Line Wrapping the Specific 3D Voxel Block
       if (step.current) {
-        // Outer pulsing ring
-        const pulse = r + 8 + Math.sin(time * 4.5) * 5;
-        this.ctx.beginPath();
-        this.ctx.arc(step.x, step.y, pulse, 0, Math.PI * 2);
-        this.ctx.strokeStyle = 'rgba(253, 224, 71, 0.85)';
-        this.ctx.lineWidth = 4;
+        const pulse = Math.sin(time * 4.5) * 1.5;
+        const fw = bw + pulse * 2;
+        const fh = bh + pulse * 2;
+
+        this.ctx.save();
+        this.ctx.shadowColor = 'rgba(245, 158, 11, 0.8)';
+        this.ctx.shadowBlur = 10;
+        this.ctx.strokeStyle = '#FACC15';
+        this.ctx.lineWidth = 4.5;
+        this.drawRoundedRect(step.x - fw / 2, step.y - fh / 2, fw, fh, br + 1);
         this.ctx.stroke();
+        this.ctx.restore();
 
-        // Soft golden ambient aura
-        const aura = this.ctx.createRadialGradient(step.x, step.y, r * 0.3, step.x, step.y, pulse + 10);
-        aura.addColorStop(0, 'rgba(251, 191, 36, 0.4)');
-        aura.addColorStop(1, 'rgba(251, 191, 36, 0)');
-        this.ctx.fillStyle = aura;
-        this.ctx.beginPath();
-        this.ctx.arc(step.x, step.y, pulse + 10, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Vibrant 3D Cursor Arrow
-        const arrowY = step.y - 48 + Math.sin(time * 5) * 5;
+        const arrowY = step.y - bh / 2 - 16 + Math.sin(time * 5) * 4;
         this.ctx.fillStyle = '#FBBF24';
         this.ctx.strokeStyle = '#78350F';
         this.ctx.lineWidth = 2.5;
         this.ctx.beginPath();
         this.ctx.moveTo(step.x, arrowY + 12);
-        this.ctx.lineTo(step.x - 10, arrowY);
+        this.ctx.lineTo(step.x - 9, arrowY);
         this.ctx.lineTo(step.x - 4, arrowY);
-        this.ctx.lineTo(step.x - 4, arrowY - 14);
-        this.ctx.lineTo(step.x + 4, arrowY - 14);
+        this.ctx.lineTo(step.x - 4, arrowY - 12);
+        this.ctx.lineTo(step.x + 4, arrowY - 12);
         this.ctx.lineTo(step.x + 4, arrowY);
-        this.ctx.lineTo(step.x + 10, arrowY);
+        this.ctx.lineTo(step.x + 9, arrowY);
         this.ctx.closePath();
         this.ctx.fill();
         this.ctx.stroke();
       }
 
-      // 2. Completed Step: Glowing Checkmark / 3 Stars Badge
+      // 2. Completed (Done) Question: Glowing Bold Emerald Border Line Wrapping the Specific 3D Voxel Block
       if (step.completed) {
-        // Subtle emerald completed halo
-        this.ctx.beginPath();
-        this.ctx.arc(step.x, step.y, r + 2, 0, Math.PI * 2);
-        this.ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
-        this.ctx.lineWidth = 3;
+        this.ctx.save();
+        this.ctx.shadowColor = 'rgba(16, 185, 129, 0.85)';
+        this.ctx.shadowBlur = 9;
+        this.ctx.strokeStyle = '#10B981';
+        this.ctx.lineWidth = 4.5;
+        this.drawRoundedRect(step.x - bw / 2, step.y - bh / 2, bw, bh, br);
         this.ctx.stroke();
 
-        // 3-Star Rating Badge Below Node
-        const starY = step.y + 24;
-        const starOffsets = [-12, 0, 12];
-        starOffsets.forEach((sx, sidx) => {
-          const sy = starY + (sidx === 1 ? -2 : 1);
-          this.drawVectorStar(step.x + sx, sy, 5.5);
+        // Top-edge glossy 3D shine
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.lineWidth = 2.2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(step.x - bw / 2 + br, step.y - bh / 2 + 1);
+        this.ctx.lineTo(step.x + bw / 2 - br, step.y - bh / 2 + 1);
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
+
+      // 3. Hover / Click Selection: Sky-Blue Border Line Wrapping the Specific 3D Voxel Block
+      if (isHovered && !step.current) {
+        this.ctx.save();
+        this.ctx.shadowColor = 'rgba(56, 189, 248, 0.8)';
+        this.ctx.shadowBlur = 9;
+        this.ctx.strokeStyle = '#38BDF8';
+        this.ctx.lineWidth = 4.0;
+        this.drawRoundedRect(step.x - (bw + 2) / 2, step.y - (bh + 2) / 2, bw + 2, bh + 2, br + 1);
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
+
+      // 4. ACCURATE BOLD 3D YELLOW CANDY STARS ALIGNED BELOW NUMBER (LARGE & PROMINENT)
+      // Only rendered when question has been completed
+      if (step.completed) {
+        const starCount = Math.max(1, Math.min(3, step.stars || 3));
+
+        const starConfigs =
+          starCount === 3
+            ? [
+                { offsetX: -22, offsetY: 3,  rot: -0.16, r: 14.0 },
+                { offsetX: 0,   offsetY: -3, rot: 0,     r: 17.5 },
+                { offsetX: 22,  offsetY: 3,  rot: 0.16,  r: 14.0 },
+              ]
+            : starCount === 2
+            ? [
+                { offsetX: -13, offsetY: 0,  rot: -0.08, r: 15.5 },
+                { offsetX: 13,  offsetY: 0,  rot: 0.08,  r: 15.5 },
+              ]
+            : [
+                { offsetX: 0,   offsetY: 0,  rot: 0,     r: 17.5 },
+              ];
+
+        starConfigs.forEach((cfg) => {
+          this.drawCandyStar(step.x + cfg.offsetX, starY + cfg.offsetY, cfg.r, cfg.rot, true);
         });
       }
 
-      // 3. Hover Ring & Tooltip
-      if (isHovered) {
-        this.ctx.beginPath();
-        this.ctx.arc(step.x, step.y, r + 4, 0, Math.PI * 2);
-        this.ctx.strokeStyle = '#38BDF8';
-        this.ctx.lineWidth = 3;
-        this.ctx.stroke();
-      }
+      // 5. Hover Tooltip (Only displayed when hovering other stations, perfectly elevated)
+      if (isHovered && !step.current) {
+        const tipY = step.y - bh / 2 - 20;
+        const starSummary = step.completed
+          ? ` • ${step.stars}/3 STARS`
+          : ' • LOCKED';
+        const text = `${step.questionIndex}. ${step.label.toUpperCase()}${starSummary}`;
 
-      if (step.current || isHovered) {
-        const tipY = step.y - (step.current ? 78 : 42);
-        const text = `${step.label.toUpperCase()}`;
         this.ctx.font = '700 13px "Quicksand", sans-serif';
-        const tw = this.ctx.measureText(text).width + 20;
+        const tw = this.ctx.measureText(text).width + 22;
 
-        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-        this.ctx.strokeStyle = step.current ? '#F59E0B' : '#38BDF8';
+        this.ctx.save();
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.shadowBlur = 6;
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        this.ctx.strokeStyle = '#38BDF8';
         this.ctx.lineWidth = 2.5;
         this.drawRoundedRect(step.x - tw / 2, tipY - 13, tw, 26, 8);
         this.ctx.fill();
         this.ctx.stroke();
+        this.ctx.restore();
 
-        this.ctx.fillStyle = step.current ? '#FDE047' : '#F8FAFC';
+        this.ctx.fillStyle = '#F8FAFC';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(text, step.x, tipY);
@@ -1272,32 +1469,73 @@ export class Game2DMapRenderer {
     }
     this.ctx.restore();
 
-    // Speech Bubble
-    const bubbleText = this.walkBubbleText || 'QUEST READY!';
-    this.ctx.font = '700 12px "Quicksand", sans-serif';
-    const textMetrics = this.ctx.measureText(bubbleText);
-    const bubbleWidth = Math.max(94, textMetrics.width + 24);
+    // Floating Speech Bubble above mascot's head (Clean place name & number with vector pin icon)
+    const activeStep = this.steps.find((s) => s.current);
+    const placeText = activeStep ? `${activeStep.questionIndex}. ${activeStep.label}` : '1. EPCES Garden';
+    const displayText = isWalking ? (this.walkBubbleText || 'Exploring...') : placeText;
 
-    const bubbleY = charY - 78;
+    this.ctx.font = '700 13px "Quicksand", sans-serif';
+    const textMetrics = this.ctx.measureText(displayText);
+    const iconGap = isWalking ? 0 : 18;
+    const bubbleWidth = Math.max(90, textMetrics.width + iconGap + 26);
+
+    const bubbleY = charY - 84;
+    this.ctx.save();
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+    this.ctx.shadowBlur = 6;
     this.ctx.fillStyle = '#FFFFFF';
     this.ctx.strokeStyle = '#1E293B';
     this.ctx.lineWidth = 2.5;
-    this.drawRoundedRect(charX - bubbleWidth / 2, bubbleY - 12, bubbleWidth, 24, 7);
+    this.drawRoundedRect(charX - bubbleWidth / 2, bubbleY - 14, bubbleWidth, 28, 8);
     this.ctx.fill();
     this.ctx.stroke();
+    this.ctx.restore();
 
+    // Little Speech Pointer Arrow
     this.ctx.beginPath();
-    this.ctx.moveTo(charX - 4, bubbleY + 12);
-    this.ctx.lineTo(charX, bubbleY + 18);
-    this.ctx.lineTo(charX + 4, bubbleY + 12);
+    this.ctx.moveTo(charX - 5, bubbleY + 14);
+    this.ctx.lineTo(charX, bubbleY + 21);
+    this.ctx.lineTo(charX + 5, bubbleY + 14);
     this.ctx.fillStyle = '#FFFFFF';
     this.ctx.fill();
+    this.ctx.strokeStyle = '#1E293B';
+    this.ctx.lineWidth = 2.5;
+    this.ctx.stroke();
 
-    this.ctx.font = '700 12px "Quicksand", sans-serif';
-    this.ctx.fillStyle = isWalking ? '#0284C7' : '#15803D';
-    this.ctx.textAlign = 'center';
+    // Draw Vector Location Pin Icon (Non-emoji)
+    if (!isWalking) {
+      const pinX = charX - bubbleWidth / 2 + 16;
+      const pinY = bubbleY;
+
+      // Pin Body
+      this.ctx.save();
+      this.ctx.fillStyle = '#059669'; // Vivid emerald pin
+      this.ctx.beginPath();
+      this.ctx.arc(pinX, pinY - 2, 4.5, Math.PI, 0, false);
+      this.ctx.lineTo(pinX, pinY + 5);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Pin Inner Dot
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.beginPath();
+      this.ctx.arc(pinX, pinY - 2, 1.8, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    }
+
+    // Render Text (Crisp slate navy)
+    this.ctx.font = '700 13px "Quicksand", sans-serif';
+    this.ctx.fillStyle = isWalking ? '#0284C7' : '#0F172A';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(bubbleText, charX, bubbleY);
+    if (isWalking) {
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText(displayText, charX, bubbleY);
+    } else {
+      this.ctx.textAlign = 'left';
+      const textStartX = charX - bubbleWidth / 2 + 25;
+      this.ctx.fillText(displayText, textStartX, bubbleY);
+    }
 
     this.ctx.restore();
   }

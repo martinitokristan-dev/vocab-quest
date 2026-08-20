@@ -33,7 +33,20 @@ class AppServiceProvider extends ServiceProvider
 
         // ── Cloudinary binding ───────────────────────────────────────────────────
         $this->app->bind(CloudinaryAudioContract::class, function () {
-            // Use local storage stub by default in local environment or fallback
+            $cloudName = config('services.cloudinary.cloud_name');
+            $apiKey    = config('services.cloudinary.api_key');
+            $apiSecret = config('services.cloudinary.api_secret');
+            $preset    = config('services.cloudinary.upload_preset');
+
+            if (!empty($cloudName) && !empty($apiKey) && !empty($apiSecret)) {
+                return new CloudinaryService(
+                    cloudName: $cloudName,
+                    apiKey:    $apiKey,
+                    apiSecret: $apiSecret,
+                    preset:    $preset
+                );
+            }
+
             return new StubCloudinaryService();
         });
     }

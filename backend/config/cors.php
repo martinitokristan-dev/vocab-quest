@@ -19,12 +19,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_filter(array_map(
-        'trim',
-        explode(',', env('FRONTEND_ORIGINS', 'http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'))
-    )),
+    'allowed_origins' => env('FRONTEND_ORIGINS')
+        ? array_filter(array_map('trim', explode(',', env('FRONTEND_ORIGINS'))))
+        : ['*'],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https://.*\.pages\.dev$#',
+        '#^https://.*\.onrender\.com$#',
+    ],
 
     'allowed_headers' => ['*'],
 

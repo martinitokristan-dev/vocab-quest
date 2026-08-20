@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/Sidebar';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -71,7 +72,9 @@ const AppRoutes: React.FC = () => (
 export const App: React.FC = () => (
   <BrowserRouter>
     <AuthProvider>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </AuthProvider>
   </BrowserRouter>
 );

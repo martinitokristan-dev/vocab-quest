@@ -59,8 +59,10 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // TiDB Cloud Starter requires SSL — no local CA file needed when verify is false
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('DB_SSL_VERIFY', false),
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA') ?: null,
             ]) : [],
         ],
 

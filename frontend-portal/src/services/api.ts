@@ -1,6 +1,15 @@
 // API Client Service for Teacher Portal (architecture.md Â§7)
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  return `${BACKEND_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 export interface User {
   id: number;
@@ -49,7 +58,10 @@ export interface RoomData {
   id: number;
   name: string;
   pin: string;
-  status: 'waiting' | 'in_progress' | 'closed';
+  status: 'waiting' | 'in_progress' | 'paused' | 'closed';
+  max_students?: number;
+  active_students_count?: number;
+  students_count?: number;
   current_map_id?: number | null;
   created_at: string;
 }
@@ -73,16 +85,40 @@ export interface VocabularyAudioItem {
   rejected_count: number;
 }
 
+export interface FeedbackAudioItem {
+  id: number;
+  type: 'praise' | 'cheer_up';
+  phrase: string;
+  audio_url: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedbackAudioResponse {
+  data: FeedbackAudioItem[];
+  praise: FeedbackAudioItem[];
+  cheer_up: FeedbackAudioItem[];
+}
+
 export interface RoomResultsData {
   room: RoomData;
-  mode: 'live' | 'historical';
+  mode?: 'live' | 'historical';
   students: {
     id: number;
     player_name: string;
     avatar_slug: string;
-    current_map_id: number;
-    questions_answered: number;
     score: number;
+    stars?: number;
+    is_completed?: boolean;
+    questions_answered: number;
+    correct_answers?: number;
+    current_question_number?: number;
+    current_map_title?: string;
+    current_map_order?: number;
+    map_total_questions?: number;
+    total_game_questions?: number;
+    progress_percentage?: number;
     completed_at?: string | null;
   }[];
   summary?: {
@@ -92,7 +128,7 @@ export interface RoomResultsData {
   };
   question_breakdown?: {
     question_id: number;
-    map_id: number;
+    map_id?: number;
     sentence: string;
     highlighted_word: string;
     total_attempts: number;
@@ -320,7 +356,8 @@ class ApiClient {
     });
   }
 
-  async updateQuestion(id: number, payload: Partial<QuestionData> & {
+  async updateQuestion(id: number, payload: Partial<Omit<QuestionData, 'answers'>> & {
+    answers?: { id?: number; text: string; is_correct: boolean }[];
     image_file?: File | null;
     voice_audio_file?: File | Blob | null;
     voice_video_file?: File | Blob | null;
@@ -436,10 +473,11 @@ class ApiClient {
     return this.request<{ data: RoomData[] }>('/rooms');
   }
 
-  async createRoom(name?: string) {
+  async createRoom(payload?: { name?: string; max_students?: number; current_map_id?: number } | string) {
+    const body = typeof payload === 'string' ? { name: payload } : payload || {};
     return this.request<{ data: RoomData }>('/rooms', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -447,12 +485,86 @@ class ApiClient {
     return this.request<{ data: RoomData }>(`/rooms/${id}/start`, { method: 'POST' });
   }
 
+  async pauseRoom(id: number) {
+    return this.request<{ data: RoomData }>(`/rooms/${id}/pause`, { method: 'POST' });
+  }
+
+  async resumeRoom(id: number) {
+    return this.request<{ data: RoomData }>(`/rooms/${id}/resume`, { method: 'POST' });
+  }
+
   async closeRoom(id: number) {
     return this.request<{ data: RoomData }>(`/rooms/${id}/close`, { method: 'POST' });
   }
 
+  async resetRoom(id: number) {
+    return this.request<{ data: RoomData }>(`/rooms/${id}/reset`, { method: 'POST' });
+  }
+
+  async deleteRoom(id: number) {
+    return this.request<{ message: string }>(`/rooms/${id}`, { method: 'DELETE' });
+  }
+
   async getRoomResults(id: number) {
     return this.request<RoomResultsData>(`/rooms/${id}/results`);
+  }
+
+  // ── Feedback Praise & Cheer-Up Voiceover API ──
+  async getFeedbackAudios() {
+    return this.request<FeedbackAudioResponse>('/feedback-audios');
+  }
+
+  async uploadFeedbackAudio(payload: {
+    type: 'praise' | 'cheer_up';
+    phrase: string;
+    audio_file?: File | Blob | null;
+    audio_url?: string;
+  }) {
+    if (payload.audio_file) {
+      const formData = new FormData();
+      formData.append('type', payload.type);
+      formData.append('phrase', payload.phrase);
+      formData.append('audio_file', payload.audio_file, 'feedback_voice.webm');
+
+      const token = this.getToken();
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/feedback-audios`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Upload failed');
+      }
+      return data;
+    } else {
+      return this.request<{ message: string; data: FeedbackAudioItem }>('/feedback-audios', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: payload.type,
+          phrase: payload.phrase,
+          audio_url: payload.audio_url,
+        }),
+      });
+    }
+  }
+
+  async toggleFeedbackAudio(id: number) {
+    return this.request<{ message: string; data: FeedbackAudioItem }>(`/feedback-audios/${id}/toggle`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteFeedbackAudio(id: number) {
+    return this.request<{ message: string }>(`/feedback-audios/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 

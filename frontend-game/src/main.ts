@@ -34,28 +34,44 @@ interface StudentGameAppState {
   score: number;
   error: string | null;
   attempts: Record<number, number>; // questionId -> attempt count
-  history: Array<{ questionId: number; word: string; isCorrect: boolean; stars: number }>;
+  history: Array<{
+    questionId: number;
+    mapId?: number;
+    orderIndex?: number;
+    questionIndex?: number;
+    word: string;
+    isCorrect: boolean;
+    stars: number;
+  }>;
   lastPraiseIndex: number;
   lastTryAgainIndex: number;
   customMascotSpeech: string | null;
   wrongAnswerIds: number[];
 
-  // Modals
+  // Modals & Status
   isHowToPlayOpen: boolean;
   isSettingsOpen: boolean;
   isPauseMenuOpen: boolean;
+  isTeacherPaused: boolean;
+  roomStatus: 'waiting' | 'in_progress' | 'paused' | 'closed' | string;
   loadingProgress: number; // 0 to 12 segments
   loadingTargetScreen: 'join' | 'world_map';
 }
 
 const AVATARS = [
   { slug: 'learner-girl', label: 'Learner Girl', image: '/assets/mascot_girl.png' },
-  { slug: 'quest-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
+  { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
   { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
   { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
   { slug: 'morena-girl', label: 'Sporty Girl', image: '/assets/morena_girl.png' },
-  { slug: 'moreno-boy', label: 'Explorer Boy', image: '/assets/moreno_boy.png' },
+  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/moreno_boy.png' },
 ];
+
+const getAvatarBySlug = (slug: string) => {
+  if (slug === 'quest-boy') return AVATARS[1];
+  if (slug === 'moreno-boy') return AVATARS[5];
+  return AVATARS.find((a) => a.slug === slug) || AVATARS[0];
+};
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -82,6 +98,8 @@ class StudentArcadeGame {
     isHowToPlayOpen: false,
     isSettingsOpen: false,
     isPauseMenuOpen: false,
+    isTeacherPaused: false,
+    roomStatus: 'waiting',
     loadingProgress: 0,
     loadingTargetScreen: 'join',
   };
@@ -90,6 +108,10 @@ class StudentArcadeGame {
   private loadingInterval: number | null = null;
   private lastNarratedQuestionId: number | null = null;
   private lastActiveMapId: number = 1;
+  private feedbackAudios: {
+    praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
+    cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
+  } = { praise: [], cheer_up: [] };
 
   constructor() {
     this.appEl = document.getElementById('app') as HTMLElement;
@@ -98,8 +120,140 @@ class StudentArcadeGame {
     this.bgLayerEl.style.display = 'none';
     document.body.prepend(this.bgLayerEl);
 
+    this.loadFeedbackAudios();
     this.bindGlobalKeyboard();
-    this.render();
+    this.initRouter();
+  }
+
+  private getPathForScreen(screen: StudentGameAppState['screen']): string {
+    switch (screen) {
+      case 'title':
+        return '/';
+      case 'join':
+        return this.state.pin ? `/join?pin=${encodeURIComponent(this.state.pin)}` : '/join';
+      case 'world_map':
+        return '/map';
+      case 'question':
+        return '/play';
+      case 'completed':
+        return '/completed';
+      default:
+        return '/';
+    }
+  }
+
+  private syncUrl(screen: StudentGameAppState['screen'], replace = false) {
+    if (screen === 'loading') return;
+    const targetPath = this.getPathForScreen(screen);
+    const currentFull = window.location.pathname + window.location.search;
+
+    if (currentFull !== targetPath) {
+      if (replace) {
+        window.history.replaceState({ screen }, '', targetPath);
+      } else {
+        window.history.pushState({ screen }, '', targetPath);
+      }
+    }
+  }
+
+  private initRouter() {
+    window.addEventListener('popstate', () => {
+      this.handlePopState();
+    });
+
+    // Parse initial route and restore student session profile if active
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+    const params = new URLSearchParams(window.location.search);
+    const pinFromUrl = params.get('pin') || '';
+    const profile = gameApi.getSessionProfile();
+    const hasToken = Boolean(profile.token);
+
+    if (profile.playerName) this.state.playerName = profile.playerName;
+    if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
+    if (profile.pin) this.state.pin = profile.pin;
+    if (pinFromUrl) this.state.pin = pinFromUrl;
+
+    if (hasToken) {
+      if (path === '/completed') {
+        this.state.screen = 'completed';
+        this.syncUrl('completed', true);
+        this.render();
+      } else if (path === '/play' || path === '/question') {
+        this.startLoading('world_map');
+        this.fetchCurrentQuestion().then(() => {
+          const isWaiting = this.state.roomStatus === 'waiting' ||
+                            this.state.currentData?.room_status === 'waiting' ||
+                            this.state.currentData?.data?.room_status === 'waiting';
+          if (isWaiting) {
+            this.setState({ screen: 'world_map' });
+            this.syncUrl('world_map', true);
+            this.showToast(
+              'Session Not Started',
+              'Your teacher has not started the session yet. Waiting for other players to join!',
+              'warning'
+            );
+          } else {
+            this.setState({ screen: 'question' });
+          }
+          this.startLightweightPoller();
+        });
+      } else {
+        this.startLoading('world_map');
+        this.fetchCurrentQuestion('world_map').then(() => {
+          this.startLightweightPoller();
+        });
+      }
+      return;
+    }
+
+    if (path === '/join') {
+      this.state.screen = 'join';
+      this.syncUrl('join', true);
+      this.render();
+    } else {
+      this.state.screen = 'title';
+      this.syncUrl('title', true);
+      this.render();
+    }
+  }
+
+  private handlePopState() {
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+    const profile = gameApi.getSessionProfile();
+    const hasToken = Boolean(profile.token);
+
+    if (profile.playerName) this.state.playerName = profile.playerName;
+    if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
+    if (profile.pin) this.state.pin = profile.pin;
+
+    if (path === '/join') {
+      this.setState({ screen: 'join' });
+    } else if (path === '/map' || path === '/world-map') {
+      if (hasToken) {
+        this.setState({ screen: 'world_map' });
+      } else {
+        this.setState({ screen: 'join' });
+      }
+    } else if (path === '/play' || path === '/question') {
+      if (hasToken) {
+        this.setState({ screen: 'question' });
+      } else {
+        this.setState({ screen: 'join' });
+      }
+    } else if (path === '/completed') {
+      this.setState({ screen: 'completed' });
+    } else {
+      this.setState({ screen: hasToken ? 'world_map' : 'title' });
+    }
+  }
+
+  private async loadFeedbackAudios() {
+    try {
+      const res = await gameApi.getFeedbackAudios();
+      this.feedbackAudios = res;
+    } catch (e) {
+      console.warn('Failed to load feedback voice audios:', e);
+    }
   }
 
   private bindGlobalKeyboard() {
@@ -125,6 +279,7 @@ class StudentArcadeGame {
 
   private setState(partialState: Partial<StudentGameAppState>) {
     const prevScreen = this.state.screen;
+    const prevTeacherPaused = this.state.isTeacherPaused;
     const prevModals = {
       howTo: this.state.isHowToPlayOpen,
       settings: this.state.isSettingsOpen,
@@ -134,16 +289,29 @@ class StudentArcadeGame {
     this.state = { ...this.state, ...partialState };
 
     const screenChanged = prevScreen !== this.state.screen;
+    const teacherPausedChanged = prevTeacherPaused !== this.state.isTeacherPaused;
     const modalChanged =
       prevModals.howTo !== this.state.isHowToPlayOpen ||
       prevModals.settings !== this.state.isSettingsOpen ||
       prevModals.pause !== this.state.isPauseMenuOpen;
 
+    // Always sync teacher pause overlay independently of other render logic
+    if (teacherPausedChanged) {
+      this.renderTeacherPauseOverlay();
+    }
+
     if (screenChanged) {
+      this.syncUrl(this.state.screen);
       this.render();
     } else if (modalChanged) {
       this.renderModals();
-    } else if (this.state.screen !== 'world_map') {
+    } else if (this.state.screen === 'join' && partialState.error !== undefined) {
+      this.render();
+    } else if (this.state.screen === 'world_map') {
+      if (partialState.currentData !== undefined || partialState.history !== undefined || !this.mapRenderer) {
+        this.render();
+      }
+    } else if (this.state.screen !== 'join') {
       this.render();
     }
   }
@@ -172,54 +340,130 @@ class StudentArcadeGame {
     }, 120);
   }
 
-  private startPollingQuestion() {
+  private async fetchCurrentQuestion(forceScreen?: 'world_map' | 'question') {
+    try {
+      const res = await gameApi.getCurrentQuestion();
+
+      if (res.is_completed) {
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.setState({ screen: 'completed', score: res.total_correct || this.state.score });
+        return;
+      }
+
+      if (res.data) {
+        const prevQ = this.state.currentData?.data?.question;
+        const newQ = res.data.question;
+        const isNewQuestion = !prevQ || prevQ.id !== newQ.id;
+        const isMapChanged = this.state.currentData?.data?.map.id !== res.data.map.id;
+        const shouldChangeScreen = (this.state.screen === 'join' || this.state.screen === 'loading');
+
+        let mergedHistory = [...this.state.history];
+        if (res.data.completed_questions && res.data.completed_questions.length > 0) {
+          res.data.completed_questions.forEach((cq) => {
+            const existingIdx = mergedHistory.findIndex((h) => h.questionId === cq.question_id);
+            if (existingIdx === -1) {
+              mergedHistory.push({
+                questionId: cq.question_id,
+                mapId: cq.map_id,
+                orderIndex: cq.order_index,
+                questionIndex: cq.order_index,
+                word: cq.word,
+                isCorrect: true,
+                stars: 3,
+              });
+            } else {
+              mergedHistory[existingIdx] = {
+                ...mergedHistory[existingIdx],
+                mapId: cq.map_id,
+                orderIndex: cq.order_index,
+                questionIndex: cq.order_index,
+              };
+            }
+          });
+        }
+
+        const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
+        const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
+        const isWaiting = roomStatus === 'waiting';
+        const nextScreen = forceScreen || (isWaiting ? 'world_map' : (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen));
+
+        if (this.lastActiveMapId === 1 && res.data.map?.id) {
+          this.lastActiveMapId = res.data.map.id;
+        }
+
+        this.setState({
+          screen: nextScreen,
+          currentData: res,
+          score: res.data.session.score,
+          history: mergedHistory,
+          selectedAnswerId: isNewQuestion ? null : this.state.selectedAnswerId,
+          submitResult: isNewQuestion ? null : this.state.submitResult,
+          wrongAnswerIds: isNewQuestion ? [] : this.state.wrongAnswerIds,
+          customMascotSpeech: isNewQuestion ? null : this.state.customMascotSpeech,
+          isTeacherPaused: isPaused,
+          roomStatus: roomStatus,
+        });
+      }
+    } catch (err: any) {
+      console.error('Fetch question error:', err);
+      if (err.message?.includes('401') || err.message?.includes('Unauthenticated')) {
+        gameApi.clearSession();
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.setState({ screen: 'title' });
+      }
+    }
+  }
+
+  private startLightweightPoller() {
     if (this.pollInterval) clearInterval(this.pollInterval);
 
-    const checkQuestion = async () => {
-      // While showing praise/result feedback, do not poll or interrupt speech
-      if (this.state.submitResult) return;
+    const pingStatus = async () => {
+      // While showing praise/feedback animation or not authenticated, do not ping
+      if (this.state.submitResult || !gameApi.getToken()) return;
 
       try {
-        const res = await gameApi.getCurrentQuestion();
+        const status = await gameApi.getGameStatus();
 
-        if (res.is_completed) {
+        if (status.is_completed) {
           if (this.pollInterval) clearInterval(this.pollInterval);
-          this.setState({ screen: 'completed', score: res.total_correct || this.state.score });
+          this.setState({ screen: 'completed', score: status.score || this.state.score });
           return;
         }
 
-        if (res.data) {
-          const prevQ = this.state.currentData?.data?.question;
-          const newQ = res.data.question;
-          const isNewQuestion = !prevQ || prevQ.id !== newQ.id;
-          const isScoreChanged = this.state.score !== res.data.session.score;
-          const isMapChanged = this.state.currentData?.data?.map.id !== res.data.map.id;
-          const shouldChangeScreen = (this.state.screen === 'join' || this.state.screen === 'loading');
+        const isPaused = Boolean(status.is_paused || status.room_status === 'paused');
+        const roomStatus = status.room_status || (isPaused ? 'paused' : 'in_progress');
+        const prevRoomStatus = this.state.roomStatus;
 
-          // If nothing meaningful changed, avoid re-rendering to prevent screen flickering
-          if (!isNewQuestion && !isScoreChanged && !isMapChanged && !shouldChangeScreen) {
-            return;
-          }
+        const stateUpdates: Partial<StudentGameAppState> = {};
+        if (this.state.isTeacherPaused !== isPaused) {
+          stateUpdates.isTeacherPaused = isPaused;
+        }
+        if (this.state.roomStatus !== roomStatus) {
+          stateUpdates.roomStatus = roomStatus;
+        }
+        if (Object.keys(stateUpdates).length > 0) {
+          this.setState(stateUpdates);
+        }
 
-          const nextScreen = shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen;
-
-          this.setState({
-            screen: nextScreen,
-            currentData: res,
-            score: res.data.session.score,
-            selectedAnswerId: isNewQuestion ? null : this.state.selectedAnswerId,
-            submitResult: isNewQuestion ? null : this.state.submitResult,
-            wrongAnswerIds: isNewQuestion ? [] : this.state.wrongAnswerIds,
-            customMascotSpeech: isNewQuestion ? null : this.state.customMascotSpeech,
-          });
+        // Notify student if teacher just clicked Start Session!
+        if (prevRoomStatus === 'waiting' && roomStatus === 'in_progress') {
+          soundManager.playSuccess();
+          this.showToast(
+            'Session Started',
+            'Your teacher has started the game. Tap Question 1 to begin.',
+            'success',
+            4500
+          );
         }
       } catch (err: any) {
-        console.error('Poll question error:', err);
+        if (err.message?.includes('401') || err.message?.includes('Unauthenticated')) {
+          if (this.pollInterval) clearInterval(this.pollInterval);
+        }
       }
     };
 
-    checkQuestion();
-    this.pollInterval = window.setInterval(checkQuestion, 2500);
+    // Fast 2.5s polling while in waiting state for instant start response
+    this.pollInterval = window.setInterval(pingStatus, 2500);
   }
 
   private async handleJoin(e: Event) {
@@ -235,24 +479,26 @@ class StudentArcadeGame {
       await gameApi.joinRoom(this.state.pin, this.state.playerName, this.state.avatarSlug);
       this.setState({ submitting: false });
       this.startLoading('world_map');
-      this.startPollingQuestion();
+      await this.fetchCurrentQuestion('world_map');
+      this.startLightweightPoller();
     } catch (err: any) {
       this.setState({ error: err.message || 'Failed to join game room', submitting: false });
     }
   }
 
   private async handleSelectAnswer(answerId: number) {
-    if (this.state.submitting || !this.state.currentData?.data) return;
+    if (this.state.submitting || !this.state.currentData?.data || this.state.isTeacherPaused) return;
 
     soundManager.stopSpeech();
 
     const q = this.state.currentData.data.question;
     const currentAttempts = (this.state.attempts[q.id] || 0) + 1;
     const updatedAttempts = { ...this.state.attempts, [q.id]: currentAttempts };
+    const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
 
     try {
       this.setState({ selectedAnswerId: answerId, submitting: true, attempts: updatedAttempts });
-      const res = await gameApi.submitAnswer(q.id, answerId);
+      const res = await gameApi.submitAnswer(q.id, answerId, starsEarned);
 
       if (res.is_correct) {
         // Pause background polling so poller does not race against the praise speech!
@@ -261,21 +507,36 @@ class StudentArcadeGame {
           this.pollInterval = null;
         }
 
-        // --- 1. CORRECT ANSWER: 3-STAR RATING & DYNAMIC PRAISE ---
+        // --- 1. CORRECT ANSWER: 3-STAR RATING & SHUFFLED TEACHER PRAISE ---
         const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
+        const activeMapId = this.state.currentData?.data?.map?.id || 1;
+        const questionOrder = q.order_index || (this.state.history.filter((h) => (h.mapId || 1) === activeMapId).length + 1);
 
-        // Select a non-repeating praise phrase
+        // Check for teacher's uploaded praise audio clips
+        const activePraiseClips = this.feedbackAudios.praise.filter((p) => p.is_active !== false);
+        const customPraise = activePraiseClips.length > 0
+          ? activePraiseClips[Math.floor(Math.random() * activePraiseClips.length)]
+          : null;
+
         let pIdx = Math.floor(Math.random() * PRAISE_PHRASES.length);
         if (pIdx === this.state.lastPraiseIndex) {
           pIdx = (pIdx + 1) % PRAISE_PHRASES.length;
         }
-        const praise = PRAISE_PHRASES[pIdx];
+        const praiseText = customPraise ? customPraise.phrase : PRAISE_PHRASES[pIdx];
 
         soundManager.playSuccess();
 
         const updatedHistory = [
           ...this.state.history.filter((h) => h.questionId !== q.id),
-          { questionId: q.id, word: q.highlighted_word, isCorrect: true, stars: starsEarned },
+          {
+            questionId: q.id,
+            mapId: activeMapId,
+            orderIndex: questionOrder,
+            questionIndex: questionOrder,
+            word: q.highlighted_word,
+            isCorrect: true,
+            stars: starsEarned,
+          },
         ];
 
         this.setState({
@@ -284,31 +545,44 @@ class StudentArcadeGame {
           submitting: false,
           history: updatedHistory,
           lastPraiseIndex: pIdx,
-          customMascotSpeech: `${praise} (+${starsEarned} Stars!)`,
+          customMascotSpeech: `${praiseText} (+${starsEarned} Stars!)`,
         });
 
         let hasAdvanced = false;
-        const advanceToNext = () => {
+        const advanceToNext = async () => {
           if (hasAdvanced) return;
           hasAdvanced = true;
           this.setState({ submitResult: null, selectedAnswerId: null });
-          this.startPollingQuestion();
+          await this.fetchCurrentQuestion();
+          this.startLightweightPoller();
         };
 
-        // Speak full praise and advance only after it completely finishes
-        soundManager.speakPraise(praise, () => {
-          setTimeout(advanceToNext, 1000);
-        });
+        if (customPraise?.audio_url) {
+          // Play teacher's authentic recorded voice praise
+          soundManager.playCustomVoiceRecording(customPraise.audio_url, undefined, () => {
+            setTimeout(advanceToNext, 800);
+          });
+        } else {
+          // Speak fallback praise and advance
+          soundManager.speakPraise(praiseText, () => {
+            setTimeout(advanceToNext, 1000);
+          });
+        }
 
-        // Safety fallback timer if speech synthesis is disabled/delayed
+        // Safety fallback timer
         setTimeout(advanceToNext, 8000);
       } else {
-        // --- 2. WRONG ANSWER: TRY AGAIN & AUTO-REREAD QUESTION ---
+        // --- 2. WRONG ANSWER: SHUFFLED TEACHER CHEER-UP ENCOURAGEMENT ---
+        const activeCheerClips = this.feedbackAudios.cheer_up.filter((c) => c.is_active !== false);
+        const customCheer = activeCheerClips.length > 0
+          ? activeCheerClips[Math.floor(Math.random() * activeCheerClips.length)]
+          : null;
+
         let tIdx = Math.floor(Math.random() * TRY_AGAIN_PHRASES.length);
         if (tIdx === this.state.lastTryAgainIndex) {
           tIdx = (tIdx + 1) % TRY_AGAIN_PHRASES.length;
         }
-        const tryAgainMsg = TRY_AGAIN_PHRASES[tIdx];
+        const tryAgainMsg = customCheer ? customCheer.phrase : TRY_AGAIN_PHRASES[tIdx];
 
         soundManager.playWrong();
 
@@ -325,10 +599,14 @@ class StudentArcadeGame {
           wrongAnswerIds: [...this.state.wrongAnswerIds, answerId],
         });
 
-        // TTS speaks try-again encouragement and automatically re-reads the question & choices
         setTimeout(() => {
           if (this.state.screen === 'question' && !this.state.submitResult) {
-            soundManager.speakTryAgain(tryAgainMsg, q.sentence, q.highlighted_word, choicesList);
+            if (customCheer?.audio_url) {
+              // Play teacher's authentic cheer-up voice clip
+              soundManager.playCustomVoiceRecording(customCheer.audio_url);
+            } else {
+              soundManager.speakTryAgain(tryAgainMsg, q.sentence, q.highlighted_word, choicesList);
+            }
           }
         }, 300);
       }
@@ -370,6 +648,7 @@ class StudentArcadeGame {
     }
 
     this.renderModals();
+    this.renderTeacherPauseOverlay();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -558,15 +837,15 @@ class StudentArcadeGame {
               </div>
             </div>
 
-            <div id="submitJoinBtnFrame" class="vocab-btn-frame" style="margin-top: 14px;">
+            <div id="submitJoinBtnFrame" class="vocab-btn-frame" style="margin-top: 6px;">
               <button
                 type="submit"
                 id="submitJoinBtn"
                 class="vocab-btn vocab-btn-green"
-                style="height: 60px; font-size: 24px;"
+                style="height: 50px; font-size: 18px; letter-spacing: 1.5px;"
                 ${this.state.submitting ? 'disabled' : ''}
               >
-                <span>${Icons.arrowRight(24)}</span>
+                <span>${Icons.arrowRight(20)}</span>
                 <span>${this.state.submitting ? 'JOINING ROOM...' : 'START ADVENTURE'}</span>
               </button>
             </div>
@@ -588,6 +867,7 @@ class StudentArcadeGame {
 
     pinIn?.addEventListener('input', (e) => {
       this.state.pin = (e.target as HTMLInputElement).value;
+      this.syncUrl('join', true);
     });
 
     nameIn?.addEventListener('input', (e) => {
@@ -600,9 +880,24 @@ class StudentArcadeGame {
       card.addEventListener('mouseenter', () => soundManager.playHover());
       card.addEventListener('click', () => {
         const slug = card.getAttribute('data-slug');
-        if (slug) {
+        if (slug && this.state.avatarSlug !== slug) {
           soundManager.playClick();
-          this.setState({ avatarSlug: slug });
+          this.state.avatarSlug = slug;
+
+          document.querySelectorAll('.student-avatar-card').forEach((c) => {
+            const isMatch = c.getAttribute('data-slug') === slug;
+            c.classList.toggle('selected', isMatch);
+            const existingCheck = c.querySelector('.student-avatar-check');
+            if (isMatch && !existingCheck) {
+              const checkDiv = document.createElement('div');
+              checkDiv.className = 'student-avatar-check';
+              checkDiv.innerHTML = Icons.check(14);
+              c.prepend(checkDiv);
+            } else if (!isMatch && existingCheck) {
+              existingCheck.remove();
+            }
+          });
+
           soundManager.speakCharacterVoice(slug);
         }
       });
@@ -615,37 +910,42 @@ class StudentArcadeGame {
   // 4. 2D WORLD MAP SCREEN
   // ─────────────────────────────────────────────────────────────────────────────
   private renderWorldMapScreen() {
-    const avatar = AVATARS.find((a) => a.slug === this.state.avatarSlug) || AVATARS[0];
+    const avatar = getAvatarBySlug(this.state.avatarSlug);
     const activeMapId = this.state.currentData?.data?.map?.id || 1;
-    const currentQuestionIndex = this.state.currentData?.data?.question?.id ? 1 : 1;
+    const currentQuestionIndex =
+      this.state.currentData?.data?.question?.order_index ||
+      this.state.currentData?.data?.map?.current_question_num ||
+      (this.state.history.filter((h) => (h.mapId || 1) === activeMapId).length + 1);
     const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars || 0), 0);
-    const starFillPercent = Math.min(100, Math.max(14, (totalStars / 15) * 100));
 
     this.appEl.innerHTML = `
-      <!-- Top-Left Player Avatar & Candy Star Progress Bar -->
+      <!-- Top-Left Player Profile & Star HUD -->
       <div class="candy-hud-top-left animate-fade-in">
-        <div class="candy-avatar-box candy-hud-interactive" id="playerAvatarBox" title="${this.state.playerName || 'Hero Student'}">
-          <img src="${avatar.image || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
-        </div>
-
-        <div class="candy-star-progress-widget candy-hud-interactive">
-          <div class="candy-star-badge-wrap">
-            <svg class="candy-star-svg" viewBox="0 0 100 100">
-              <defs>
-                <radialGradient id="starGoldGrad" cx="38%" cy="32%" r="65%">
-                  <stop offset="0%" stop-color="#FFFBEB" />
-                  <stop offset="35%" stop-color="#FDE047" />
-                  <stop offset="70%" stop-color="#EAB308" />
-                  <stop offset="100%" stop-color="#CA8A04" />
-                </radialGradient>
-              </defs>
-              <path d="M 50,5 L 63,33 L 95,38 L 72,61 L 78,93 L 50,77 L 22,93 L 28,61 L 5,38 L 37,33 Z"
-                    fill="url(#starGoldGrad)" stroke="#FEF3C7" stroke-width="4" stroke-linejoin="round" />
-            </svg>
-            <span class="candy-star-value">${totalStars}</span>
+        <div class="candy-player-card candy-hud-interactive" id="playerAvatarBox" title="${this.state.playerName || 'Hero Student'}">
+          <div class="candy-avatar-circle">
+            <img src="${avatar.image || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
           </div>
-          <div class="candy-pill-progress-track">
-            <div class="candy-pill-progress-fill" style="width: ${starFillPercent}%;"></div>
+          <div class="candy-player-info">
+            <div class="candy-player-name">${this.state.playerName || 'Hero Student'}</div>
+            <div class="candy-star-row">
+              <div class="candy-star-icon-wrap">
+                <svg class="candy-star-svg" viewBox="0 0 36 36">
+                  <defs>
+                    <linearGradient id="hudStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#FFF566" />
+                      <stop offset="35%" stop-color="#FFD000" />
+                      <stop offset="75%" stop-color="#FF9900" />
+                      <stop offset="100%" stop-color="#E67300" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
+                        fill="url(#hudStarGrad)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
+                  <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
+                </svg>
+              </div>
+              <span class="candy-star-count-num">${totalStars}</span>
+              <span class="candy-star-count-label">STARS</span>
+            </div>
           </div>
         </div>
       </div>
@@ -718,10 +1018,25 @@ class StudentArcadeGame {
         activeMapId,
         currentQuestionIndex,
         undefined,
-        initialPos
+        initialPos,
+        this.state.history
       );
 
       this.mapRenderer.onStepClick(() => {
+        const isWaiting = this.state.roomStatus === 'waiting' ||
+                          this.state.currentData?.room_status === 'waiting' ||
+                          this.state.currentData?.data?.room_status === 'waiting';
+
+        if (isWaiting) {
+          soundManager.playHover();
+          this.showToast(
+            'Session Not Started',
+            'Your teacher has not started the session yet. Waiting for other players to join!',
+            'warning'
+          );
+          return;
+        }
+
         soundManager.stopSpeech();
         this.setState({ screen: 'question' });
       });
@@ -730,6 +1045,17 @@ class StudentArcadeGame {
         this.mapRenderer.animateWalkingPath(path, unlockMsg, () => {
           setTimeout(() => {
             if (this.state.screen === 'world_map') {
+              const isWaiting = this.state.roomStatus === 'waiting' ||
+                                this.state.currentData?.room_status === 'waiting' ||
+                                this.state.currentData?.data?.room_status === 'waiting';
+              if (isWaiting) {
+                this.showToast(
+                  'Session Not Started',
+                  'Your teacher has not started the session yet. Waiting for other players to join!',
+                  'warning'
+                );
+                return;
+              }
               soundManager.stopSpeech();
               this.setState({ screen: 'question' });
             }
@@ -749,23 +1075,10 @@ class StudentArcadeGame {
     const q = data.question;
     const result = this.state.submitResult;
     const selectedId = this.state.selectedAnswerId;
-    const avatar = AVATARS.find((a) => a.slug === this.state.avatarSlug) || AVATARS[0];
+    const avatar = getAvatarBySlug(this.state.avatarSlug);
 
-    // Background assignment
-    const mapOrder = data.map.order_index || data.map.id || 1;
-    let bgUrl = '/assets/kingdom_epces.jpg';
-    if ((data.map as any).background_url) {
-      bgUrl = (data.map as any).background_url;
-    } else if (mapOrder === 1 || data.map.title?.toLowerCase().includes('epces')) {
-      bgUrl = '/assets/kingdom_epces.jpg';
-    } else if (mapOrder === 2 || data.map.title?.toLowerCase().includes('bayan') || data.map.title?.toLowerCase().includes('prosperidad')) {
-      bgUrl = '/assets/kingdom_bayan.jpg';
-    } else if (mapOrder === 3 || data.map.title?.toLowerCase().includes('capitol') || data.map.title?.toLowerCase().includes('provincial')) {
-      bgUrl = '/assets/kingdom_capitol.jpg';
-    }
-
-    this.bgLayerEl.src = bgUrl;
-    this.bgLayerEl.style.display = 'block';
+    // Hide the 2D world map background image so the question arena is clean and full screen
+    this.bgLayerEl.style.display = 'none';
 
     const regex = new RegExp(`(${q.highlighted_word})`, 'gi');
     const formattedSentence = q.sentence.replace(regex, '<span class="highlighted-word">$1</span>');
@@ -778,66 +1091,62 @@ class StudentArcadeGame {
     }));
 
     const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars || 0), 0);
-    const starFillPercent = Math.min(100, Math.max(14, (totalStars / 15) * 100));
 
     this.appEl.innerHTML = `
-      <!-- Top-Left Player & Star Bar -->
-      <div class="candy-hud-top-left animate-fade-in">
-        <div class="candy-star-progress-widget candy-hud-interactive">
-          <div class="candy-star-badge-wrap">
-            <svg class="candy-star-svg" viewBox="0 0 100 100">
-              <defs>
-                <radialGradient id="quizStarGoldGrad" cx="38%" cy="32%" r="65%">
-                  <stop offset="0%" stop-color="#FFFBEB" />
-                  <stop offset="35%" stop-color="#FDE047" />
-                  <stop offset="70%" stop-color="#EAB308" />
-                  <stop offset="100%" stop-color="#CA8A04" />
-                </radialGradient>
-              </defs>
-              <path d="M 50,5 L 63,33 L 95,38 L 72,61 L 78,93 L 50,77 L 22,93 L 28,61 L 5,38 L 37,33 Z"
-                    fill="url(#quizStarGoldGrad)" stroke="#FEF3C7" stroke-width="4" stroke-linejoin="round" />
-            </svg>
-            <span class="candy-star-value">${totalStars}</span>
+      <div class="question-fullscreen-stage animate-fade-in">
+        <!-- Top HUD Row -->
+        <div class="question-hud-bar">
+          <div class="candy-player-card candy-hud-interactive" id="questionAvatarBox" title="${this.state.playerName || 'Hero Student'}">
+            <div class="candy-avatar-circle">
+              <img src="${avatar.image || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
+            </div>
+            <div class="candy-player-info">
+              <div class="candy-player-name">${this.state.playerName || 'Hero Student'}</div>
+              <div class="candy-star-row">
+                <div class="candy-star-icon-wrap">
+                  <svg class="candy-star-svg" viewBox="0 0 36 36">
+                    <defs>
+                      <linearGradient id="quizStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#FFF566" />
+                        <stop offset="35%" stop-color="#FFD000" />
+                        <stop offset="75%" stop-color="#FF9900" />
+                        <stop offset="100%" stop-color="#E67300" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
+                          fill="url(#quizStarGrad)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
+                    <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
+                  </svg>
+                </div>
+                <span class="candy-star-count-num">${totalStars}</span>
+                <span class="candy-star-count-label">STARS</span>
+              </div>
+            </div>
           </div>
-          <div class="candy-pill-progress-track">
-            <div class="candy-pill-progress-fill" style="width: ${starFillPercent}%;"></div>
+
+          <div class="question-hud-actions">
+            <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" style="cursor: pointer; border-color: #10B981; color: #86EFAC;">
+              <span>${Icons.map(18)}</span>
+              <span>2D MAP</span>
+            </button>
+            <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive">
+              <span>${Icons.menu(18)}</span>
+              <span>MENU</span>
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Top-Right Controls -->
-      <div class="candy-hud-top-right animate-fade-in">
-        <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" style="cursor: pointer; border-color: #10B981; color: #86EFAC;">
-          <span>${Icons.map(18)}</span>
-          <span>2D MAP</span>
-        </button>
-        <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive">
-          <span>${Icons.menu(18)}</span>
-          <span>MENU</span>
-        </button>
-      </div>
-
-      <div class="gameplay-container animate-fade-in">
-        <!-- Main Question Box -->
-        <div class="main-question-card">
-          <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1.5px solid rgba(255,255,255,0.12); margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
-            <div>
-              <span style="font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #38BDF8; letter-spacing: 0.5px; text-transform: uppercase;">
-                ${data.map.title}
-              </span>
-              <h3 style="font-family: var(--font-primary); font-size: 22px; font-weight: 700; color: #FAFAFA; margin-top: 2px;">
-                TARGET WORD: <span style="color: #FDE047; text-shadow: 1px 1px 0 #000;">${q.highlighted_word.toUpperCase()}</span>
-              </h3>
-            </div>
-
-            <button id="readQuestionBtn" class="hud-btn" style="background: ${q.voice_audio_url || q.audio_url ? '#059669' : '#0284C7'}; border-color: ${q.voice_audio_url || q.audio_url ? '#34D399' : '#38BDF8'}; font-family: var(--font-primary); font-size: 18px; font-weight: 700; padding: 10px 18px; transition: all 0.2s ease;">
-              <span id="readQuestionIcon">${Icons.volume(20)}</span>
-              <span id="readQuestionText">${q.voice_audio_url || q.audio_url ? 'TEACHER VOICE' : 'READ QUESTION'}</span>
+        <!-- Centered Main Question Arena -->
+        <div class="question-arena-card">
+          <div class="question-arena-header">
+            <button id="readQuestionBtn" class="hud-btn question-replay-btn" title="Replay voice narration">
+              <span id="readQuestionIcon">${Icons.rotateCcw(18)}</span>
+              <span id="readQuestionText">REPLAY</span>
             </button>
           </div>
 
           ${q.voice_video_url ? `
-            <div style="margin-bottom: 16px; border-radius: 16px; overflow: hidden; max-height: 220px; border: 2px solid #0284C7; background: #020617; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+            <div style="margin-bottom: 8px; border-radius: 16px; overflow: hidden; max-height: 220px; border: 2px solid #0284C7; background: #020617; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
               <div style="padding: 8px 14px; background: rgba(2, 132, 199, 0.2); font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #38BDF8; display: flex; align-items: center; gap: 8px;">
                 <span>${Icons.video(18)}</span>
                 <span>TEACHER VIDEO VOICEOVER PROMPT</span>
@@ -846,16 +1155,19 @@ class StudentArcadeGame {
             </div>
           ` : ''}
 
+          <!-- Centered Question Visual Clue Image (Clean, No Badge) -->
           ${q.image_url ? `
-            <div style="margin-bottom: 16px; border-radius: 16px; overflow: hidden; max-height: 180px; border: 2px solid #334155;">
-              <img src="${q.image_url}" alt="Question hint" style="width: 100%; height: 180px; object-fit: cover;" />
+            <div class="question-visual-clue-card">
+              <img src="${q.image_url}" alt="Question visual clue" class="question-visual-clue-img" />
             </div>
           ` : ''}
 
+          <!-- Centered Full-Width Sentence Box -->
           <div class="sentence-box">
             "${formattedSentence}"
           </div>
 
+          <!-- Answer Choices Grid -->
           <div class="answers-grid">
             ${q.answers.map((ans, idx) => {
               const letter = String.fromCharCode(65 + idx);
@@ -868,48 +1180,36 @@ class StudentArcadeGame {
               const escapedText = ans.text.replace(/"/g, '&quot;');
               return `
                 <div class="answer-card ${stateClass}" data-answer-id="${ans.id}">
-                  <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                  <div class="answer-card-content">
                     <div class="answer-badge">${letter}</div>
-                    <span style="font-size: 22px; font-weight: 500;">${ans.text}</span>
+                    <span class="answer-text">${ans.text}</span>
                   </div>
-                  <button class="choice-speak-btn" data-letter="${letter}" data-text="${escapedText}" title="Listen to Choice ${letter}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; color: #93C5FD; padding: 6px 10px; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;">
+                  <button class="choice-speak-btn" data-letter="${letter}" data-text="${escapedText}" title="Listen to Choice ${letter}">
                     ${Icons.volume(18)}
                   </button>
                 </div>
               `;
             }).join('')}
           </div>
-        </div>
 
-        <!-- Mascot & Progress Sidebar -->
-        <div class="sidebar-mascot-card">
-          <div class="mascot-avatar-box">
-            <img src="${avatar.image || '/assets/mascot_girl.png'}" style="height: 110px; width: auto; object-fit: contain; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5)); margin-bottom: 6px;" alt="${avatar.label}" />
-            <div style="font-family: var(--font-primary); font-size: 18px; font-weight: 700; color: #FDE047; text-shadow: 1px 1px 0 #000;">${this.state.playerName || 'Hero Student'}</div>
-            <div style="font-size: 14px; color: #94A3B8; font-weight: 600; margin-bottom: 6px;">${avatar.label}</div>
-            <div class="mascot-speech-bubble">
-              ${mascotSpeech}
-            </div>
-          </div>
-
-          <div style="background: #1E293B; border: 3px solid #334155; border-radius: 18px; padding: 16px;">
-            <span style="font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #94A3B8; letter-spacing: 0.5px;">
-              ${data.map.title.toUpperCase()} QUEST STARS
-            </span>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-              ${this.state.history.map((h, i) => `
-                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; color: ${h.isCorrect ? '#86EFAC' : '#FCA5A5'};">
-                  <span>Q${i + 1}: ${h.word}</span>
-                  <span style="display: inline-flex; gap: 3px;">
-                    ${Array.from({ length: h.stars || 1 }).map(() => Icons.star(16)).join('')}
-                  </span>
-                </div>
-              `).join('')}
+          <!-- Mascot Guidance Strip -->
+          <div class="question-mascot-strip">
+            <img src="${avatar.image || '/assets/mascot_girl.png'}" class="mascot-strip-avatar" alt="${avatar.label}" />
+            <div class="mascot-strip-content">
+              <span class="mascot-strip-name">${this.state.playerName || 'Hero Student'}:</span>
+              <span class="mascot-strip-speech">"${mascotSpeech}"</span>
             </div>
           </div>
         </div>
       </div>
     `;
+
+    document.getElementById('questionAvatarBox')?.addEventListener('click', () => {
+      soundManager.playClick();
+      if (this.state.avatarSlug) {
+        soundManager.speakCharacterVoice(this.state.avatarSlug);
+      }
+    });
 
     document.getElementById('questionPauseBtn')?.addEventListener('click', () => {
       soundManager.playClick();
@@ -926,20 +1226,19 @@ class StudentArcadeGame {
     const readBtn = document.getElementById('readQuestionBtn');
     const readIcon = document.getElementById('readQuestionIcon');
     const readText = document.getElementById('readQuestionText');
-    const hasCustomVoice = Boolean(q.voice_audio_url || q.audio_url);
 
     const updateReadButton = (isSpeaking: boolean) => {
       if (readIcon && readText && readBtn) {
         if (isSpeaking) {
-          readIcon.innerHTML = Icons.stop(20);
+          readIcon.innerHTML = Icons.stop(18);
           readText.textContent = 'STOP';
           readBtn.style.background = '#DC2626';
           readBtn.style.borderColor = '#EF4444';
         } else {
-          readIcon.innerHTML = Icons.volume(20);
-          readText.textContent = hasCustomVoice ? 'TEACHER VOICE' : 'READ QUESTION';
-          readBtn.style.background = hasCustomVoice ? '#059669' : '#0284C7';
-          readBtn.style.borderColor = hasCustomVoice ? '#34D399' : '#38BDF8';
+          readIcon.innerHTML = Icons.rotateCcw(18);
+          readText.textContent = 'REPLAY';
+          readBtn.style.background = '#0284C7';
+          readBtn.style.borderColor = '#38BDF8';
         }
       }
     };
@@ -1063,7 +1362,8 @@ class StudentArcadeGame {
       soundManager.playClick();
       soundManager.stopSpeech();
       this.lastNarratedQuestionId = null;
-      gameApi.clearToken();
+      gameApi.clearSession();
+      if (this.pollInterval) clearInterval(this.pollInterval);
       this.setState({
         screen: 'title',
         score: 0,
@@ -1076,6 +1376,117 @@ class StudentArcadeGame {
         customMascotSpeech: null,
       });
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SLEEK MINIMALIST TOAST SYSTEM
+  // ─────────────────────────────────────────────────────────────────────────────
+  public showToast(
+    title: string,
+    message: string,
+    type: 'warning' | 'info' | 'success' = 'warning',
+    durationMs = 4000
+  ) {
+    let container = document.getElementById('gameToastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'gameToastContainer';
+      container.className = 'game-toast-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = '';
+
+    const toast = document.createElement('div');
+    toast.className = 'game-toast';
+
+    let iconSvg = '';
+    if (type === 'warning') {
+      iconSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      `;
+    } else if (type === 'success') {
+      iconSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      `;
+    } else {
+      iconSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      `;
+    }
+
+    toast.innerHTML = `
+      <div class="game-toast-icon-box toast-${type}">
+        ${iconSvg}
+      </div>
+      <div class="game-toast-content">
+        <div class="game-toast-title">${title}</div>
+        <div class="game-toast-message">${message}</div>
+      </div>
+    `;
+
+    const dismiss = () => {
+      toast.classList.add('toast-hiding');
+      setTimeout(() => {
+        toast.remove();
+      }, 250);
+    };
+
+    toast.addEventListener('click', dismiss);
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentElement) {
+        dismiss();
+      }
+    }, durationMs);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEACHER PAUSE OVERLAY
+  // ─────────────────────────────────────────────────────────────────────────────
+  private renderTeacherPauseOverlay() {
+    const OVERLAY_ID = 'teacherPauseOverlay';
+    const existing = document.getElementById(OVERLAY_ID);
+    if (existing) existing.remove();
+
+    if (!this.state.isTeacherPaused) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = OVERLAY_ID;
+    overlay.className = 'teacher-pause-overlay';
+    overlay.innerHTML = `
+      <div class="teacher-pause-card">
+        <div class="teacher-pause-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16" rx="1"/>
+            <rect x="14" y="4" width="4" height="16" rx="1"/>
+          </svg>
+        </div>
+        <p class="teacher-pause-title">Game Paused</p>
+        <p class="teacher-pause-subtitle">Your teacher has paused the session. Sit tight — it will resume shortly.</p>
+        <div class="teacher-pause-badge">
+          <span class="teacher-pause-dot"></span>
+          Waiting for teacher
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1358,7 +1769,7 @@ class StudentArcadeGame {
         soundManager.playClick();
         soundManager.stopSpeech();
         this.lastActiveMapId = 1;
-        gameApi.clearToken();
+        gameApi.clearSession();
         if (this.pollInterval) clearInterval(this.pollInterval);
         this.setState({
           isPauseMenuOpen: false,

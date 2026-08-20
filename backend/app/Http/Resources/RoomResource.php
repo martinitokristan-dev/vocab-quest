@@ -15,8 +15,11 @@ class RoomResource extends JsonResource
             'current_map_id' => $this->current_map_id,
             'pin'            => $this->pin,
             'name'           => $this->name,
-            'status'         => $this->status,
-            'current_map'    => $this->whenLoaded('currentMap'),
+            'status'                => $this->status,
+            'max_students'          => $this->max_students ?? 40,
+            'active_students_count' => $this->gameSessions()->count(),
+            'students_count'        => $this->gameSessions()->count(),
+            'current_map'           => $this->whenLoaded('currentMap'),
             'created_at'     => $this->created_at,
             'updated_at'     => $this->updated_at,
         ];

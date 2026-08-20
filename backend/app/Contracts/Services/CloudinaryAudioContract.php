@@ -6,4 +6,6 @@ namespace App\Contracts\Services;
 interface CloudinaryAudioContract
 {
     public function uploadAudio(string $audioContents, string $publicId): array;
+
+    public function uploadFile(\Illuminate\Http\UploadedFile|string $file, string $folder = 'questions', string $resourceType = 'auto'): array;
 }

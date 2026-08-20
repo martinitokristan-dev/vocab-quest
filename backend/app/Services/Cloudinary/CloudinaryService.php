@@ -3,58 +3,107 @@
 namespace App\Services\Cloudinary;
 
 use App\Contracts\Services\CloudinaryAudioContract;
-use Cloudinary\Cloudinary;
-use Cloudinary\Configuration\Configuration;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
-// Phase 4 — Real Cloudinary implementation for production uploads
+// Phase 4 — High-Performance Cloudinary Signed REST API implementation (Zero heavy SDK dependencies)
 class CloudinaryService implements CloudinaryAudioContract
 {
-    private Cloudinary $cloudinary;
-    private string $preset;
-
     public function __construct(
-        string $cloudName,
-        string $apiKey,
-        string $apiSecret,
-        string $preset = 'vocab_audio'
-    ) {
-        $this->preset = $preset;
-
-        Configuration::instance([
-            'cloud' => [
-                'cloud_name' => $cloudName,
-                'api_key'    => $apiKey,
-                'api_secret' => $apiSecret,
-            ],
-            'url' => ['secure' => true],
-        ]);
-
-        $this->cloudinary = new Cloudinary();
-    }
+        private readonly string $cloudName,
+        private readonly string $apiKey,
+        private readonly string $apiSecret,
+        private readonly ?string $preset = null
+    ) {}
 
     public function uploadAudio(string $audioContents, string $publicId): array
     {
-        // Write to a temp file because Cloudinary SDK requires a file path
-        $tmpFile = tempnam(sys_get_temp_dir(), 'vocab_audio_') . '.mp3';
-        file_put_contents($tmpFile, $audioContents);
+        $timestamp = time();
+        $params = [
+            'public_id' => $publicId,
+            'timestamp' => $timestamp,
+        ];
 
-        try {
-            $result = $this->cloudinary->uploadApi()->upload($tmpFile, [
-                'resource_type' => 'video', // Cloudinary uses "video" for audio files
-                'public_id'     => $publicId,
-                'upload_preset' => $this->preset,
-                'overwrite'     => true,
-            ]);
+        $signature = $this->generateSignature($params);
 
+        $payload = array_merge($params, [
+            'api_key'   => $this->apiKey,
+            'signature' => $signature,
+        ]);
+
+        // Attempt upload using auto resource type
+        $response = Http::timeout(30)
+            ->attach('file', $audioContents, 'audio.mp3')
+            ->post("https://api.cloudinary.com/v1_1/{$this->cloudName}/auto/upload", $payload);
+
+        if ($response->successful()) {
+            $data = $response->json();
             return [
-                'url'       => $result['secure_url'],
-                'public_id' => $result['public_id'],
+                'url'       => $data['secure_url'] ?? $data['url'],
+                'public_id' => $data['public_id'],
             ];
-        } catch (\Throwable $e) {
-            throw new RuntimeException("Cloudinary upload failed: {$e->getMessage()}");
-        } finally {
-            @unlink($tmpFile);
         }
+
+        // Retry with raw resource type if auto fails
+        $rawResponse = Http::timeout(30)
+            ->attach('file', $audioContents, 'audio.mp3')
+            ->post("https://api.cloudinary.com/v1_1/{$this->cloudName}/raw/upload", $payload);
+
+        if ($rawResponse->successful()) {
+            $data = $rawResponse->json();
+            return [
+                'url'       => $data['secure_url'] ?? $data['url'],
+                'public_id' => $data['public_id'],
+            ];
+        }
+
+        \Log::error("Cloudinary audio upload failed: " . $response->body());
+        throw new RuntimeException("Cloudinary upload failed: " . $response->body());
+    }
+
+    public function uploadFile(UploadedFile|string $file, string $folder = 'questions', string $resourceType = 'auto'): array
+    {
+        $timestamp = time();
+        $params = [
+            'folder'    => $folder,
+            'timestamp' => $timestamp,
+        ];
+
+        $signature = $this->generateSignature($params);
+
+        $payload = array_merge($params, [
+            'api_key'   => $this->apiKey,
+            'signature' => $signature,
+        ]);
+
+        $fileContents = is_string($file) ? file_get_contents($file) : file_get_contents($file->getRealPath());
+        $fileName = is_string($file) ? basename($file) : $file->getClientOriginalName();
+        $resType = in_array($resourceType, ['image', 'video', 'raw', 'auto'], true) ? $resourceType : 'auto';
+
+        $response = Http::timeout(45)
+            ->attach('file', $fileContents, $fileName)
+            ->post("https://api.cloudinary.com/v1_1/{$this->cloudName}/{$resType}/upload", $payload);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            return [
+                'url'       => $data['secure_url'] ?? $data['url'],
+                'public_id' => $data['public_id'],
+            ];
+        }
+
+        \Log::error("Cloudinary file upload failed: " . $response->body());
+        throw new RuntimeException("Cloudinary upload failed: " . $response->body());
+    }
+
+    private function generateSignature(array $params): string
+    {
+        ksort($params);
+        $signString = '';
+        foreach ($params as $key => $value) {
+            $signString .= ($signString === '' ? '' : '&') . "{$key}={$value}";
+        }
+        return sha1($signString . $this->apiSecret);
     }
 }

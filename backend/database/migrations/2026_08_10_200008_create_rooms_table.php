@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('teacher_id')->constrained('users')->cascadeOnDelete();
             $table->string('name', 100);
             $table->char('pin', 6)->index();
-            $table->enum('status', ['waiting', 'in_progress', 'closed'])->default('waiting');
+            $table->enum('status', ['waiting', 'in_progress', 'paused', 'closed'])->default('waiting');
             $table->foreignId('current_map_id')->nullable()->constrained('maps')->nullOnDelete();
             $table->timestamps();
         });

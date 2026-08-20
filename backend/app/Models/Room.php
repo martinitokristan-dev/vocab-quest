@@ -18,6 +18,7 @@ class Room extends Model
         'pin',
         'name',
         'status',
+        'max_students',
     ];
 
     public function teacher(): BelongsTo

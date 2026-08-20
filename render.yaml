@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: vocab-quest-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/ping
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        sync: false  # Set to your Render URL after first deploy
+
+      # TiDB Cloud Starter (MySQL-compatible)
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false  # Paste TiDB host from dashboard
+      - key: DB_PORT
+        value: 4000
+      - key: DB_DATABASE
+        sync: false  # Your TiDB database name
+      - key: DB_USERNAME
+        sync: false  # Your TiDB username
+      - key: DB_PASSWORD
+        sync: false  # Your TiDB password
+
+      # Performance (file cache = fast, no Redis needed)
+      - key: CACHE_STORE
+        value: file
+      - key: SESSION_DRIVER
+        value: cookie
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: FILESYSTEM_DISK
+        value: local
+
+      # Cloudinary (already configured)
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_UPLOAD_PRESET
+        sync: false
+
+      # TTS (ElevenLabs)
+      - key: TTS_PROVIDER
+        value: elevenlabs
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false

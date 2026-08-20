@@ -17,10 +17,14 @@ class StudentAnswer extends Model
         'question_id',
         'answer_id',
         'is_correct',
+        'stars',
+        'attempts',
     ];
 
     protected $casts = [
         'is_correct' => 'boolean',
+        'stars'      => 'integer',
+        'attempts'   => 'integer',
     ];
 
     public function gameSession(): BelongsTo
