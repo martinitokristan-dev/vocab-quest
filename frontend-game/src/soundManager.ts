@@ -39,6 +39,21 @@ class SoundManager {
         window.speechSynthesis.getVoices();
       };
     }
+
+    // Auto-resume AudioContext on first user interaction
+    if (typeof window !== 'undefined') {
+      const unlockAudio = () => {
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        window.removeEventListener('pointerdown', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+      };
+      window.addEventListener('pointerdown', unlockAudio, { passive: true });
+      window.addEventListener('keydown', unlockAudio, { passive: true });
+      window.addEventListener('touchstart', unlockAudio, { passive: true });
+    }
   }
 
   private initContext() {
@@ -49,7 +64,7 @@ class SoundManager {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 
