@@ -200,6 +200,9 @@ class StudentArcadeGame {
       } else {
         this.startLoading('world_map');
         this.fetchCurrentQuestion('world_map').then(() => {
+          if (this.state.currentData?.data?.map?.id) {
+            this.lastActiveMapId = this.state.currentData.data.map.id;
+          }
           this.startLightweightPoller();
         });
       }
@@ -388,10 +391,6 @@ class StudentArcadeGame {
         const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
         const isWaiting = roomStatus === 'waiting';
         const nextScreen = forceScreen || (isWaiting ? 'world_map' : (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen));
-
-        if (this.lastActiveMapId === 1 && res.data.map?.id) {
-          this.lastActiveMapId = res.data.map.id;
-        }
 
         this.setState({
           screen: nextScreen,
