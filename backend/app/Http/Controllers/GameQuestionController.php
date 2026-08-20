@@ -71,11 +71,10 @@ class GameQuestionController extends Controller
             ->with('question:id,map_id,order_index,highlighted_word')
             ->get();
 
-        $answeredIdsOnCurrentMap = $allAnswers
-            ->where('map_id', $session->current_map_id)
-            ->pluck('question_id');
+        // Check against all answered question IDs so we never repeat a completed question
+        $allAnsweredQuestionIds = $allAnswers->pluck('question_id');
 
-        $nextQuestion = $mapQuestions->first(fn ($q) => ! $answeredIdsOnCurrentMap->contains($q->id));
+        $nextQuestion = $mapQuestions->first(fn ($q) => ! $allAnsweredQuestionIds->contains($q->id));
 
         if (! $nextQuestion) {
             $advanceAction = app(AdvanceMapProgressionAction::class);
@@ -95,9 +94,15 @@ class GameQuestionController extends Controller
             return $this->show($request);
         }
 
+        // Always sync score from actual sum of earned stars
+        $actualScore = (int) $allAnswers->sum('stars');
+        if ($session->score !== $actualScore) {
+            $session->update(['score' => $actualScore]);
+        }
+
         $completedQuestions = $allAnswers->map(fn ($sa) => [
             'question_id' => $sa->question_id,
-            'map_id'      => $sa->map_id,
+            'map_id'      => $sa->question?->map_id ?? $sa->map_id,
             'order_index' => $sa->question?->order_index ?? 1,
             'word'        => $sa->question?->highlighted_word ?? '',
             'stars'       => $sa->stars ?? 3,
@@ -106,7 +111,7 @@ class GameQuestionController extends Controller
         return response()->json([
             'data' => [
                 'session'      => [
-                    'score'        => $session->score,
+                    'score'        => $actualScore,
                     'is_completed' => false,
                 ],
                 'map'          => [
@@ -187,16 +192,14 @@ class GameQuestionController extends Controller
         );
 
         // Recalculate total stars for session directly from sum of stars
-        if ($isCorrect) {
-            $totalSessionStars = StudentAnswer::where('game_session_id', $session->id)
-                ->where('is_correct', true)
-                ->sum('stars');
-            $session->update(['score' => $totalSessionStars]);
-        }
+        $totalSessionStars = (int) StudentAnswer::where('game_session_id', $session->id)
+            ->where('is_correct', true)
+            ->sum('stars');
+        $session->update(['score' => $totalSessionStars]);
 
         return response()->json([
             'is_correct' => $isCorrect,
-            'score'      => $session->fresh()->score,
+            'score'      => $totalSessionStars,
             'message'    => $isCorrect ? 'Correct answer!' : 'Incorrect answer. Try again!',
         ]);
     }
