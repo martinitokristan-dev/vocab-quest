@@ -446,10 +446,12 @@ export class Game2DMapRenderer {
     onArrival?: () => void
   ) {
     if (!waypoints || waypoints.length === 0) return;
+    this.playerPos = { x: waypoints[0].x, y: waypoints[0].y };
+    this.targetPlayerPos = { x: waypoints[0].x, y: waypoints[0].y };
     this.isWalkingAnimation = true;
     this.walkBubbleText = bubbleText;
     this.walkingWaypoints = waypoints;
-    this.currentWaypointIndex = 0;
+    this.currentWaypointIndex = waypoints.length > 1 ? 1 : 0;
     this.walkDistance = 0;
     this.lastStepDistance = 0;
     this.onWalkArrivalCallback = onArrival || null;

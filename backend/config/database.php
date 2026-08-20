@@ -56,9 +56,9 @@ return [
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
-            // TiDB Cloud Serverless SSL configuration
-            'options' => extension_loaded('pdo_mysql') ? [
-                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+            // Conditional SSL (only enabled for TiDB Cloud when DB_SSL_VERIFY is explicitly defined)
+            'options' => extension_loaded('pdo_mysql') && env('DB_SSL_VERIFY') !== null ? [
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => filter_var(env('DB_SSL_VERIFY', false), FILTER_VALIDATE_BOOLEAN),
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA', ''),
             ] : [],
         ],
