@@ -80,8 +80,9 @@ class RoomController extends Controller
         $this->authorize('update', $room);
 
         if ($room->status !== 'waiting') {
+            $statusName = $room->status === 'in_progress' ? 'In Progress' : ucfirst($room->status);
             throw ValidationException::withMessages([
-                'status' => ["Cannot start room with status '{$room->status}'. Room must be in 'waiting' status."],
+                'status' => ["Cannot start session because this room is already {$statusName}. Only rooms in 'Waiting' status can be started."],
             ]);
         }
 
@@ -100,8 +101,9 @@ class RoomController extends Controller
         $this->authorize('update', $room);
 
         if ($room->status !== 'in_progress') {
+            $statusName = $room->status === 'in_progress' ? 'In Progress' : ucfirst($room->status);
             throw ValidationException::withMessages([
-                'status' => ["Cannot pause room with status '{$room->status}'. Room must be in_progress."],
+                'status' => ["Cannot pause room because it is currently {$statusName}. Only rooms 'In Progress' can be paused."],
             ]);
         }
 
@@ -120,8 +122,9 @@ class RoomController extends Controller
         $this->authorize('update', $room);
 
         if ($room->status !== 'paused') {
+            $statusName = $room->status === 'in_progress' ? 'In Progress' : ucfirst($room->status);
             throw ValidationException::withMessages([
-                'status' => ["Cannot resume room with status '{$room->status}'. Room must be paused."],
+                'status' => ["Cannot resume room because it is currently {$statusName}. Only 'Paused' rooms can be resumed."],
             ]);
         }
 

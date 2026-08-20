@@ -30,8 +30,15 @@ class GameSessionController extends Controller
         }
 
         if ($room->status !== 'waiting') {
+            $readableStatus = match ($room->status) {
+                'in_progress' => 'In Progress',
+                'paused'      => 'Paused',
+                'closed'      => 'Closed',
+                default       => ucfirst(str_replace('_', ' ', $room->status)),
+            };
+
             throw ValidationException::withMessages([
-                'pin' => ["Cannot join room with status '{$room->status}'. Ask your teacher to open a new session."],
+                'pin' => ["Cannot join because this room is already {$readableStatus}. Ask your teacher to open a new session."],
             ]);
         }
 
