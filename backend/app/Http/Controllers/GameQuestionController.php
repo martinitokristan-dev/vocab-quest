@@ -65,15 +65,17 @@ class GameQuestionController extends Controller
                 ->get();
         });
 
-        // Single query for all student answers on current map — avoids two separate DB hits
+        // Single query for all correct student answers across all maps in the session
         $allAnswers = StudentAnswer::where('game_session_id', $session->id)
-            ->where('map_id', $session->current_map_id)
+            ->where('is_correct', true)
             ->with('question:id,map_id,order_index,highlighted_word')
             ->get();
 
-        $answeredIds = $allAnswers->where('is_correct', true)->pluck('question_id');
+        $answeredIdsOnCurrentMap = $allAnswers
+            ->where('map_id', $session->current_map_id)
+            ->pluck('question_id');
 
-        $nextQuestion = $mapQuestions->first(fn ($q) => ! $answeredIds->contains($q->id));
+        $nextQuestion = $mapQuestions->first(fn ($q) => ! $answeredIdsOnCurrentMap->contains($q->id));
 
         if (! $nextQuestion) {
             $advanceAction = app(AdvanceMapProgressionAction::class);
@@ -93,14 +95,13 @@ class GameQuestionController extends Controller
             return $this->show($request);
         }
 
-        $completedQuestions = $allAnswers
-            ->where('is_correct', true)
-            ->map(fn ($sa) => [
-                'question_id' => $sa->question_id,
-                'map_id'      => $sa->map_id,
-                'order_index' => $sa->question?->order_index ?? 1,
-                'word'        => $sa->question?->highlighted_word ?? '',
-            ]);
+        $completedQuestions = $allAnswers->map(fn ($sa) => [
+            'question_id' => $sa->question_id,
+            'map_id'      => $sa->map_id,
+            'order_index' => $sa->question?->order_index ?? 1,
+            'word'        => $sa->question?->highlighted_word ?? '',
+            'stars'       => $sa->stars ?? 3,
+        ]);
 
         return response()->json([
             'data' => [

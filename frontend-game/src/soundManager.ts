@@ -567,27 +567,35 @@ class SoundManager {
       > = {
         'learner-girl': {
           file: '/assets/audio/voice_learner_girl.mp3',
-          playbackRate: 1.26,
+          playbackRate: 1.0,
+        },
+        'learner-boy': {
+          file: '/assets/audio/voice_learner_boy.mp3',
+          playbackRate: 1.0,
         },
         'quest-boy': {
           file: '/assets/audio/voice_learner_boy.mp3',
-          playbackRate: 1.22,
+          playbackRate: 1.0,
         },
         'scholar-girl': {
           file: '/assets/audio/voice_school_girl.mp3',
-          playbackRate: 1.20,
+          playbackRate: 1.0,
         },
         'scholar-boy': {
           file: '/assets/audio/voice_school_boy.mp3',
-          playbackRate: 1.18,
+          playbackRate: 1.0,
         },
         'morena-girl': {
           file: '/assets/audio/voice_sporty_girl.mp3',
-          playbackRate: 1.34,
+          playbackRate: 1.0,
+        },
+        'explorer-boy': {
+          file: '/assets/audio/voice_explorer_boy.mp3',
+          playbackRate: 1.0,
         },
         'moreno-boy': {
           file: '/assets/audio/voice_explorer_boy.mp3',
-          playbackRate: 1.25,
+          playbackRate: 1.0,
         },
       };
 
