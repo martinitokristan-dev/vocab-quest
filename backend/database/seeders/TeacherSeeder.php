@@ -92,17 +92,10 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 5. Seed Vocabulary & Approved Audio
+        // 5. Seed Vocabulary
         $words = ['exhausted', 'brave', 'triumphant', 'legendary', 'perseverent'];
         foreach ($words as $word) {
-            $vocab = Vocabulary::firstOrCreate(['word' => $word]);
-            VocabularyAudio::firstOrCreate(
-                ['vocabulary_id' => $vocab->id, 'status' => 'approved'],
-                [
-                    'url'                  => 'https://res.cloudinary.com/demo/video/upload/sample.mp3',
-                    'cloudinary_public_id' => "vocab_audio/{$word}",
-                ]
-            );
+            Vocabulary::firstOrCreate(['word' => $word]);
         }
 
         // 6. Seed Questions for Map 1 (EPCES - 3 Questions)

@@ -153,15 +153,17 @@ class GameQuestionController extends Controller
         $question = Question::findOrFail($validated['question_id']);
         $answer   = Answer::findOrFail($validated['answer_id']);
 
-        // rules-and-validation §5: Prevent duplicate answers once correctly completed
+        // Idempotent: If student already completed this question, return success gracefully
         $alreadyCompleted = StudentAnswer::where('game_session_id', $session->id)
             ->where('question_id', $question->id)
             ->where('is_correct', true)
             ->exists();
 
         if ($alreadyCompleted) {
-            throw ValidationException::withMessages([
-                'question_id' => ['You have already submitted a correct answer for this question.'],
+            return response()->json([
+                'is_correct' => true,
+                'score'      => $session->score,
+                'message'    => 'Question already completed!',
             ]);
         }
 
@@ -176,7 +178,7 @@ class GameQuestionController extends Controller
                 'question_id'     => $question->id,
             ],
             [
-                'map_id'     => $session->current_map_id,
+                'map_id'     => $question->map_id,
                 'answer_id'  => $answer->id,
                 'is_correct' => $isCorrect,
                 'stars'      => $starsAwarded,

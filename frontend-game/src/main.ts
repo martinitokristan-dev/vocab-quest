@@ -1248,13 +1248,7 @@ class StudentArcadeGame {
         updateReadButton(false);
       } else {
         const voiceUrl = q.voice_audio_url || q.audio_url;
-        if (voiceUrl) {
-          soundManager.playCustomVoiceRecording(
-            voiceUrl,
-            () => updateReadButton(true),
-            () => updateReadButton(false)
-          );
-        } else {
+        const fallbackTTS = () => {
           soundManager.speakQuestionNarration(
             q.sentence,
             q.highlighted_word,
@@ -1262,6 +1256,17 @@ class StudentArcadeGame {
             () => updateReadButton(true),
             () => updateReadButton(false)
           );
+        };
+
+        if (voiceUrl) {
+          soundManager.playCustomVoiceRecording(
+            voiceUrl,
+            () => updateReadButton(true),
+            () => updateReadButton(false),
+            fallbackTTS
+          );
+        } else {
+          fallbackTTS();
         }
       }
     });
