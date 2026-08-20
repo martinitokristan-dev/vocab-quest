@@ -64,60 +64,60 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1">Full Name</label>
-              <div className="relative">
-                <User className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-500 pointer-events-none" />
+              <div className="relative flex items-center">
+                <User className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
                 <input
                   type="text"
                   required
                   placeholder="e.g. Ms. Santos"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="minimal-input pl-9 text-xs"
+                  className="minimal-input pl-10 text-xs"
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1">Email Address</label>
-              <div className="relative">
-                <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-500 pointer-events-none" />
+              <div className="relative flex items-center">
+                <Mail className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
                 <input
                   type="email"
                   required
                   placeholder="teacher@school.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="minimal-input pl-9 text-xs"
+                  className="minimal-input pl-10 text-xs"
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1">Password</label>
-              <div className="relative">
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-500 pointer-events-none" />
+              <div className="relative flex items-center">
+                <Lock className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="minimal-input pl-9 text-xs"
+                  className="minimal-input pl-10 text-xs"
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1">Confirm Password</label>
-              <div className="relative">
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-500 pointer-events-none" />
+              <div className="relative flex items-center">
+                <Lock className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={passwordConfirmation}
                   onChange={(e) => setPasswordConfirmation(e.target.value)}
-                  className="minimal-input pl-9 text-xs"
+                  className="minimal-input pl-10 text-xs"
                 />
               </div>
             </div>
