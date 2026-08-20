@@ -72,6 +72,13 @@ input:-webkit-autofill:active {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.minimal-input.pl-9,
+.minimal-input.pl-10,
+.minimal-input.has-icon,
+.glass-input.has-icon {
+  padding-left: 38px !important;
+}
+
 .minimal-input:focus, .glass-input:focus {
   border-color: #10B981;
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
