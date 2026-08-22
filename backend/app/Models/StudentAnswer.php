@@ -16,6 +16,7 @@ class StudentAnswer extends Model
         'map_id',
         'question_id',
         'answer_id',
+        'typed_answer',
         'is_correct',
         'stars',
         'attempts',

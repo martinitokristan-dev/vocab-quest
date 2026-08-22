@@ -13,6 +13,7 @@ class QuestionResource extends JsonResource
             'id'                        => $this->id,
             'map_id'                    => $this->map_id,
             'order_index'               => $this->order_index,
+            'question_type'             => $this->question_type ?? 'multiple_choice',
             'sentence'                  => $this->sentence,
             'highlighted_word'          => $this->highlighted_word,
             'image_url'                 => $this->image_url,

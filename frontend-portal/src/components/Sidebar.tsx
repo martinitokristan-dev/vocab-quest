@@ -14,7 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab }) => {
   const navItems = [
     { id: 'maps', label: 'Maps & Stages', icon: Map },
     { id: 'questions', label: 'Questions', icon: BookOpen },
-    { id: 'audio', label: 'Voice Studio', icon: Mic },
+    { id: 'audio', label: 'Audio Feedback', icon: Mic },
     { id: 'rooms', label: 'Game Rooms', icon: Users },
   ];
 

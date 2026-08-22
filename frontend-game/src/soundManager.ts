@@ -1,4 +1,4 @@
-// Audio & Sound Effects Manager using Web Audio API + localStorage Persistence + Web Speech API (TTS)
+// Audio & Sound Effects Manager using Web Audio API + Pre-recorded Teacher Audios
 
 export interface AudioSettings {
   masterVolume: number; // 0 to 1
@@ -21,24 +21,23 @@ class SoundManager {
   private currentVoiceAudio: HTMLAudioElement | null = null;
   private bgmGain: GainNode | null = null;
   private isSpeechActive = false;
-  private activeUtterance: SpeechSynthesisUtterance | null = null;
-  private lastQuestionNarrationParams: {
-    sentence: string;
-    targetWord: string;
-    choices: Array<{ letter: string; text: string }>;
-    onStart?: () => void;
-    onEnd?: () => void;
-  } | null = null;
+  private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
+
+  public onSpeakingStateChange(cb: (isSpeaking: boolean) => void) {
+    this.speakingListeners.push(cb);
+  }
+
+  public notifySpeakingState(isSpeaking: boolean) {
+    this.isSpeechActive = isSpeaking;
+    this.speakingListeners.forEach((cb) => {
+      try {
+        cb(isSpeaking);
+      } catch (e) {}
+    });
+  }
 
   constructor() {
     this.loadSettings();
-
-    // Pre-populate speech synthesis voices if supported
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
 
     // Auto-resume AudioContext on first user interaction
     if (typeof window !== 'undefined') {
@@ -113,11 +112,7 @@ class SoundManager {
   }
 
   public isNarrating(): boolean {
-    return (
-      this.isSpeechActive ||
-      Boolean(this.activeUtterance) ||
-      (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking)
-    );
+    return this.isSpeechActive || (Boolean(this.currentVoiceAudio) && !this.currentVoiceAudio?.paused);
   }
 
   // --- Sound Effects using Web Audio API ---
@@ -133,24 +128,22 @@ class SoundManager {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.06);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.06);
 
-      gain.gain.setValueAtTime(vol * 0.35, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(vol * 0.45, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.08);
-    } catch (e) {
-      // Audio context error fallback
-    }
+      osc.stop(this.ctx.currentTime + 0.06);
+    } catch (e) {}
   }
 
-  // 2. Button Hover Pop / Chime (Crisp Minecraft UI Feedback)
+  // 2. Button Hover
   public playHover() {
     try {
       this.initContext();
@@ -162,21 +155,21 @@ class SoundManager {
       const gain = this.ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1174.66, this.ctx.currentTime + 0.05);
+      osc.frequency.setValueAtTime(680, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(740, this.ctx.currentTime + 0.04);
 
-      gain.gain.setValueAtTime(vol * 0.22, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+      gain.gain.setValueAtTime(vol * 0.15, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.06);
+      osc.stop(this.ctx.currentTime + 0.04);
     } catch (e) {}
   }
 
-  // 3. Success / Correct Answer Chime (Major Triad)
+  // 3. Correct Answer Jingle
   public playSuccess() {
     try {
       this.initContext();
@@ -184,29 +177,28 @@ class SoundManager {
       const vol = this.getEffectiveSfxVolume();
       if (vol <= 0) return;
 
-      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
-      notes.forEach((freq, index) => {
+      const chord = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      chord.forEach((freq, i) => {
         if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + index * 0.09);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.07);
 
-        gain.gain.setValueAtTime(0.001, this.ctx.currentTime + index * 0.09);
-        gain.gain.linearRampToValueAtTime(vol * 0.35, this.ctx.currentTime + index * 0.09 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + index * 0.09 + 0.32);
+        gain.gain.setValueAtTime(vol * 0.35, this.ctx.currentTime + i * 0.07);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.07 + 0.32);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
 
-        osc.start(this.ctx.currentTime + index * 0.09);
-        osc.stop(this.ctx.currentTime + index * 0.09 + 0.32);
+        osc.start(this.ctx.currentTime + i * 0.07);
+        osc.stop(this.ctx.currentTime + i * 0.07 + 0.32);
       });
     } catch (e) {}
   }
 
-  // 4. Wrong Answer Buzz
+  // 4. Incorrect Answer Thud
   public playWrong() {
     try {
       this.initContext();
@@ -219,20 +211,20 @@ class SoundManager {
 
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(180, this.ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(120, this.ctx.currentTime + 0.25);
+      osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.22);
 
-      gain.gain.setValueAtTime(vol * 0.3, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.28);
+      gain.gain.setValueAtTime(vol * 0.4, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.22);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.28);
+      osc.stop(this.ctx.currentTime + 0.22);
     } catch (e) {}
   }
 
-  // 5. Map Step Pop / Footstep
+  // 5. Walking / Map Step Sound
   public playStep() {
     try {
       this.initContext();
@@ -244,54 +236,25 @@ class SoundManager {
       const gain = this.ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+      osc.frequency.setValueAtTime(240, this.ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(140, this.ctx.currentTime + 0.08);
 
-      gain.gain.setValueAtTime(vol * 0.25, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.09);
+      gain.gain.setValueAtTime(vol * 0.28, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.09);
+      osc.stop(this.ctx.currentTime + 0.08);
     } catch (e) {}
   }
 
-  // 6. Level Up / Fanfare
-  public playLevelUp() {
-    try {
-      this.initContext();
-      if (!this.ctx || this.settings.muted) return;
-      const vol = this.getEffectiveSfxVolume();
-      if (vol <= 0) return;
-
-      const notes = [440, 554.37, 659.25, 880];
-      notes.forEach((freq, idx) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.12);
-
-        gain.gain.setValueAtTime(vol * 0.4, this.ctx.currentTime + idx * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.12 + 0.4);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(this.ctx.currentTime + idx * 0.12);
-        osc.stop(this.ctx.currentTime + idx * 0.12 + 0.4);
-      });
-    } catch (e) {}
-  }
-
-  // 7. Vocabulary Audio Pronunciation (Audio File URL)
+  // 6. Vocabulary Audio Pronunciation (Audio File URL)
   public playVocabAudio(url: string) {
     this.stopSpeech();
 
-    if (this.settings.muted) return;
+    if (this.settings.muted || !url) return;
 
     this.currentVoiceAudio = new Audio(url);
     this.currentVoiceAudio.volume = this.getEffectiveSfxVolume();
@@ -300,293 +263,104 @@ class SoundManager {
     });
   }
 
-  // 8. Full Question & Choices TTS Narration
-  public speakQuestionNarration(
-    sentence: string,
-    targetWord: string,
-    choices: Array<{ letter: string; text: string }>,
-    onStart?: () => void,
-    onEnd?: () => void
-  ) {
-    this.lastQuestionNarrationParams = { sentence, targetWord, choices, onStart, onEnd };
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    this.stopSpeech();
-
-    if (this.settings.muted) return;
-
-    // Clean formatting for natural speech cadence
-    const cleanSentence = sentence.replace(/["*_]/g, '').trim();
-    const formattedChoices = choices
-      .map((c) => `Choice ${c.letter}: ${c.text}.`)
-      .join(' ... ');
-
-    const fullScript = `"${cleanSentence}." ... What is the meaning of the word "${targetWord}"? ... Here are the choices: ... ${formattedChoices}`;
-
-    const utterance = new SpeechSynthesisUtterance(fullScript);
-    utterance.rate = 0.92; // Clear, friendly educator cadence
-    utterance.pitch = 1.04;
-    utterance.volume = this.getEffectiveSfxVolume();
-
-    const voices = window.speechSynthesis.getVoices();
-    const naturalVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('US') || v.name.includes('Jenny') || v.name.includes('Samantha'))
-    ) || voices.find((v) => v.lang.startsWith('en')) || null;
-
-    if (naturalVoice) {
-      utterance.voice = naturalVoice;
-    }
-
-    this.activeUtterance = utterance;
-
-    utterance.onstart = () => {
-      this.isSpeechActive = true;
-      if (onStart) onStart();
-    };
-
-    utterance.onend = () => {
-      this.isSpeechActive = false;
-      this.activeUtterance = null;
-      if (onEnd) onEnd();
-    };
-
-    utterance.onerror = () => {
-      this.isSpeechActive = false;
-      this.activeUtterance = null;
-      if (onEnd) onEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  // 9. Dynamic Praise on Correct Answer
-  public speakPraise(praiseText: string, onEnd?: () => void) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      if (onEnd) onEnd();
-      return;
-    }
-    this.stopSpeech();
-
-    if (this.settings.muted) {
-      if (onEnd) onEnd();
-      return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(praiseText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.08; // Happy, upbeat praise
-    utterance.volume = this.getEffectiveSfxVolume();
-
-    const voices = window.speechSynthesis.getVoices();
-    const naturalVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('US') || v.name.includes('Jenny') || v.name.includes('Samantha'))
-    ) || voices.find((v) => v.lang.startsWith('en')) || null;
-
-    if (naturalVoice) {
-      utterance.voice = naturalVoice;
-    }
-
-    this.activeUtterance = utterance;
-
-    let hasEnded = false;
-    const handleEnd = () => {
-      if (hasEnded) return;
-      hasEnded = true;
-      this.isSpeechActive = false;
-      this.activeUtterance = null;
-      if (onEnd) onEnd();
-    };
-
-    utterance.onstart = () => {
-      this.isSpeechActive = true;
-    };
-    utterance.onend = handleEnd;
-    utterance.onerror = handleEnd;
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  // 10. Encouraging Try Again + Re-read Question Narration
-  public speakTryAgain(
-    tryAgainText: string,
-    sentence: string,
-    targetWord: string,
-    choices: Array<{ letter: string; text: string }>,
-    onStart?: () => void,
-    onEnd?: () => void
-  ) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    this.stopSpeech();
-
-    if (this.settings.muted) return;
-
-    const cleanSentence = sentence.replace(/["*_]/g, '').trim();
-    const formattedChoices = choices
-      .map((c) => `Choice ${c.letter}: ${c.text}.`)
-      .join(' ... ');
-
-    const fullScript = `${tryAgainText} ... "${cleanSentence}." ... What is the meaning of the word "${targetWord}"? ... Here are the choices: ... ${formattedChoices}`;
-
-    const utterance = new SpeechSynthesisUtterance(fullScript);
-    utterance.rate = 0.92;
-    utterance.pitch = 1.04;
-    utterance.volume = this.getEffectiveSfxVolume();
-
-    const voices = window.speechSynthesis.getVoices();
-    const naturalVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('US') || v.name.includes('Jenny') || v.name.includes('Samantha'))
-    ) || voices.find((v) => v.lang.startsWith('en')) || null;
-
-    if (naturalVoice) {
-      utterance.voice = naturalVoice;
-    }
-
-    this.activeUtterance = utterance;
-
-    utterance.onstart = () => {
-      this.isSpeechActive = true;
-      if (onStart) onStart();
-    };
-    utterance.onend = () => {
-      this.isSpeechActive = false;
-      this.activeUtterance = null;
-      if (onEnd) onEnd();
-    };
-    utterance.onerror = () => {
-      this.isSpeechActive = false;
-      this.activeUtterance = null;
-      if (onEnd) onEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  // 11. Speak Individual Choice
-  public speakChoice(letter: string, text: string) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    this.stopSpeech();
-
-    if (this.settings.muted) return;
-
-    const script = `Choice ${letter}: ${text}`;
-    const utterance = new SpeechSynthesisUtterance(script);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.04;
-    utterance.volume = this.getEffectiveSfxVolume();
-
-    const voices = window.speechSynthesis.getVoices();
-    const naturalVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('US') || v.name.includes('Samantha'))
-    ) || voices.find((v) => v.lang.startsWith('en')) || null;
-
-    if (naturalVoice) {
-      utterance.voice = naturalVoice;
-    }
-
-    this.activeUtterance = utterance;
-
-    utterance.onend = () => {
-      this.activeUtterance = null;
-    };
-    utterance.onerror = () => {
-      this.activeUtterance = null;
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  // 12. Play Teacher's Custom Voice Recording
+  // 8. Play Question Narration Voice Recording (Triggers Teacher Mouth-Sync)
   public playCustomVoiceRecording(
     url: string,
     onStart?: () => void,
-    onEnd?: () => void,
-    onErrorFallback?: () => void
+    onEnd?: () => void
   ) {
     if (typeof window === 'undefined') return;
     this.stopSpeech();
 
-    if (this.settings.muted) return;
+    if (this.settings.muted || !url) {
+      if (onEnd) onEnd();
+      return;
+    }
 
     try {
       const audio = new Audio(url);
       audio.volume = this.getEffectiveSfxVolume();
       this.currentVoiceAudio = audio;
-      this.isSpeechActive = true;
 
-      audio.onplay = () => {
-        this.isSpeechActive = true;
-        if (onStart) onStart();
-      };
-
+      let hasFinished = false;
       const handleEnd = () => {
-        this.isSpeechActive = false;
+        if (hasFinished) return;
+        hasFinished = true;
+        this.notifySpeakingState(false);
         this.currentVoiceAudio = null;
         if (onEnd) onEnd();
       };
 
+      audio.onplay = () => {
+        this.notifySpeakingState(true);
+        if (onStart) onStart();
+      };
+
       audio.onended = handleEnd;
       audio.onerror = (e) => {
-        console.warn('Voice recording audio failed to play:', e);
-        this.isSpeechActive = false;
-        this.currentVoiceAudio = null;
-        if (onErrorFallback) {
-          onErrorFallback();
-        } else {
-          handleEnd();
-        }
+        console.warn('Voice recording audio failed to load/play:', e);
+        handleEnd();
       };
 
       audio.play().catch((err) => {
-        console.warn('Auto-playback prevented or failed:', err);
-        this.isSpeechActive = false;
-        this.currentVoiceAudio = null;
-        if (onErrorFallback) {
-          onErrorFallback();
-        } else {
-          handleEnd();
+        if (err.name !== 'AbortError') {
+          console.warn('Voice playback prevented or failed:', err);
         }
+        handleEnd();
       });
     } catch (err) {
       console.warn('Failed to load voice audio:', err);
-      this.isSpeechActive = false;
-      if (onErrorFallback) {
-        onErrorFallback();
-      } else if (onEnd) {
-        onEnd();
-      }
+      this.notifySpeakingState(false);
+      if (onEnd) onEnd();
     }
   }
 
-  // 12. Stop All Active Speech & Audio
+  // 8.1 Play Feedback Cheer/Praise Audio (Maintains Reaction Pose without triggering mouth loop)
+  public playFeedbackAudio(url: string, onEnd?: () => void) {
+    if (typeof window === 'undefined') return;
+    this.stopSpeech();
+
+    if (this.settings.muted || !url) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    try {
+      const audio = new Audio(url);
+      audio.volume = this.getEffectiveSfxVolume();
+      this.currentVoiceAudio = audio;
+
+      audio.onended = () => {
+        this.currentVoiceAudio = null;
+        if (onEnd) onEnd();
+      };
+      audio.onerror = () => {
+        this.currentVoiceAudio = null;
+        if (onEnd) onEnd();
+      };
+      audio.play().catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('Feedback audio playback failed:', err);
+        }
+        this.currentVoiceAudio = null;
+        if (onEnd) onEnd();
+      });
+    } catch (err) {
+      console.warn('Failed to play feedback audio:', err);
+      if (onEnd) onEnd();
+    }
+  }
+
+  // 9. Stop All Active Voice Audio
   public stopSpeech() {
-    if (this.activeUtterance) {
-      this.activeUtterance.onend = null;
-      this.activeUtterance.onerror = null;
-      this.activeUtterance = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
     if (this.currentVoiceAudio) {
       this.currentVoiceAudio.pause();
       this.currentVoiceAudio = null;
     }
-    this.isSpeechActive = false;
+    this.notifySpeakingState(false);
   }
 
-  // 13. Resume or Replay Current Question Narration
-  public resumeQuestionNarration() {
-    if (this.lastQuestionNarrationParams) {
-      const p = this.lastQuestionNarrationParams;
-      this.speakQuestionNarration(p.sentence, p.targetWord, p.choices, p.onStart, p.onEnd);
-    }
-  }
-
-  // 14. Clear Stored Narration
-  public clearLastNarration() {
-    this.lastQuestionNarrationParams = null;
-  }
-
-  // 11. Interactive Character Selection Voice
+  // 10. Interactive Character Selection Voice
   public speakCharacterVoice(slug: string) {
     if (typeof window === 'undefined') return;
     if (this.settings.muted) return;

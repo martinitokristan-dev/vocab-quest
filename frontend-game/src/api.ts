@@ -37,6 +37,7 @@ export interface CurrentQuestionResponse {
     question: {
       id: number;
       order_index?: number;
+      question_type?: 'multiple_choice' | 'identification';
       sentence: string;
       highlighted_word: string;
       image_url: string | null;
@@ -163,12 +164,18 @@ class StudentGameApiClient {
     return this.request<GameStatusResponse>('/game/status');
   }
 
-  async submitAnswer(questionId: number, answerId: number, stars: number = 3): Promise<SubmitAnswerResponse> {
+  async submitAnswer(
+    questionId: number,
+    answerId?: number | null,
+    stars: number = 3,
+    typedAnswer?: string | null
+  ): Promise<SubmitAnswerResponse> {
     return this.request<SubmitAnswerResponse>('/game/answer', {
       method: 'POST',
       body: JSON.stringify({
         question_id: questionId,
-        answer_id: answerId,
+        answer_id: answerId || undefined,
+        typed_answer: typedAnswer || undefined,
         stars,
       }),
     });

@@ -40,6 +40,7 @@ export interface QuestionData {
   id: number;
   map_id: number;
   order_index: number;
+  question_type?: 'multiple_choice' | 'identification';
   sentence: string;
   highlighted_word: string;
   image_url?: string | null;
