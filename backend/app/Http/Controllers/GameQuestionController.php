@@ -149,14 +149,15 @@ class GameQuestionController extends Controller
         }
 
         $validated = $request->validate([
-            'question_id' => ['required', 'exists:questions,id'],
-            'answer_id'   => ['required', 'exists:answers,id'],
-            'stars'       => ['nullable', 'integer', 'min:0', 'max:3'],
-            'attempts'    => ['nullable', 'integer', 'min:1'],
+            'question_id'  => ['required', 'exists:questions,id'],
+            'answer_id'    => ['nullable', 'exists:answers,id'],
+            'typed_answer' => ['nullable', 'string'],
+            'stars'        => ['nullable', 'integer', 'min:0', 'max:3'],
+            'attempts'     => ['nullable', 'integer', 'min:1'],
         ]);
 
         $question = Question::findOrFail($validated['question_id']);
-        $answer   = Answer::findOrFail($validated['answer_id']);
+        $questionType = $question->question_type ?? 'multiple_choice';
 
         // Idempotent: If student already completed this question, return success gracefully
         $alreadyCompleted = StudentAnswer::where('game_session_id', $session->id)
@@ -172,7 +173,33 @@ class GameQuestionController extends Controller
             ]);
         }
 
-        $isCorrect = $answer->is_correct;
+        $isCorrect = false;
+        $answerId = $validated['answer_id'] ?? null;
+        $typedAnswer = isset($validated['typed_answer']) ? trim($validated['typed_answer']) : null;
+
+        if ($questionType === 'identification' || $typedAnswer !== null) {
+            $cleanedTyped = strtolower($typedAnswer ?? '');
+            $correctAnswers = $question->answers()->where('is_correct', true)->get();
+            $correctTexts = $correctAnswers->pluck('text')
+                ->map(fn ($t) => strtolower(trim($t)))
+                ->push(strtolower(trim($question->highlighted_word)))
+                ->filter()
+                ->unique();
+
+            if ($correctTexts->contains($cleanedTyped)) {
+                $isCorrect = true;
+                $answerId = $correctAnswers->first()?->id;
+            }
+        } else {
+            if (!$answerId) {
+                throw ValidationException::withMessages([
+                    'answer_id' => ['Please select an answer choice.'],
+                ]);
+            }
+            $answer = Answer::findOrFail($answerId);
+            $isCorrect = (bool) $answer->is_correct;
+        }
+
         $starsAwarded = $isCorrect ? ($validated['stars'] ?? 1) : 0;
         $attemptsCount = $validated['attempts'] ?? 1;
 
@@ -183,11 +210,12 @@ class GameQuestionController extends Controller
                 'question_id'     => $question->id,
             ],
             [
-                'map_id'     => $question->map_id,
-                'answer_id'  => $answer->id,
-                'is_correct' => $isCorrect,
-                'stars'      => $starsAwarded,
-                'attempts'   => $attemptsCount,
+                'map_id'       => $question->map_id,
+                'answer_id'    => $answerId,
+                'typed_answer' => $typedAnswer,
+                'is_correct'   => $isCorrect,
+                'stars'        => $starsAwarded,
+                'attempts'     => $attemptsCount,
             ]
         );
 

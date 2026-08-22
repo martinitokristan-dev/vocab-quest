@@ -97,6 +97,30 @@ class CloudinaryService implements CloudinaryAudioContract
         throw new RuntimeException("Cloudinary upload failed: " . $response->body());
     }
 
+    public function deleteFile(string $publicId, string $resourceType = 'auto'): bool
+    {
+        if (empty($publicId)) return false;
+
+        $timestamp = time();
+        $params = [
+            'public_id' => $publicId,
+            'timestamp' => $timestamp,
+        ];
+
+        $signature = $this->generateSignature($params);
+        $payload = array_merge($params, [
+            'api_key'   => $this->apiKey,
+            'signature' => $signature,
+        ]);
+
+        $resType = in_array($resourceType, ['image', 'video', 'raw', 'auto'], true) ? $resourceType : 'auto';
+
+        $response = Http::timeout(15)
+            ->post("https://api.cloudinary.com/v1_1/{$this->cloudName}/{$resType}/destroy", $payload);
+
+        return $response->successful();
+    }
+
     private function generateSignature(array $params): string
     {
         ksort($params);

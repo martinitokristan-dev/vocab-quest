@@ -55,6 +55,9 @@ export const QuestionsPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [questionType, setQuestionType] = useState<'multiple_choice' | 'identification'>('multiple_choice');
+  const [identificationAnswer, setIdentificationAnswer] = useState('');
+
   const [answers, setAnswers] = useState<{ text: string; is_correct: boolean }[]>([
     { text: '', is_correct: true },
     { text: '', is_correct: false },
@@ -107,6 +110,8 @@ export const QuestionsPage: React.FC = () => {
 
   const resetForm = () => {
     setEditingQuestion(null);
+    setQuestionType('multiple_choice');
+    setIdentificationAnswer('');
     setSentence('');
     setHighlightedWord('');
     setImageUrl('');
@@ -133,23 +138,31 @@ export const QuestionsPage: React.FC = () => {
   const openEditModal = (q: QuestionData) => {
     resetForm();
     setEditingQuestion(q);
+    const qType = q.question_type || 'multiple_choice';
+    setQuestionType(qType);
     setSentence(q.sentence);
     setHighlightedWord(q.highlighted_word || '');
     setImageUrl(q.image_url || '');
     setImagePreviewUrl(q.image_url ? resolveMediaUrl(q.image_url) : null);
     setVoiceAudioUrl(q.voice_audio_url || '');
 
+    const correctAns = q.answers?.find((a) => a.is_correct)?.text || q.highlighted_word || '';
+    setIdentificationAnswer(correctAns);
+
     if (q.voice_audio_url) {
       setAudioPreviewUrl(resolveMediaUrl(q.voice_audio_url));
     }
 
     if (q.answers && q.answers.length > 0) {
-      setAnswers(
-        q.answers.map((a) => ({
-          text: a.text,
-          is_correct: a.is_correct,
-        }))
-      );
+      const loaded = q.answers.map((a) => ({
+        text: a.text,
+        is_correct: a.is_correct,
+      }));
+      // If only 1 answer exists (e.g. from identification mode), pad with empty choices for multiple choice mode
+      while (loaded.length < 3) {
+        loaded.push({ text: '', is_correct: false });
+      }
+      setAnswers(loaded);
     }
     setShowModal(true);
   };
@@ -288,6 +301,48 @@ export const QuestionsPage: React.FC = () => {
     setAnswers(answers.map((a, i) => (i === index ? { ...a, text } : a)));
   };
 
+  const handleAddChoice = () => {
+    if (answers.length >= 3) return;
+    setAnswers([...answers, { text: '', is_correct: false }]);
+  };
+
+  const handleRemoveChoice = (index: number) => {
+    if (answers.length <= 2) return;
+    const removed = answers.filter((_, i) => i !== index);
+    if (!removed.some((a) => a.is_correct)) {
+      removed[0].is_correct = true;
+    }
+    setAnswers(removed);
+  };
+
+  const handleSwitchToMultipleChoice = () => {
+    setQuestionType('multiple_choice');
+    setAnswers((prev) => {
+      const existing = [...prev];
+      if (existing.length === 0) {
+        return [
+          { text: identificationAnswer || '', is_correct: true },
+          { text: '', is_correct: false },
+          { text: '', is_correct: false },
+        ];
+      }
+      if (existing.length === 1) {
+        return [
+          { text: existing[0].text || identificationAnswer || '', is_correct: true },
+          { text: '', is_correct: false },
+          { text: '', is_correct: false },
+        ];
+      }
+      if (existing.length === 2) {
+        return [
+          ...existing,
+          { text: '', is_correct: false },
+        ];
+      }
+      return existing;
+    });
+  };
+
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMapId) return;
@@ -297,8 +352,23 @@ export const QuestionsPage: React.FC = () => {
       return;
     }
 
-    if (answers.some((a) => !a.text.trim())) {
-      setFormError('Please fill out all 3 answer choices.');
+    if (questionType === 'multiple_choice') {
+      if (answers.length < 2) {
+        setFormError('Multiple choice questions require at least 2 choices.');
+        return;
+      }
+      if (answers.some((a) => !a.text.trim())) {
+        setFormError('Please fill out all answer choices.');
+        return;
+      }
+      if (!answers.some((a) => a.is_correct)) {
+        setFormError('Please select one correct answer choice.');
+        return;
+      }
+    }
+
+    if (questionType === 'identification' && !identificationAnswer.trim() && !highlightedWord.trim()) {
+      setFormError('Please enter the target correct word to identify.');
       return;
     }
 
@@ -306,16 +376,21 @@ export const QuestionsPage: React.FC = () => {
       setSaving(true);
       setFormError(null);
 
+      const targetAnswers = questionType === 'identification'
+        ? [{ text: identificationAnswer.trim() || highlightedWord.trim(), is_correct: true }]
+        : answers;
+
       const payload = {
         map_id: selectedMapId,
         order_index: editingQuestion ? editingQuestion.order_index : questions.length + 1,
+        question_type: questionType,
         sentence: sentence.trim(),
         highlighted_word: highlightedWord.trim(),
         image_url: imageUrl.trim() || undefined,
         image_file: imageFile || undefined,
         voice_audio_file: voiceAudioBlob || voiceAudioFile || undefined,
         voice_audio_url: voiceAudioUrl || undefined,
-        answers,
+        answers: targetAnswers,
       };
 
       if (editingQuestion) {
@@ -415,6 +490,15 @@ export const QuestionsPage: React.FC = () => {
                 {/* Content */}
                 <div className="space-y-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {q.question_type === 'identification' ? (
+                      <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-white/5">
+                        Identification
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-white/5">
+                        Multiple Choice
+                      </span>
+                    )}
                     <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                       {q.highlighted_word}
                     </span>
@@ -678,38 +762,108 @@ export const QuestionsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Answer Choices */}
-              <div className="space-y-2 pt-2 border-t border-white/5">
+              {/* Question Format Selector */}
+              <div className="space-y-2 pt-3 border-t border-white/5">
                 <label className="block text-xs font-semibold text-zinc-300">
-                  Answer Choices (Select the correct definition) *
+                  Question Format
                 </label>
-                <div className="space-y-2">
-                  {answers.map((ans, idx) => (
-                    <div key={idx} className="flex items-center gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => handleCorrectAnswerSelect(idx)}
-                        className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
-                          ans.is_correct
-                            ? 'bg-emerald-500 border-emerald-400 text-slate-950'
-                            : 'border-zinc-600 hover:border-zinc-400'
-                        }`}
-                        title="Mark as correct answer"
-                      >
-                        {ans.is_correct && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      </button>
-                      <input
-                        type="text"
-                        required
-                        placeholder={`Choice ${String.fromCharCode(65 + idx)} definition...`}
-                        value={ans.text}
-                        onChange={(e) => handleAnswerTextChange(idx, e.target.value)}
-                        className="minimal-input text-xs"
-                      />
-                    </div>
-                  ))}
+                <div className="p-1 rounded-xl bg-zinc-950/80 border border-white/10 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleSwitchToMultipleChoice}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      questionType === 'multiple_choice'
+                        ? 'bg-zinc-800 text-white shadow-sm border border-white/10'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Multiple Choice
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuestionType('identification')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      questionType === 'identification'
+                        ? 'bg-zinc-800 text-white shadow-sm border border-white/10'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Identification
+                  </button>
                 </div>
               </div>
+
+              {/* Identification Input vs Multiple Choice Answer Choices */}
+              {questionType === 'identification' ? (
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  <label className="block text-xs font-semibold text-zinc-300">
+                    Target Answer (Word/phrase student must type) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter the correct word or phrase..."
+                    value={identificationAnswer}
+                    onChange={(e) => setIdentificationAnswer(e.target.value)}
+                    className="minimal-input text-xs"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-zinc-300">
+                      Answer Choices (Select the correct definition) *
+                    </label>
+                    {answers.length < 3 && (
+                      <button
+                        type="button"
+                        onClick={handleAddChoice}
+                        className="px-2.5 py-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Choice</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {answers.map((ans, idx) => (
+                      <div key={idx} className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCorrectAnswerSelect(idx)}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                            ans.is_correct
+                              ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                              : 'border-zinc-600 hover:border-zinc-400'
+                          }`}
+                          title="Mark as correct answer"
+                        >
+                          {ans.is_correct && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </button>
+                        <input
+                          type="text"
+                          required
+                          placeholder={`Choice ${String.fromCharCode(65 + idx)} definition...`}
+                          value={ans.text}
+                          onChange={(e) => handleAnswerTextChange(idx, e.target.value)}
+                          className="minimal-input text-xs flex-1"
+                        />
+                        {answers.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveChoice(idx)}
+                            className="p-1.5 text-zinc-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title="Remove this choice"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/5">

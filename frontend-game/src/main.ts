@@ -3,6 +3,7 @@ import { gameApi, type CurrentQuestionResponse, type SubmitAnswerResponse } from
 import { Game2DMapRenderer } from './game2d';
 import { soundManager } from './soundManager';
 import { Icons } from './icons';
+import { KINGDOM_DIALOGUES } from './dialogueData';
 
 const PRAISE_PHRASES = [
   'Excellent work! You found the right meaning!',
@@ -42,13 +43,35 @@ interface StudentGameAppState {
     word: string;
     isCorrect: boolean;
     stars: number;
+    selectedAnswerId?: number;
+    typedAnswer?: string;
+    questionData?: any;
   }>;
+  viewingHistoryItem: {
+    questionId: number;
+    mapId?: number;
+    orderIndex?: number;
+    questionIndex?: number;
+    word: string;
+    isCorrect: boolean;
+    stars: number;
+    selectedAnswerId?: number;
+    typedAnswer?: string;
+    questionData?: any;
+  } | null;
   lastPraiseIndex: number;
   lastTryAgainIndex: number;
+  lastHappyPoseIndex: number;
+  lastSadPoseIndex: number;
   customMascotSpeech: string | null;
+  currentFeedbackSprite: string | null;
   wrongAnswerIds: number[];
 
-  // Modals & Status
+  // Modals, Dialogue & Status
+  isDialogueOpen: boolean;
+  dialogueKingdomId: number;
+  dialogueSlideIndex: number;
+  seenKingdomDialogues: number[];
   isHowToPlayOpen: boolean;
   isSettingsOpen: boolean;
   isPauseMenuOpen: boolean;
@@ -68,8 +91,6 @@ const AVATARS = [
 ];
 
 const getAvatarBySlug = (slug: string) => {
-  if (slug === 'quest-boy') return AVATARS[1];
-  if (slug === 'moreno-boy') return AVATARS[5];
   return AVATARS.find((a) => a.slug === slug) || AVATARS[0];
 };
 
@@ -91,10 +112,18 @@ class StudentArcadeGame {
     error: null,
     attempts: {},
     history: [],
+    viewingHistoryItem: null,
     lastPraiseIndex: -1,
     lastTryAgainIndex: -1,
+    lastHappyPoseIndex: -1,
+    lastSadPoseIndex: -1,
     customMascotSpeech: null,
+    currentFeedbackSprite: null,
     wrongAnswerIds: [],
+    isDialogueOpen: false,
+    dialogueKingdomId: 1,
+    dialogueSlideIndex: 0,
+    seenKingdomDialogues: [],
     isHowToPlayOpen: false,
     isSettingsOpen: false,
     isPauseMenuOpen: false,
@@ -108,6 +137,8 @@ class StudentArcadeGame {
   private loadingInterval: number | null = null;
   private lastNarratedQuestionId: number | null = null;
   private lastActiveMapId: number = 1;
+  private teacherMouthInterval: number | null = null;
+  private teacherOutroTimeouts: number[] = [];
   private feedbackAudios: {
     praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
     cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
@@ -120,9 +151,70 @@ class StudentArcadeGame {
     this.bgLayerEl.style.display = 'none';
     document.body.prepend(this.bgLayerEl);
 
+    this.preloadTeacherAssets();
     this.loadFeedbackAudios();
     this.bindGlobalKeyboard();
     this.initRouter();
+
+    soundManager.onSpeakingStateChange((isSpeaking) => {
+      this.updateTeacherSpeakingUI(isSpeaking);
+    });
+  }
+
+  private preloadTeacherAssets() {
+    const assetUrls = [
+      '/assets/guide/F1.png',
+      '/assets/guide/F2.png',
+      '/assets/guide/F3.png',
+      '/assets/guide/F4.png',
+      '/assets/guide/F5.png',
+      '/assets/guide/F6.png',
+      '/assets/guide/F7.png',
+      '/assets/guide/F8.png',
+      '/assets/guide/F9.png',
+      '/assets/guide/teacher_blue_correct_1.png',
+      '/assets/guide/teacher_blue_correct_2.png',
+      '/assets/guide/teacher_blue_correct_3.png',
+      '/assets/guide/teacher_blue_incorrect_1.png',
+      '/assets/guide/teacher_blue_incorrect_2.png',
+      '/assets/guide/teacher_blue_incorrect_3.png',
+      '/assets/guide/teacher_yellow_pose1.png',
+      '/assets/guide/teacher_yellow_pose2.png',
+      '/assets/guide/teacher_yellow_happy.png',
+      '/assets/guide/teacher_yellow_sad.png',
+      '/assets/guide/G1.png',
+      '/assets/guide/G2.png',
+      '/assets/guide/G3.png',
+      '/assets/guide/G4.png',
+      '/assets/guide/G5.png',
+      '/assets/guide/G6.png',
+      '/assets/guide/G7.png',
+      '/assets/guide/G8.png',
+      '/assets/guide/G9.png',
+      '/assets/guide/teacher_gevina_correct_1.png',
+      '/assets/guide/teacher_gevina_correct_2.png',
+      '/assets/guide/teacher_gevina_correct_3.png',
+      '/assets/guide/teacher_gevina_incorrect_1.png',
+      '/assets/guide/teacher_gevina_incorrect_2.png',
+      '/assets/guide/teacher_gevina_incorrect_3.png',
+    ];
+
+    assetUrls.forEach((url) => {
+      const img = new Image();
+      img.src = url;
+      if ('decode' in img) {
+        img.decode().catch(() => {});
+      }
+    });
+  }
+
+  private clearTeacherAnimationTimers() {
+    if (this.teacherMouthInterval) {
+      clearInterval(this.teacherMouthInterval);
+      this.teacherMouthInterval = null;
+    }
+    this.teacherOutroTimeouts.forEach((t) => clearTimeout(t));
+    this.teacherOutroTimeouts = [];
   }
 
   private getPathForScreen(screen: StudentGameAppState['screen']): string {
@@ -261,6 +353,18 @@ class StudentArcadeGame {
 
   private bindGlobalKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (this.state.isDialogueOpen) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          this.nextDialogueSlide();
+          return;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeKingdomDialogue();
+          return;
+        }
+      }
+
       if (e.key === 'Escape') {
         if (this.state.isHowToPlayOpen || this.state.isSettingsOpen) {
           soundManager.stopSpeech();
@@ -272,9 +376,6 @@ class StudentArcadeGame {
             soundManager.stopSpeech();
           }
           this.setState({ isPauseMenuOpen: nextPauseState });
-          if (!nextPauseState && this.state.screen === 'question' && !this.state.submitResult) {
-            soundManager.resumeQuestionNarration();
-          }
         }
       }
     });
@@ -287,6 +388,9 @@ class StudentArcadeGame {
       howTo: this.state.isHowToPlayOpen,
       settings: this.state.isSettingsOpen,
       pause: this.state.isPauseMenuOpen,
+      dialogue: this.state.isDialogueOpen,
+      dialogueSlide: this.state.dialogueSlideIndex,
+      dialogueKingdom: this.state.dialogueKingdomId,
     };
 
     this.state = { ...this.state, ...partialState };
@@ -297,10 +401,18 @@ class StudentArcadeGame {
       prevModals.howTo !== this.state.isHowToPlayOpen ||
       prevModals.settings !== this.state.isSettingsOpen ||
       prevModals.pause !== this.state.isPauseMenuOpen;
+    const dialogueChanged =
+      prevModals.dialogue !== this.state.isDialogueOpen ||
+      prevModals.dialogueSlide !== this.state.dialogueSlideIndex ||
+      prevModals.dialogueKingdom !== this.state.dialogueKingdomId;
 
     // Always sync teacher pause overlay independently of other render logic
     if (teacherPausedChanged) {
       this.renderTeacherPauseOverlay();
+    }
+
+    if (dialogueChanged) {
+      this.renderDialogueOverlay();
     }
 
     if (screenChanged) {
@@ -314,33 +426,73 @@ class StudentArcadeGame {
       if (partialState.currentData !== undefined || partialState.history !== undefined || !this.mapRenderer) {
         this.render();
       }
+    } else if (this.state.screen === 'question') {
+      // On question screen, avoid destroying DOM during feedback; only re-render on new question or review load
+      if (partialState.currentData !== undefined || partialState.viewingHistoryItem !== undefined) {
+        this.render();
+      }
     } else if (this.state.screen !== 'join') {
       this.render();
     }
   }
 
-  private startLoading(targetScreen: 'join' | 'world_map' = 'join') {
-    if (this.loadingInterval) clearInterval(this.loadingInterval);
+  private startLoading(targetScreen: 'join' | 'world_map' = 'join', onReady?: () => void) {
+    if (this.loadingInterval) {
+      clearInterval(this.loadingInterval);
+      clearTimeout(this.loadingInterval);
+      this.loadingInterval = null;
+    }
 
+    const totalSegments = 16;
+    let currentSegment = 0;
     this.setState({ screen: 'loading', loadingProgress: 0, loadingTargetScreen: targetScreen });
 
-    let currentSegment = 0;
-    const totalSegments = 12;
+    let isDataReady = targetScreen === 'join';
 
-    this.loadingInterval = window.setInterval(() => {
+    const advanceStep = () => {
       currentSegment++;
-      if (currentSegment % 3 === 0) soundManager.playStep();
+      if (currentSegment % 2 === 0) {
+        soundManager.playStep();
+      }
 
-      this.setState({ loadingProgress: currentSegment });
+      // Update segment elements directly in the DOM to avoid re-rendering entire screen
+      const segments = document.querySelectorAll('.loading-segment');
+      if (segments.length > 0) {
+        for (let i = 0; i < segments.length; i++) {
+          if (i < currentSegment) {
+            segments[i].classList.add('active');
+          } else {
+            segments[i].classList.remove('active');
+          }
+        }
+      }
 
       if (currentSegment >= totalSegments) {
-        if (this.loadingInterval) clearInterval(this.loadingInterval);
+        if (this.loadingInterval) {
+          clearTimeout(this.loadingInterval);
+          clearInterval(this.loadingInterval);
+          this.loadingInterval = null;
+        }
+        soundManager.playSuccess();
         setTimeout(() => {
-          soundManager.playSuccess();
-          this.setState({ screen: this.state.loadingTargetScreen });
-        }, 300);
+          this.setState({ screen: targetScreen, loadingProgress: totalSegments });
+          if (onReady) onReady();
+        }, 220);
+        return;
       }
-    }, 120);
+
+      // If data is ready early (fast network), accelerate remaining ticks to 45ms
+      const nextDelay = isDataReady ? 45 : 85;
+      this.loadingInterval = window.setTimeout(advanceStep, nextDelay);
+    };
+
+    this.loadingInterval = window.setTimeout(advanceStep, 70);
+
+    return {
+      markDataReady: () => {
+        isDataReady = true;
+      },
+    };
   }
 
   private async fetchCurrentQuestion(forceScreen?: 'world_map' | 'question') {
@@ -358,7 +510,7 @@ class StudentArcadeGame {
         const newQ = res.data.question;
         const isNewQuestion = !prevQ || prevQ.id !== newQ.id;
         const isMapChanged = this.state.currentData?.data?.map.id !== res.data.map.id;
-        const shouldChangeScreen = (this.state.screen === 'join' || this.state.screen === 'loading');
+        const shouldChangeScreen = (this.state.screen === 'join');
 
         let mergedHistory = [...this.state.history];
         if (res.data.completed_questions && res.data.completed_questions.length > 0) {
@@ -390,7 +542,10 @@ class StudentArcadeGame {
         const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
         const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
         const isWaiting = roomStatus === 'waiting';
-        const nextScreen = forceScreen || (isWaiting ? 'world_map' : (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen));
+        const isLoadingScreen = this.state.screen === 'loading';
+        const nextScreen = isLoadingScreen
+          ? 'loading'
+          : (forceScreen || (isWaiting ? 'world_map' : (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen)));
 
         this.setState({
           screen: nextScreen,
@@ -479,27 +634,200 @@ class StudentArcadeGame {
       this.setState({ error: null, submitting: true });
       await gameApi.joinRoom(this.state.pin, this.state.playerName, this.state.avatarSlug);
       this.setState({ submitting: false });
-      this.startLoading('world_map');
-      await this.fetchCurrentQuestion('world_map');
-      this.startLightweightPoller();
+
+      const loader = this.startLoading('world_map', () => {
+        this.startLightweightPoller();
+      });
+
+      // Fetch data in parallel while loader is building terrain
+      await this.fetchCurrentQuestion();
+      loader?.markDataReady();
     } catch (err: any) {
       this.setState({ error: err.message || 'Failed to join game room', submitting: false });
     }
   }
 
-  private async handleSelectAnswer(answerId: number) {
+  private updateTeacherSpeakingUI(isSpeaking: boolean) {
+    const readBtn = document.getElementById('readQuestionBtn');
+    const readIcon = document.getElementById('readQuestionIcon');
+    const readText = document.getElementById('readQuestionText');
+    if (readIcon && readText && readBtn) {
+      if (isSpeaking) {
+        readIcon.innerHTML = Icons.stop(18);
+        readText.textContent = 'STOP';
+        readBtn.style.background = '#DC2626';
+        readBtn.style.borderColor = '#EF4444';
+      } else {
+        readIcon.innerHTML = Icons.rotateCcw(18);
+        readText.textContent = 'REPLAY';
+        readBtn.style.background = '#0284C7';
+        readBtn.style.borderColor = '#0369A1';
+      }
+    }
+
+    const badgeDot = document.getElementById('teacherBadgeDot');
+    if (badgeDot) {
+      badgeDot.classList.toggle('active-pulse', isSpeaking);
+    }
+
+    const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
+    if (!spriteImg) return;
+
+    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const isYellow = activeMapId === 3;
+    const isGevina = activeMapId === 2;
+
+    this.clearTeacherAnimationTimers();
+
+    if (isSpeaking && !this.state.submitting) {
+      spriteImg.className = 'teacher-character-img reading';
+      if (isYellow) {
+        spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
+      } else if (isGevina) {
+        // Kingdom 2: Teacher Gevina (G1 to G9)
+        const isReplaying = this.state.wrongAnswerIds.length > 0;
+        const introFrames = isReplaying
+          ? ['/assets/guide/G3.png']
+          : [
+              '/assets/guide/G1.png',
+              '/assets/guide/G2.png',
+              '/assets/guide/G2.png',
+              '/assets/guide/G2.png',
+              '/assets/guide/G3.png',
+            ];
+        // Smooth natural vowel reading loop (G4=AH, G5=EH, G6=OH, G3=Closed Rest)
+        const loopFrames = [
+          '/assets/guide/G4.png', // "AH" open
+          '/assets/guide/G5.png', // "EH" wide open
+          '/assets/guide/G6.png', // "OH" round open
+          '/assets/guide/G3.png', // Closed mouth breath rest
+        ];
+
+        let introIndex = 0;
+        let loopIndex = 0;
+        let isIntroFinished = isReplaying;
+
+        spriteImg.src = isReplaying ? loopFrames[0] : introFrames[0];
+
+        this.teacherMouthInterval = window.setInterval(() => {
+          if (!isIntroFinished) {
+            introIndex++;
+            if (introIndex < introFrames.length) {
+              spriteImg.src = introFrames[introIndex];
+            } else {
+              isIntroFinished = true;
+              spriteImg.src = loopFrames[0];
+            }
+          } else {
+            loopIndex = (loopIndex + 1) % loopFrames.length;
+            spriteImg.src = loopFrames[loopIndex];
+          }
+        }, 340);
+      } else {
+        // Kingdom 1: Teacher Faith (F1 to F9)
+        const isReplaying = this.state.wrongAnswerIds.length > 0;
+        const introFrames = isReplaying
+          ? ['/assets/guide/F3.png']
+          : [
+              '/assets/guide/F1.png',
+              '/assets/guide/F2.png',
+              '/assets/guide/F2.png',
+              '/assets/guide/F2.png',
+              '/assets/guide/F3.png',
+            ];
+
+        // Smooth natural vowel reading loop (F4=AH, F5=EH, F6=OH, F3=Closed Rest)
+        const loopFrames = [
+          '/assets/guide/F4.png', // "AH" open
+          '/assets/guide/F5.png', // "EH" wide open
+          '/assets/guide/F6.png', // "OH" round open
+          '/assets/guide/F3.png', // Closed mouth breath rest
+        ];
+
+        let introIndex = 0;
+        let loopIndex = 0;
+        let isIntroFinished = isReplaying;
+
+        spriteImg.src = isReplaying ? loopFrames[0] : introFrames[0];
+
+        this.teacherMouthInterval = window.setInterval(() => {
+          if (!isIntroFinished) {
+            introIndex++;
+            if (introIndex < introFrames.length) {
+              spriteImg.src = introFrames[introIndex];
+            } else {
+              isIntroFinished = true;
+              spriteImg.src = loopFrames[0];
+            }
+          } else {
+            loopIndex = (loopIndex + 1) % loopFrames.length;
+            spriteImg.src = loopFrames[loopIndex];
+          }
+        }, 340);
+      }
+    } else {
+      if (this.state.submitResult?.is_correct) {
+        spriteImg.src = isYellow
+          ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
+          : isGevina
+          ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
+          : (this.state.currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
+        spriteImg.className = 'teacher-character-img celebrating';
+      } else if (this.state.wrongAnswerIds.length > 0 && this.state.currentFeedbackSprite) {
+        // Maintain sympathetic/try-again pose - DO NOT overwrite with idle timers!
+        spriteImg.src = this.state.currentFeedbackSprite;
+        spriteImg.className = 'teacher-character-img sympathetic';
+      } else {
+        spriteImg.className = 'teacher-character-img idle';
+        if (isYellow) {
+          spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
+        } else if (isGevina) {
+          // Smooth settle to closed mouth rest stance
+          spriteImg.src = '/assets/guide/G3.png';
+          const t = window.setTimeout(() => {
+            if (!soundManager.isNarrating() && !this.state.submitResult && this.state.wrongAnswerIds.length === 0) {
+              spriteImg.src = '/assets/guide/G1.png';
+            }
+          }, 400);
+          this.teacherOutroTimeouts.push(t);
+        } else {
+          // Smooth settle to closed mouth rest stance
+          spriteImg.src = '/assets/guide/F3.png';
+          const t = window.setTimeout(() => {
+            if (!soundManager.isNarrating() && !this.state.submitResult && this.state.wrongAnswerIds.length === 0) {
+              spriteImg.src = '/assets/guide/F1.png';
+            }
+          }, 400);
+          this.teacherOutroTimeouts.push(t);
+        }
+      }
+    }
+  }
+
+  private async handleSelectAnswer(answerId?: number | null, typedAnswer?: string | null) {
     if (this.state.submitting || !this.state.currentData?.data || this.state.isTeacherPaused) return;
 
+    this.state.submitting = true;
     soundManager.stopSpeech();
+    this.clearTeacherAnimationTimers();
 
     const q = this.state.currentData.data.question;
     const currentAttempts = (this.state.attempts[q.id] || 0) + 1;
     const updatedAttempts = { ...this.state.attempts, [q.id]: currentAttempts };
     const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
+    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const isYellow = activeMapId === 3;
+    const isGevina = activeMapId === 2;
+
+    // Immediately disable pointer events on answer cards to prevent double-clicks
+    document.querySelectorAll('.answer-card').forEach((c) => {
+      (c as HTMLElement).style.pointerEvents = 'none';
+    });
 
     try {
-      this.setState({ selectedAnswerId: answerId, submitting: true, attempts: updatedAttempts });
-      const res = await gameApi.submitAnswer(q.id, answerId, starsEarned);
+      const res = await gameApi.submitAnswer(q.id, answerId, starsEarned, typedAnswer);
+
+      const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
 
       if (res.is_correct) {
         // Pause background polling so poller does not race against the praise speech!
@@ -508,9 +836,49 @@ class StudentArcadeGame {
           this.pollInterval = null;
         }
 
+        // Select non-repeating shuffled correct celebratory pose per Kingdom teacher
+        const faithHappySprites = [
+          '/assets/guide/teacher_blue_correct_1.png',
+          '/assets/guide/teacher_blue_correct_2.png',
+          '/assets/guide/teacher_blue_correct_3.png',
+        ];
+        const gevinaHappySprites = [
+          '/assets/guide/teacher_gevina_correct_1.png',
+          '/assets/guide/teacher_gevina_correct_2.png',
+          '/assets/guide/teacher_gevina_correct_3.png',
+        ];
+        const yellowHappySprites = [
+          '/assets/guide/teacher_yellow_pose2.png',
+          '/assets/guide/teacher_yellow_happy.png',
+        ];
+        const activeHappySprites = isYellow
+          ? yellowHappySprites
+          : isGevina
+          ? gevinaHappySprites
+          : faithHappySprites;
+
+        let hIdx = Math.floor(Math.random() * activeHappySprites.length);
+        if (hIdx === this.state.lastHappyPoseIndex) {
+          hIdx = (hIdx + 1) % activeHappySprites.length;
+        }
+        const chosenHappy = activeHappySprites[hIdx];
+
+        // DIRECT & INSTANT switch to Celebratory Correct pose (Zero base-frame flash!)
+        if (spriteImg) {
+          spriteImg.src = chosenHappy;
+          spriteImg.className = 'teacher-character-img celebrating';
+        }
+
+        // Highlight correct answer card
+        if (answerId) {
+          const cardEl = document.querySelector(`.answer-card[data-answer-id="${answerId}"]`);
+          cardEl?.classList.remove('selected-active');
+          cardEl?.classList.add('correct');
+        }
+
+        soundManager.playSuccess();
+
         // --- 1. CORRECT ANSWER: 3-STAR RATING & SHUFFLED TEACHER PRAISE ---
-        const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
-        const activeMapId = this.state.currentData?.data?.map?.id || 1;
         const questionOrder = q.order_index || (this.state.history.filter((h) => (h.mapId || 1) === activeMapId).length + 1);
 
         // Check for teacher's uploaded praise audio clips
@@ -525,8 +893,6 @@ class StudentArcadeGame {
         }
         const praiseText = customPraise ? customPraise.phrase : PRAISE_PHRASES[pIdx];
 
-        soundManager.playSuccess();
-
         const updatedHistory = [
           ...this.state.history.filter((h) => h.questionId !== q.id),
           {
@@ -537,44 +903,58 @@ class StudentArcadeGame {
             word: q.highlighted_word,
             isCorrect: true,
             stars: starsEarned,
+            selectedAnswerId: answerId || undefined,
+            typedAnswer: typedAnswer || undefined,
+            questionData: q,
           },
         ];
 
+        // Update speech bubble & score counter directly on stage
+        const bubbleText = document.querySelector('.teacher-speech-text');
+        const bubbleContainer = document.querySelector('.teacher-speech-bubble');
+        const scoreVal = document.getElementById('questionScoreVal');
+        if (bubbleText) bubbleText.textContent = `"${praiseText}"`;
+        if (bubbleContainer) {
+          bubbleContainer.className = 'teacher-speech-bubble bubble-correct';
+        }
+        if (scoreVal) {
+          const totalStars = updatedHistory.reduce((acc, h) => acc + (h.stars || 0), 0);
+          scoreVal.textContent = String(totalStars);
+        }
+
         this.setState({
+          selectedAnswerId: answerId || null,
           submitResult: res,
           score: res.score,
           submitting: false,
+          attempts: updatedAttempts,
           history: updatedHistory,
           lastPraiseIndex: pIdx,
-          customMascotSpeech: `${praiseText} (+${starsEarned} Stars!)`,
+          lastHappyPoseIndex: hIdx,
+          customMascotSpeech: praiseText,
+          currentFeedbackSprite: chosenHappy,
         });
 
         let hasAdvanced = false;
         const advanceToNext = async () => {
           if (hasAdvanced) return;
           hasAdvanced = true;
-          this.setState({ submitResult: null, selectedAnswerId: null });
+          this.setState({ submitResult: null, selectedAnswerId: null, wrongAnswerIds: [], currentFeedbackSprite: null });
           await this.fetchCurrentQuestion();
           this.startLightweightPoller();
         };
 
         if (customPraise?.audio_url) {
-          // Play teacher's authentic recorded voice praise
-          soundManager.playCustomVoiceRecording(
+          // Play teacher's authentic recorded voice praise (without overriding celebration pose)
+          soundManager.playFeedbackAudio(
             customPraise.audio_url,
-            undefined,
             () => {
-              setTimeout(advanceToNext, 800);
-            },
-            () => {
-              advanceToNext();
+              setTimeout(advanceToNext, 600);
             }
           );
         } else {
-          // Speak fallback praise and advance
-          soundManager.speakPraise(praiseText, () => {
-            setTimeout(advanceToNext, 1000);
-          });
+          // Advance smoothly to next challenge
+          setTimeout(advanceToNext, 1200);
         }
 
         // Safety fallback timer (advances in max 3.5s if speech is muted/silent)
@@ -594,29 +974,88 @@ class StudentArcadeGame {
 
         soundManager.playWrong();
 
-        const choicesList = q.answers.map((ans, i) => ({
-          letter: String.fromCharCode(65 + i),
-          text: ans.text,
-        }));
+        // Select non-repeating shuffled incorrect / encouraging pose per Kingdom teacher
+        const faithSadSprites = [
+          '/assets/guide/teacher_blue_incorrect_1.png',
+          '/assets/guide/teacher_blue_incorrect_2.png',
+          '/assets/guide/teacher_blue_incorrect_3.png',
+        ];
+        const gevinaSadSprites = [
+          '/assets/guide/teacher_gevina_incorrect_1.png',
+          '/assets/guide/teacher_gevina_incorrect_2.png',
+          '/assets/guide/teacher_gevina_incorrect_3.png',
+        ];
+        const yellowSadSprites = [
+          '/assets/guide/teacher_yellow_sad.png',
+        ];
+        const activeSadSprites = isYellow
+          ? yellowSadSprites
+          : isGevina
+          ? gevinaSadSprites
+          : faithSadSprites;
 
-        this.setState({
-          submitting: false,
-          submitResult: null,
-          lastTryAgainIndex: tIdx,
-          customMascotSpeech: tryAgainMsg,
-          wrongAnswerIds: [...this.state.wrongAnswerIds, answerId],
+        let sIdx = Math.floor(Math.random() * activeSadSprites.length);
+        if (sIdx === this.state.lastSadPoseIndex) {
+          sIdx = (sIdx + 1) % activeSadSprites.length;
+        }
+        const chosenSad = activeSadSprites[sIdx];
+
+        // DIRECT & INSTANT switch to Sympathetic / Encouraging pose
+        if (spriteImg) {
+          spriteImg.src = chosenSad;
+          spriteImg.className = 'teacher-character-img sympathetic';
+        }
+
+        // Highlight wrong answer card
+        if (answerId) {
+          const cardEl = document.querySelector(`.answer-card[data-answer-id="${answerId}"]`);
+          cardEl?.classList.remove('selected-active');
+          cardEl?.classList.add('wrong');
+        }
+
+        // Update speech bubble directly on stage
+        const bubbleText = document.querySelector('.teacher-speech-text');
+        const bubbleContainer = document.querySelector('.teacher-speech-bubble');
+        if (bubbleText) bubbleText.textContent = `"${tryAgainMsg}"`;
+        if (bubbleContainer) {
+          bubbleContainer.className = 'teacher-speech-bubble bubble-wrong';
+        }
+
+        const wrongIds = answerId ? [...this.state.wrongAnswerIds, answerId] : [999999];
+
+        // Re-enable pointer events for remaining cards
+        document.querySelectorAll('.answer-card').forEach((c) => {
+          const id = Number(c.getAttribute('data-answer-id'));
+          if (!wrongIds.includes(id)) {
+            (c as HTMLElement).style.pointerEvents = 'auto';
+          }
         });
 
-        setTimeout(() => {
-          if (this.state.screen === 'question' && !this.state.submitResult) {
-            if (customCheer?.audio_url) {
-              // Play teacher's authentic cheer-up voice clip
-              soundManager.playCustomVoiceRecording(customCheer.audio_url);
-            } else {
-              soundManager.speakTryAgain(tryAgainMsg, q.sentence, q.highlighted_word, choicesList);
-            }
-          }
-        }, 300);
+        this.setState({
+          selectedAnswerId: null,
+          submitting: false,
+          submitResult: null,
+          attempts: updatedAttempts,
+          wrongAnswerIds: wrongIds,
+          lastTryAgainIndex: tIdx,
+          lastSadPoseIndex: sIdx,
+          customMascotSpeech: tryAgainMsg,
+          currentFeedbackSprite: chosenSad,
+        });
+
+        const textInput = document.getElementById('identificationTextInput') as HTMLInputElement | null;
+        if (textInput) {
+          textInput.classList.add('animate-shake', 'wrong');
+          setTimeout(() => {
+            textInput.classList.remove('animate-shake');
+            textInput.focus();
+            textInput.select();
+          }, 600);
+        }
+
+        if (customCheer?.audio_url) {
+          soundManager.playFeedbackAudio(customCheer.audio_url);
+        }
       }
     } catch (err: any) {
       this.setState({ error: err.message || 'Failed to submit answer', submitting: false });
@@ -758,7 +1197,7 @@ class StudentArcadeGame {
   // 2. LOADING SCREEN
   // ─────────────────────────────────────────────────────────────────────────────
   private renderLoadingScreen() {
-    const totalSegments = 12;
+    const totalSegments = 16;
     const progress = Math.min(this.state.loadingProgress, totalSegments);
 
     const segmentsHtml = Array.from({ length: totalSegments })
@@ -1030,7 +1469,7 @@ class StudentArcadeGame {
         this.state.history
       );
 
-      this.mapRenderer.onStepClick(() => {
+      this.mapRenderer.onStepClick((mapId, stepQuestionIndex) => {
         const isWaiting = this.state.roomStatus === 'waiting';
 
         if (isWaiting) {
@@ -1044,7 +1483,34 @@ class StudentArcadeGame {
         }
 
         soundManager.stopSpeech();
-        this.setState({ screen: 'question' });
+
+        // Check if clicked question step was already answered
+        const targetMapId = mapId || activeMapId;
+        const targetQIndex = stepQuestionIndex || currentQuestionIndex;
+        const isAnswered = this.state.history.some(
+          (h) => (h.mapId === targetMapId && (h.questionIndex === targetQIndex || h.orderIndex === targetQIndex))
+        ) || (targetMapId < activeMapId) || (targetMapId === activeMapId && targetQIndex < currentQuestionIndex);
+
+        if (isAnswered) {
+          const historyItem = this.state.history.find(
+            (h) => (h.mapId === targetMapId && (h.questionIndex === targetQIndex || h.orderIndex === targetQIndex))
+          ) || this.state.history[0] || null;
+
+          // In read-only review mode: do NOT show instructions
+          this.setState({ viewingHistoryItem: historyItem, screen: 'question' });
+          return;
+        }
+
+        // Active uncompleted question:
+        this.setState({ viewingHistoryItem: null });
+
+        // Instruction dialogue ONLY appears on Question 1 of that kingdom (never on question 2, 3, etc.)
+        const isFirstQuestionOfKingdom = targetQIndex === 1;
+        if (isFirstQuestionOfKingdom && !this.isKingdomDialogueSeen(activeMapId) && KINGDOM_DIALOGUES[activeMapId]) {
+          this.openKingdomDialogue(activeMapId);
+        } else {
+          this.setState({ screen: 'question' });
+        }
       });
 
       if (isMapTransition && path.length > 0) {
@@ -1061,7 +1527,11 @@ class StudentArcadeGame {
                 return;
               }
               soundManager.stopSpeech();
-              this.setState({ screen: 'question' });
+              if (!this.isKingdomDialogueSeen(activeMapId) && KINGDOM_DIALOGUES[activeMapId]) {
+                this.openKingdomDialogue(activeMapId);
+              } else {
+                this.setState({ viewingHistoryItem: null, screen: 'question' });
+              }
             }
           }, 1200);
         });
@@ -1073,136 +1543,253 @@ class StudentArcadeGame {
   // 5. QUESTION GAMEPLAY SCREEN (WITH TTS NARRATION & 3-STAR PROGRESSION)
   // ─────────────────────────────────────────────────────────────────────────────
   private renderQuestionScreen() {
-    if (!this.state.currentData?.data) return;
-
-    const data = this.state.currentData.data;
-    const q = data.question;
-    const result = this.state.submitResult;
-    const selectedId = this.state.selectedAnswerId;
     const avatar = getAvatarBySlug(this.state.avatarSlug);
+    const isReview = Boolean(this.state.viewingHistoryItem);
+    const q = (isReview ? (this.state.viewingHistoryItem?.questionData || this.state.currentData?.data?.question) : this.state.currentData?.data?.question) || this.state.currentData?.data?.question;
+    const historySelectedId = this.state.viewingHistoryItem?.selectedAnswerId;
 
-    // Hide the 2D world map background image so the question arena is clean and full screen
-    this.bgLayerEl.style.display = 'none';
-
-    const regex = new RegExp(`(${q.highlighted_word})`, 'gi');
-    const formattedSentence = q.sentence.replace(regex, '<span class="highlighted-word">$1</span>');
-
-    let mascotSpeech = this.state.customMascotSpeech || `Help me define the word "${q.highlighted_word}"!`;
-
-    const choicesList = q.answers.map((ans, idx) => ({
-      letter: String.fromCharCode(65 + idx),
-      text: ans.text,
-    }));
+    if (!q) {
+      this.appEl.innerHTML = `
+        <div class="candy-loading-card animate-fade-in" style="margin: 60px auto; max-width: 480px; text-align: center;">
+          <div class="candy-spinner"></div>
+          <p style="margin-top: 16px; font-weight: 700; color: #F59E0B;">LOADING QUESTION DATA...</p>
+          <button id="retryQuestionBtn" class="vocab-hud-btn" style="margin-top: 16px;">RETURN TO MAP</button>
+        </div>
+      `;
+      document.getElementById('retryQuestionBtn')?.addEventListener('click', () => {
+        this.setState({ viewingHistoryItem: null, screen: 'world_map' });
+      });
+      return;
+    }
 
     const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars || 0), 0);
+    const result = this.state.submitResult;
+    const selectedId = this.state.selectedAnswerId;
+    const isIdentification = (q.question_type === 'identification') || (!q.answers || q.answers.length === 0);
+
+    const currentWord = q.highlighted_word;
+    const regex = new RegExp(`(${currentWord})`, 'gi');
+    const formattedSentence = q.sentence.replace(
+      regex,
+      `<span class="highlighted-word">$1</span>`
+    );
+
+    let teacherSpeech = this.state.customMascotSpeech;
+    if (!teacherSpeech) {
+      if (isReview) {
+        teacherSpeech = `Great job! You mastered this question challenge!`;
+      } else if (result) {
+        teacherSpeech = result.is_correct
+          ? 'Great job! Moving to the next challenge!'
+          : 'Oops! Give it another try!';
+      } else {
+        teacherSpeech = `Listen carefully and select the best meaning of "${currentWord}"!`;
+      }
+    }
+
+    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const isYellow = activeMapId === 3;
+    const isGevina = activeMapId === 2;
+    const teacherName = isYellow ? 'Principal Flores' : isGevina ? 'Teacher Gevina' : 'Teacher Faith';
+    const baseIdleSprite = isYellow 
+      ? `/assets/guide/teacher_yellow_pose1.png` 
+      : isGevina 
+      ? `/assets/guide/G1.png` 
+      : `/assets/guide/F1.png`;
+
+    let initialTeacherSprite = baseIdleSprite;
+    let initialTeacherAnimClass = 'idle';
+
+    if (result?.is_correct) {
+      initialTeacherSprite = isYellow
+        ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
+        : isGevina
+        ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
+        : (this.state.currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
+      initialTeacherAnimClass = 'celebrating';
+    } else if (this.state.wrongAnswerIds.length > 0 && !result && !this.state.submitting && this.state.currentFeedbackSprite) {
+      initialTeacherSprite = isYellow
+        ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_yellow_sad.png`)
+        : isGevina
+        ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_gevina_incorrect_1.png`)
+        : (this.state.currentFeedbackSprite || `/assets/guide/teacher_blue_incorrect_1.png`);
+      initialTeacherAnimClass = 'sympathetic';
+    } else if (soundManager.isNarrating()) {
+      initialTeacherSprite = baseIdleSprite;
+      initialTeacherAnimClass = 'reading';
+    } else {
+      initialTeacherSprite = baseIdleSprite;
+      initialTeacherAnimClass = 'idle';
+    }
 
     this.appEl.innerHTML = `
-      <div class="question-fullscreen-stage animate-fade-in">
-        <!-- Top HUD Row -->
-        <div class="question-hud-bar">
-          <div class="candy-player-card candy-hud-interactive" id="questionAvatarBox" title="${this.state.playerName || 'Hero Student'}">
-            <div class="candy-avatar-circle">
-              <img src="${avatar.image || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
-            </div>
-            <div class="candy-player-info">
-              <div class="candy-player-name">${this.state.playerName || 'Hero Student'}</div>
-              <div class="candy-star-row">
-                <div class="candy-star-icon-wrap">
-                  <svg class="candy-star-svg" viewBox="0 0 36 36">
-                    <defs>
-                      <linearGradient id="quizStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#FFF566" />
-                        <stop offset="35%" stop-color="#FFD000" />
-                        <stop offset="75%" stop-color="#FF9900" />
-                        <stop offset="100%" stop-color="#E67300" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
-                          fill="url(#quizStarGrad)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
-                    <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
-                  </svg>
-                </div>
-                <span class="candy-star-count-num">${totalStars}</span>
-                <span class="candy-star-count-label">STARS</span>
-              </div>
-            </div>
+      <!-- Top-Left Player Profile & Star HUD (Fixed Top Left) -->
+      <div class="candy-hud-top-left animate-fade-in">
+        <div class="candy-player-card candy-hud-interactive" id="questionAvatarBox" title="Tap to hear character voice">
+          <div class="candy-avatar-circle">
+            <img src="${avatar.image || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
           </div>
-
-          <div class="question-hud-actions">
-            <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" style="cursor: pointer; border-color: #10B981; color: #86EFAC;">
-              <span>${Icons.map(18)}</span>
-              <span>2D MAP</span>
-            </button>
-            <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive">
-              <span>${Icons.menu(18)}</span>
-              <span>MENU</span>
-            </button>
+          <div class="candy-player-info">
+            <div class="candy-player-name">${this.state.playerName || 'Hero Student'}</div>
+            <div class="candy-star-row">
+              <div class="candy-star-icon-wrap">
+                <svg class="candy-star-svg" viewBox="0 0 36 36">
+                  <defs>
+                    <linearGradient id="quizStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#FFF566" />
+                      <stop offset="35%" stop-color="#FFD000" />
+                      <stop offset="75%" stop-color="#FF9900" />
+                      <stop offset="100%" stop-color="#E67300" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
+                        fill="url(#quizStarGrad)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
+                  <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
+                </svg>
+              </div>
+              <span class="candy-star-count-num">${totalStars}</span>
+              <span class="candy-star-count-label">STARS</span>
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- Centered Main Question Arena -->
-        <div class="question-arena-card">
-          <div class="question-arena-header">
-            <button id="readQuestionBtn" class="hud-btn question-replay-btn" title="Replay voice narration">
-              <span id="readQuestionIcon">${Icons.rotateCcw(18)}</span>
-              <span id="readQuestionText">REPLAY</span>
-            </button>
-          </div>
+      <!-- Top-Right Controls HUD (Fixed Top Right) -->
+      <div class="candy-hud-top-right animate-fade-in">
+        <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" style="cursor: pointer; border-color: #22C55E; color: #15803D; box-shadow: 0 4px 0 #16A34A, 0 8px 16px rgba(0, 0, 0, 0.15);" title="Back to 2D Map">
+          <span>${Icons.map(18)}</span>
+          <span>2D MAP</span>
+        </button>
+        <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive" title="Pause Game Menu">
+          <span>${Icons.pause(18)}</span>
+          <span>MENU</span>
+        </button>
+      </div>
 
-          ${q.voice_video_url ? `
-            <div style="margin-bottom: 8px; border-radius: 16px; overflow: hidden; max-height: 220px; border: 2px solid #0284C7; background: #020617; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
-              <div style="padding: 8px 14px; background: rgba(2, 132, 199, 0.2); font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #38BDF8; display: flex; align-items: center; gap: 8px;">
-                <span>${Icons.video(18)}</span>
-                <span>TEACHER VIDEO VOICEOVER PROMPT</span>
+      <div class="question-scene-container animate-fade-in">
+        <!-- Dual Stage Layout: Centered Question Arena + Right Teacher Stage -->
+        <div class="question-stage-layout">
+          <!-- Centered Main Question Arena -->
+          <div class="question-arena-card">
+            ${isReview ? `
+              <div style="margin-bottom: 12px; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border: 1.5px solid #F59E0B; border-radius: 14px; font-size: 14.5px; font-weight: 700; color: #FDE047; display: flex; align-items: center; justify-content: space-between;">
+                <span>⭐ COMPLETED QUESTION REVIEW (READ-ONLY)</span>
+                <span>${this.state.viewingHistoryItem?.stars || 3} STARS EARNED</span>
               </div>
-              <video src="${q.voice_video_url}" controls playsinline style="width: 100%; max-height: 190px; object-fit: contain; background: #000;"></video>
+            ` : ''}
+
+            <div class="question-arena-header">
+              <button id="readQuestionBtn" class="hud-btn question-replay-btn" title="Replay voice narration">
+                <span id="readQuestionIcon">${Icons.rotateCcw(18)}</span>
+                <span id="readQuestionText">REPLAY</span>
+              </button>
             </div>
-          ` : ''}
 
-          <!-- Centered Question Visual Clue Image (Clean, No Badge) -->
-          ${q.image_url ? `
-            <div class="question-visual-clue-card">
-              <img src="${q.image_url}" alt="Question visual clue" class="question-visual-clue-img" />
-            </div>
-          ` : ''}
-
-          <!-- Centered Full-Width Sentence Box -->
-          <div class="sentence-box">
-            "${formattedSentence}"
-          </div>
-
-          <!-- Answer Choices Grid -->
-          <div class="answers-grid">
-            ${q.answers.map((ans, idx) => {
-              const letter = String.fromCharCode(65 + idx);
-              let stateClass = '';
-              if (result && ans.id === selectedId) {
-                stateClass = result.is_correct ? 'correct' : 'wrong';
-              } else if (this.state.wrongAnswerIds.includes(ans.id)) {
-                stateClass = 'wrong';
-              }
-              const escapedText = ans.text.replace(/"/g, '&quot;');
-              return `
-                <div class="answer-card ${stateClass}" data-answer-id="${ans.id}">
-                  <div class="answer-card-content">
-                    <div class="answer-badge">${letter}</div>
-                    <span class="answer-text">${ans.text}</span>
-                  </div>
-                  <button class="choice-speak-btn" data-letter="${letter}" data-text="${escapedText}" title="Listen to Choice ${letter}">
-                    ${Icons.volume(18)}
-                  </button>
+            ${q.voice_video_url ? `
+              <div style="margin-bottom: 8px; border-radius: 16px; overflow: hidden; max-height: 220px; border: 2px solid #0284C7; background: #020617; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+                <div style="padding: 8px 14px; background: rgba(2, 132, 199, 0.2); font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #38BDF8; display: flex; align-items: center; gap: 8px;">
+                  <span>${Icons.video(18)}</span>
+                  <span>TEACHER VIDEO VOICEOVER PROMPT</span>
                 </div>
-              `;
-            }).join('')}
+                <video src="${q.voice_video_url}" controls playsinline style="width: 100%; max-height: 190px; object-fit: contain; background: #000;"></video>
+              </div>
+            ` : ''}
+
+            <!-- Centered Question Visual Clue Image -->
+            ${q.image_url ? `
+              <div class="question-visual-clue-card">
+                <img src="${q.image_url}" alt="Question visual clue" class="question-visual-clue-img" />
+              </div>
+            ` : ''}
+
+            <!-- Centered Full-Width Sentence Box -->
+            <div class="sentence-box">
+              "${formattedSentence}"
+            </div>
+
+            <!-- Answer Choices Grid OR Identification Typing Input -->
+            ${isIdentification ? `
+              <div class="identification-arena-box">
+                <div class="identification-description">
+                  Type the correct vocabulary word:
+                </div>
+
+                <div class="identification-input-container">
+                  <input
+                    id="identificationTextInput"
+                    type="text"
+                    class="identification-text-input ${this.state.wrongAnswerIds.length > 0 ? 'animate-shake wrong' : ''}"
+                    placeholder="Type word here..."
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    ${isReview ? 'disabled' : ''}
+                    value="${isReview ? (this.state.viewingHistoryItem?.typedAnswer || this.state.viewingHistoryItem?.word || '') : ''}"
+                  />
+                  ${!isReview ? `
+                    <button id="identificationSubmitBtn" class="identification-submit-btn">
+                      <span>SUBMIT</span>
+                    </button>
+                  ` : ''}
+                </div>
+                ${isReview ? `
+                  <div class="identification-review-footer">
+                    <span style="color: #4ADE80; font-weight: 700;">Target Word: ${q.highlighted_word}</span>
+                  </div>
+                ` : ''}
+              </div>
+            ` : `
+              <div class="answers-grid" ${isReview ? 'style="pointer-events: none;"' : ''}>
+                ${(q.answers || []).map((ans: any, idx: number) => {
+                  const letter = String.fromCharCode(65 + idx);
+                  let stateClass = '';
+                  if (isReview) {
+                    if (ans.id === historySelectedId) {
+                      stateClass = this.state.viewingHistoryItem?.isCorrect ? 'correct' : 'wrong';
+                    }
+                  } else if (result && ans.id === selectedId) {
+                    stateClass = result.is_correct ? 'correct' : 'wrong';
+                  } else if (this.state.wrongAnswerIds.includes(ans.id)) {
+                    stateClass = 'wrong';
+                  }
+                  return `
+                    <div class="answer-card ${stateClass}" data-answer-id="${ans.id}" ${isReview ? 'style="cursor: default;"' : ''}>
+                      <div class="answer-card-content">
+                        <div class="answer-badge">${letter}</div>
+                        <span class="answer-text">${ans.text}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
           </div>
 
-          <!-- Mascot Guidance Strip -->
-          <div class="question-mascot-strip">
-            <img src="${avatar.image || '/assets/mascot_girl.png'}" class="mascot-strip-avatar" alt="${avatar.label}" />
-            <div class="mascot-strip-content">
-              <span class="mascot-strip-name">${this.state.playerName || 'Hero Student'}:</span>
-              <span class="mascot-strip-speech">"${mascotSpeech}"</span>
+          <!-- Right Side Teacher Character Guide Stage -->
+          <div class="question-teacher-stage" id="questionTeacherStage">
+            <!-- Teacher Speech Bubble -->
+            <div class="teacher-speech-bubble ${result?.is_correct ? 'bubble-correct' : this.state.wrongAnswerIds.length > 0 ? 'bubble-wrong' : ''}">
+              <div class="teacher-speech-header">
+                <span class="teacher-speech-dot"></span>
+                <span class="teacher-speech-author">${teacherName}</span>
+              </div>
+              <div class="teacher-speech-text">
+                "${teacherSpeech}"
+              </div>
+              <div class="teacher-speech-tail"></div>
             </div>
+
+            <div class="teacher-character-frame">
+              <img
+                id="teacherCharacterSprite"
+                src="${initialTeacherSprite}"
+                alt="${teacherName}"
+                class="teacher-character-img ${initialTeacherAnimClass}"
+              />
+            </div>
+
+            <div class="teacher-podium-shadow"></div>
           </div>
         </div>
       </div>
@@ -1224,7 +1811,7 @@ class StudentArcadeGame {
     document.getElementById('worldMapNavBtn')?.addEventListener('click', () => {
       soundManager.playClick();
       soundManager.stopSpeech();
-      this.setState({ screen: 'world_map' });
+      this.setState({ viewingHistoryItem: null, screen: 'world_map' });
     });
 
     const readBtn = document.getElementById('readQuestionBtn');
@@ -1254,54 +1841,75 @@ class StudentArcadeGame {
         updateReadButton(false);
       } else {
         const voiceUrl = q.voice_audio_url || q.audio_url;
-        const fallbackTTS = () => {
-          soundManager.speakQuestionNarration(
-            q.sentence,
-            q.highlighted_word,
-            choicesList,
-            () => updateReadButton(true),
-            () => updateReadButton(false)
-          );
-        };
-
         if (voiceUrl) {
           soundManager.playCustomVoiceRecording(
             voiceUrl,
             () => updateReadButton(true),
-            () => updateReadButton(false),
-            fallbackTTS
+            () => updateReadButton(false)
           );
         } else {
-          fallbackTTS();
+          soundManager.playSuccess();
         }
       }
     });
 
-    document.querySelectorAll('.choice-speak-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        soundManager.playClick();
-        const letter = btn.getAttribute('data-letter') || '';
-        const text = btn.getAttribute('data-text') || '';
-        soundManager.speakChoice(letter, text);
-      });
-    });
+    if (isIdentification && !isReview) {
+      const inputEl = document.getElementById('identificationTextInput') as HTMLInputElement | null;
+      const submitBtn = document.getElementById('identificationSubmitBtn');
 
-    document.querySelectorAll('.answer-card').forEach((card) => {
-      card.addEventListener('click', () => {
-        const answerId = Number(card.getAttribute('data-answer-id'));
-        if (answerId && !this.state.submitting && !this.state.submitResult) {
-          soundManager.stopSpeech();
-          this.handleSelectAnswer(answerId);
+      const submitTyped = () => {
+        if (!inputEl) return;
+        const textVal = inputEl.value.trim();
+        if (!textVal || this.state.submitting || this.state.submitResult) return;
+        soundManager.stopSpeech();
+        this.handleSelectAnswer(null, textVal);
+      };
+
+      submitBtn?.addEventListener('click', () => {
+        soundManager.playClick();
+        submitTyped();
+      });
+
+      inputEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          soundManager.playClick();
+          submitTyped();
         }
       });
-    });
 
-    // Auto-narrate or play custom voiceover when a new question loads
-    if (!result && this.lastNarratedQuestionId !== q.id) {
+      setTimeout(() => {
+        inputEl?.focus();
+      }, 150);
+    } else if (!isReview) {
+      document.querySelectorAll('.answer-card').forEach((card) => {
+        const answerId = Number(card.getAttribute('data-answer-id'));
+
+        card.addEventListener('pointerdown', () => {
+          if (answerId && !this.state.submitting && !this.state.submitResult && !this.state.wrongAnswerIds.includes(answerId)) {
+            card.classList.add('selected-active');
+            soundManager.stopSpeech();
+            this.clearTeacherAnimationTimers();
+            soundManager.playClick();
+          }
+        });
+
+        card.addEventListener('click', () => {
+          if (answerId && !this.state.submitting && !this.state.submitResult && !this.state.wrongAnswerIds.includes(answerId)) {
+            card.classList.add('selected-active');
+            soundManager.stopSpeech();
+            this.clearTeacherAnimationTimers();
+            this.handleSelectAnswer(answerId);
+          }
+        });
+      });
+    }
+
+    // Auto-play teacher's recorded voiceover ONLY on active new question with a 1.5s preparation delay
+    if (!isReview && !result && this.lastNarratedQuestionId !== q.id) {
       this.lastNarratedQuestionId = q.id;
       setTimeout(() => {
-        if (this.state.screen === 'question' && !this.state.submitResult) {
+        if (this.state.screen === 'question' && !this.state.submitResult && !this.state.viewingHistoryItem) {
           const voiceUrl = q.voice_audio_url || q.audio_url;
           if (voiceUrl) {
             soundManager.playCustomVoiceRecording(
@@ -1309,17 +1917,9 @@ class StudentArcadeGame {
               () => updateReadButton(true),
               () => updateReadButton(false)
             );
-          } else {
-            soundManager.speakQuestionNarration(
-              q.sentence,
-              q.highlighted_word,
-              choicesList,
-              () => updateReadButton(true),
-              () => updateReadButton(false)
-            );
           }
         }
-      }, 350);
+      }, 1500);
     }
   }
 
@@ -1357,11 +1957,20 @@ class StudentArcadeGame {
           </div>
         </div>
 
-        <div id="completedRestartBtnFrame" class="vocab-btn-frame" style="max-width: 320px; margin: 0 auto;">
-          <button id="completedRestartBtn" class="vocab-btn vocab-btn-green" style="height: 60px; font-size: 26px;">
-            <span>${Icons.refresh(24)}</span>
-            <span>PLAY AGAIN</span>
-          </button>
+        <div style="display: flex; flex-direction: column; gap: 14px; max-width: 360px; margin: 0 auto;">
+          <div id="completedRestartBtnFrame" class="vocab-btn-frame">
+            <button id="completedRestartBtn" class="vocab-btn vocab-btn-green" style="height: 58px; font-size: 24px;">
+              <span>${Icons.refresh(22)}</span>
+              <span>PLAY AGAIN</span>
+            </button>
+          </div>
+
+          <div id="completedSaveExitBtnFrame" class="vocab-btn-frame vocab-btn-frame-blue">
+            <button id="completedSaveExitBtn" class="vocab-btn vocab-btn-blue" style="height: 58px; font-size: 24px;">
+              <span>${Icons.check(22)}</span>
+              <span>SAVE & EXIT</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -1374,16 +1983,39 @@ class StudentArcadeGame {
       gameApi.clearSession();
       if (this.pollInterval) clearInterval(this.pollInterval);
       this.setState({
-        screen: 'title',
+        screen: 'join',
         score: 0,
         attempts: {},
         history: [],
+        viewingHistoryItem: null,
         currentData: null,
         submitResult: null,
         selectedAnswerId: null,
         wrongAnswerIds: [],
         customMascotSpeech: null,
       });
+    });
+
+    document.getElementById('completedSaveExitBtnFrame')?.addEventListener('mouseenter', () => soundManager.playHover());
+    document.getElementById('completedSaveExitBtn')?.addEventListener('click', () => {
+      soundManager.playClick();
+      soundManager.stopSpeech();
+      this.lastNarratedQuestionId = null;
+      gameApi.clearSession();
+      if (this.pollInterval) clearInterval(this.pollInterval);
+      this.setState({
+        screen: 'title',
+        score: 0,
+        attempts: {},
+        history: [],
+        viewingHistoryItem: null,
+        currentData: null,
+        submitResult: null,
+        selectedAnswerId: null,
+        wrongAnswerIds: [],
+        customMascotSpeech: null,
+      });
+      this.showToast('Quest Completed!', 'Your score has been recorded. Returning to title!', 'success', 3500);
     });
   }
 
@@ -1496,6 +2128,195 @@ class StudentArcadeGame {
     `;
 
     document.body.appendChild(overlay);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 💬 INTERACTIVE KINGDOM TUTORIAL & STORY DIALOGUE OVERLAY
+  // ─────────────────────────────────────────────────────────────────────────────
+  private openKingdomDialogue(kingdomId: number) {
+    soundManager.playClick();
+    this.setState({
+      isDialogueOpen: true,
+      dialogueKingdomId: kingdomId,
+      dialogueSlideIndex: 0,
+    });
+  }
+
+  private nextDialogueSlide() {
+    const kd = KINGDOM_DIALOGUES[this.state.dialogueKingdomId] || KINGDOM_DIALOGUES[1];
+    if (this.state.dialogueSlideIndex < kd.slides.length - 1) {
+      soundManager.playClick();
+      const nextIdx = this.state.dialogueSlideIndex + 1;
+      this.setState({ dialogueSlideIndex: nextIdx });
+    } else {
+      this.closeKingdomDialogue();
+    }
+  }
+
+  private prevDialogueSlide() {
+    if (this.state.dialogueSlideIndex > 0) {
+      soundManager.playClick();
+      const prevIdx = this.state.dialogueSlideIndex - 1;
+      this.setState({ dialogueSlideIndex: prevIdx });
+    }
+  }
+
+  private isKingdomDialogueSeen(kingdomId: number): boolean {
+    const pin = this.state.pin || 'default';
+    const localKey = `seen_dialogue_${pin}_k${kingdomId}`;
+    return this.state.seenKingdomDialogues.includes(kingdomId) || localStorage.getItem(localKey) === 'true';
+  }
+
+  private closeKingdomDialogue() {
+    soundManager.playSuccess();
+    soundManager.stopSpeech();
+    const kingdomId = this.state.dialogueKingdomId;
+    const pin = this.state.pin || 'default';
+    const localKey = `seen_dialogue_${pin}_k${kingdomId}`;
+    localStorage.setItem(localKey, 'true');
+    const seen = Array.from(new Set([...this.state.seenKingdomDialogues, kingdomId]));
+    this.setState({
+      isDialogueOpen: false,
+      seenKingdomDialogues: seen,
+      screen: 'question',
+    });
+  }
+
+  private renderDialogueOverlay() {
+    const OVERLAY_ID = 'dialogueOverlayContainer';
+    const existing = document.getElementById(OVERLAY_ID);
+
+    if (!this.state.isDialogueOpen) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    const kd = KINGDOM_DIALOGUES[this.state.dialogueKingdomId] || KINGDOM_DIALOGUES[1];
+    const slide = kd.slides[this.state.dialogueSlideIndex] || kd.slides[0];
+    const isFinalSlide = this.state.dialogueSlideIndex >= kd.slides.length - 1;
+    const hasPrev = this.state.dialogueSlideIndex > 0;
+
+    const formattedText = slide.text.replace(
+      '{playerName}',
+      `<span class="dialogue-name-highlight">${this.state.playerName || 'Adventurer'}</span>`
+    );
+
+    const dotsHtml = kd.slides
+      .map((_, i) => `<div class="dialogue-dot ${i === this.state.dialogueSlideIndex ? 'active' : ''}"></div>`)
+      .join('');
+
+    const prevBtnHtml = hasPrev
+      ? `<button id="dialoguePrevBtn" class="dialogue-btn-prev"><span>◀ PREV</span></button>`
+      : '';
+
+    // If overlay is already in the DOM, update in-place without tearing down backdrop (prevents screen blinking!)
+    if (existing) {
+      const speakerEl = existing.querySelector('.dialogue-speaker-name');
+      if (speakerEl) speakerEl.textContent = slide.speaker;
+
+      const badgeEl = existing.querySelector('.dialogue-badge-sub');
+      if (badgeEl) badgeEl.textContent = slide.titleBadge;
+
+      const textEl = existing.querySelector('.dialogue-speech-text');
+      if (textEl) textEl.innerHTML = formattedText;
+
+      const dotsContainer = existing.querySelector('.dialogue-step-dots');
+      if (dotsContainer) dotsContainer.innerHTML = dotsHtml;
+
+      const actionBtn = existing.querySelector('#dialogueActionBtn span');
+      if (actionBtn) actionBtn.textContent = slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶');
+
+      const actionsContainer = existing.querySelector('.dialogue-footer-actions');
+      if (actionsContainer) {
+        actionsContainer.innerHTML = `
+          ${prevBtnHtml}
+          <button id="dialogueActionBtn" class="dialogue-btn-action">
+            <span>${slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶')}</span>
+          </button>
+        `;
+        existing.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.prevDialogueSlide();
+        });
+        existing.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.nextDialogueSlide();
+        });
+      }
+
+      const charImg = existing.querySelector<HTMLImageElement>('.dialogue-char-img');
+      if (charImg && slide.characterImage) {
+        charImg.src = slide.characterImage;
+      }
+      return;
+    }
+
+    // Initial render
+    const overlay = document.createElement('div');
+    overlay.id = OVERLAY_ID;
+    overlay.className = 'dialogue-overlay-backdrop';
+
+    const charHtml = slide.characterImage
+      ? `<div class="dialogue-char-stage">
+           <img class="dialogue-char-img" src="${slide.characterImage}" alt="${slide.speaker}" />
+           <div class="dialogue-char-ground-shadow"></div>
+         </div>`
+      : '';
+
+    overlay.innerHTML = `
+      <div class="dialogue-wrapper ${slide.characterImage ? 'has-character' : 'full-dialogue'}">
+        <div class="dialogue-card">
+          <div class="dialogue-header">
+            <div class="dialogue-speaker-tag">
+              <span class="dialogue-speaker-name">${slide.speaker}</span>
+            </div>
+            <div class="dialogue-badge-sub">${slide.titleBadge}</div>
+            <button id="dialogueSkipBtn" class="dialogue-skip-btn">Skip ❯❯</button>
+          </div>
+
+          <div class="dialogue-body">
+            <div class="dialogue-speech-text">${formattedText}</div>
+          </div>
+
+          <div class="dialogue-footer">
+            <div class="dialogue-step-dots">
+              ${dotsHtml}
+            </div>
+            <div class="dialogue-footer-actions">
+              ${prevBtnHtml}
+              <button id="dialogueActionBtn" class="dialogue-btn-action">
+                <span>${slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        ${charHtml}
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Event Listeners
+    overlay.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.prevDialogueSlide();
+    });
+
+    overlay.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.nextDialogueSlide();
+    });
+
+    overlay.querySelector('#dialogueSkipBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeKingdomDialogue();
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        this.nextDialogueSlide();
+      }
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1703,78 +2524,67 @@ class StudentArcadeGame {
 
     if (this.state.isPauseMenuOpen) {
       modalContainer.innerHTML = `
-        <div class="modal-dialog modal-voxel-box" style="max-width: 460px; text-align: center;">
-          <div class="modal-header" style="justify-content: center;">
-            <div class="modal-title minecraft-gold-title" style="font-family: var(--font-primary); font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-              <span>${Icons.menu(20)}</span>
+        <div class="modal-dialog pause-menu-card">
+          <div class="pause-menu-header">
+            <div class="pause-menu-title">
+              <span>${Icons.menu(22)}</span>
               <span>GAME PAUSED</span>
             </div>
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px;">
-            <div id="pauseContinueFrame" class="vocab-btn-frame">
-              <button id="pauseContinueBtn" class="vocab-btn vocab-btn-green" style="height: 54px; font-size: 22px;">
-                <span>${Icons.play(20)}</span>
-                <span>CONTINUE QUEST</span>
-              </button>
-            </div>
+          <div class="pause-menu-buttons">
+            <button id="pauseContinueBtn" class="pause-btn pause-btn-green">
+              <span>${Icons.play(20)}</span>
+              <span>CONTINUE QUEST</span>
+            </button>
 
-            <div id="pauseWorldMapFrame" class="vocab-btn-frame">
-              <button id="pauseWorldMapBtn" class="vocab-btn vocab-btn-blue" style="height: 54px; font-size: 22px;">
-                <span>${Icons.map(20)}</span>
-                <span>RETURN TO WORLD MAP</span>
-              </button>
-            </div>
+            <button id="pauseWorldMapBtn" class="pause-btn pause-btn-blue">
+              <span>${Icons.map(20)}</span>
+              <span>RETURN TO WORLD MAP</span>
+            </button>
 
-            <div id="pauseSettingsFrame" class="vocab-btn-frame">
-              <button id="pauseSettingsBtn" class="vocab-btn vocab-btn-yellow" style="height: 54px; font-size: 22px;">
-                <span>${Icons.refresh(20)}</span>
-                <span>SETTINGS</span>
-              </button>
-            </div>
+            <button id="pauseSettingsBtn" class="pause-btn pause-btn-yellow">
+              <span>${Icons.refresh(20)}</span>
+              <span>SETTINGS</span>
+            </button>
 
-            <div id="pauseQuitFrame" class="vocab-btn-frame">
-              <button id="pauseQuitBtn" class="vocab-btn vocab-btn-red" style="height: 54px; font-size: 22px;">
-                <span>${Icons.x(20)}</span>
-                <span>QUIT TO TITLE</span>
-              </button>
-            </div>
+            <button id="pauseQuitBtn" class="pause-btn pause-btn-red">
+              <span>${Icons.x(20)}</span>
+              <span>QUIT TO TITLE</span>
+            </button>
           </div>
         </div>
       `;
 
       document.body.appendChild(modalContainer);
 
-      const contFrame = document.getElementById('pauseContinueFrame');
-      const mapFrame = document.getElementById('pauseWorldMapFrame');
-      const settFrame = document.getElementById('pauseSettingsFrame');
-      const quitFrame = document.getElementById('pauseQuitFrame');
+      const contBtn = document.getElementById('pauseContinueBtn');
+      const mapBtn = document.getElementById('pauseWorldMapBtn');
+      const settBtn = document.getElementById('pauseSettingsBtn');
+      const quitBtn = document.getElementById('pauseQuitBtn');
 
-      contFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-      mapFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-      settFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-      quitFrame?.addEventListener('mouseenter', () => soundManager.playHover());
+      contBtn?.addEventListener('mouseenter', () => soundManager.playHover());
+      mapBtn?.addEventListener('mouseenter', () => soundManager.playHover());
+      settBtn?.addEventListener('mouseenter', () => soundManager.playHover());
+      quitBtn?.addEventListener('mouseenter', () => soundManager.playHover());
 
-      contFrame?.addEventListener('click', () => {
+      contBtn?.addEventListener('click', () => {
         soundManager.playClick();
         this.setState({ isPauseMenuOpen: false });
-        if (this.state.screen === 'question' && !this.state.submitResult) {
-          soundManager.resumeQuestionNarration();
-        }
       });
 
-      mapFrame?.addEventListener('click', () => {
+      mapBtn?.addEventListener('click', () => {
         soundManager.playClick();
         soundManager.stopSpeech();
         this.setState({ isPauseMenuOpen: false, screen: 'world_map' });
       });
 
-      settFrame?.addEventListener('click', () => {
+      settBtn?.addEventListener('click', () => {
         soundManager.playClick();
         this.setState({ isPauseMenuOpen: false, isSettingsOpen: true });
       });
 
-      quitFrame?.addEventListener('click', () => {
+      quitBtn?.addEventListener('click', () => {
         soundManager.playClick();
         soundManager.stopSpeech();
         this.lastActiveMapId = 1;
@@ -1792,6 +2602,7 @@ class StudentArcadeGame {
           customMascotSpeech: null,
         });
       });
+      return;
     }
   }
 }

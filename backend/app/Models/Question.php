@@ -15,6 +15,7 @@ class Question extends Model
     protected $fillable = [
         'map_id',
         'order_index',
+        'question_type',
         'sentence',
         'highlighted_word',
         'image_url',

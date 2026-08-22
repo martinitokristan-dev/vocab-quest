@@ -10,7 +10,7 @@ import {
   Trash2,
   CheckCircle2,
   RotateCcw,
-  Heart,
+  AlertCircle,
   ToggleLeft,
   ToggleRight,
   FileAudio,
@@ -18,17 +18,18 @@ import {
   Loader2,
 } from 'lucide-react';
 
-const PRAISE_PRESETS = [
-  'Fantastic job! That is the correct answer!',
-  'Excellent work! You are a true vocabulary champion!',
-  'Outstanding! You found the exact meaning!',
-  'Superb! Keep conquering the quest!',
+const CORRECT_ANSWER_PRESETS = [
+  'Great job! That is the correct definition.',
+  'Excellent work! You found the right answer.',
+  'Well done! You mastered this vocabulary word.',
+  'Correct! Moving forward to the next challenge.',
 ];
 
-const CHEER_UP_PRESETS = [
-  "Good try! Don't give up, give it another shot!",
-  'Almost there! Listen closely and choose the best meaning.',
-  'That is okay! Think about the clue and try again.',
+const INCORRECT_ANSWER_PRESETS = [
+  'Good attempt! Take another look and try again.',
+  'Almost there! Read the clues and try once more.',
+  'Not quite. Re-read the sentence carefully.',
+  'Keep trying! You can figure this one out.',
 ];
 
 export const AudioReviewPage: React.FC = () => {
@@ -174,11 +175,11 @@ export const AudioReviewPage: React.FC = () => {
     setFormError(null);
 
     if (!phrase.trim()) {
-      setFormError('Please enter a phrase for this voiceover.');
+      setFormError('Please enter a feedback message script.');
       return;
     }
     if (!audioBlob && !audioFile) {
-      setFormError('Please record or upload an audio file.');
+      setFormError('Please record voiceover or upload an audio file.');
       return;
     }
 
@@ -192,11 +193,11 @@ export const AudioReviewPage: React.FC = () => {
 
       clearRecorder();
       setPhrase('');
-      showToast('Voiceover clip uploaded and saved successfully!', 'success');
+      showToast('Audio feedback response saved successfully!', 'success');
       fetchAudios();
     } catch (err: any) {
-      setFormError(err.message || 'Failed to save voiceover.');
-      showToast(err.message || 'Failed to save voiceover.', 'error');
+      setFormError(err.message || 'Failed to save feedback audio.');
+      showToast(err.message || 'Failed to save feedback audio.', 'error');
     } finally {
       setSaving(false);
     }
@@ -205,7 +206,7 @@ export const AudioReviewPage: React.FC = () => {
   const handleToggleActive = async (id: number) => {
     try {
       await api.toggleFeedbackAudio(id);
-      showToast('Voiceover clip status updated.', 'info');
+      showToast('Audio feedback status updated.', 'info');
       fetchAudios();
     } catch (err: any) {
       showToast(err.message || 'Failed to update status', 'error');
@@ -217,12 +218,12 @@ export const AudioReviewPage: React.FC = () => {
     try {
       setDeleting(true);
       await api.deleteFeedbackAudio(deleteTarget.id);
-      showToast('Voiceover clip deleted successfully.', 'info');
+      showToast('Audio feedback clip deleted.', 'info');
       setDeleteTarget(null);
       fetchAudios();
     } catch (err: any) {
       setDeleteTarget(null);
-      showToast(err.message || 'Failed to delete voiceover', 'error');
+      showToast(err.message || 'Failed to delete audio feedback', 'error');
     } finally {
       setDeleting(false);
     }
@@ -259,9 +260,9 @@ export const AudioReviewPage: React.FC = () => {
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in">
       {/* Header */}
       <div className="border-b border-white/5 pb-4">
-        <h2 className="text-xl font-bold text-white tracking-tight">Voice Studio</h2>
+        <h2 className="text-xl font-bold text-white tracking-tight">Audio Feedback Studio</h2>
         <p className="text-xs text-zinc-400 mt-0.5">
-          Record custom praise and cheer-up voiceovers shuffled automatically in game
+          Record or upload teacher voice messages played during student question feedback
         </p>
       </div>
 
@@ -283,7 +284,7 @@ export const AudioReviewPage: React.FC = () => {
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Correct Praise</span>
+              <span>Correct Answer Feedback</span>
             </button>
 
             <button
@@ -298,8 +299,8 @@ export const AudioReviewPage: React.FC = () => {
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              <Heart className="w-3.5 h-3.5" />
-              <span>Wrong Cheer-Up</span>
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Incorrect Answer Feedback</span>
             </button>
           </div>
         </div>
@@ -311,30 +312,33 @@ export const AudioReviewPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSaveFeedbackAudio} className="space-y-4">
-          {/* Phrase Input & Presets */}
+          {/* Message Script & Presets */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">Spoken Phrase *</label>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1">
+              Feedback Message Script *
+            </label>
             <input
               type="text"
               required
               placeholder={
                 selectedType === 'praise'
-                  ? 'e.g. Fantastic job! That is the correct answer!'
-                  : "e.g. Good try! Don't give up, give it another shot!"
+                  ? 'e.g. Great job! That is the correct definition.'
+                  : 'e.g. Good attempt! Take another look and try again.'
               }
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
               className="minimal-input text-xs"
             />
 
-            {/* Quick Inspiration Pills */}
+            {/* Quick Inspiration Templates */}
             <div className="flex items-center gap-1.5 flex-wrap mt-2">
-              {(selectedType === 'praise' ? PRAISE_PRESETS : CHEER_UP_PRESETS).map((preset, pIdx) => (
+              <span className="text-[10px] text-zinc-500 font-medium mr-1">Templates:</span>
+              {(selectedType === 'praise' ? CORRECT_ANSWER_PRESETS : INCORRECT_ANSWER_PRESETS).map((preset, pIdx) => (
                 <button
                   key={pIdx}
                   type="button"
                   onClick={() => setPhrase(preset)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 border border-white/5 cursor-pointer"
+                  className="px-2 py-0.5 rounded text-[11px] bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 border border-white/5 cursor-pointer transition-colors"
                 >
                   "{preset}"
                 </button>
@@ -382,7 +386,7 @@ export const AudioReviewPage: React.FC = () => {
                   className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-white" />
-                  <span>Stop</span>
+                  <span>Stop Recording</span>
                 </button>
               </div>
             )}
@@ -404,7 +408,7 @@ export const AudioReviewPage: React.FC = () => {
                     className="px-3 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
                   >
                     {isPlayingStudioPreview ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-slate-950" />}
-                    <span>{isPlayingStudioPreview ? 'Pause' : 'Test'}</span>
+                    <span>{isPlayingStudioPreview ? 'Pause' : 'Test Audio'}</span>
                   </button>
 
                   <button
@@ -435,51 +439,53 @@ export const AudioReviewPage: React.FC = () => {
               disabled={saving || isRecording || (!audioBlob && !audioFile)}
               className="btn-primary text-xs font-bold"
             >
-              {saving ? 'Saving...' : 'Save Voice Clip'}
+              {saving ? 'Saving...' : 'Save Feedback Audio'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Library */}
+      {/* Feedback Audio Library */}
       <div className="space-y-3">
-        <div className="flex items-center gap-1.5 pb-1">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-zinc-800 text-white font-semibold border border-zinc-700'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            All ({audios.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('praise')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === 'praise'
-                ? 'bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Correct ({praiseList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('cheer_up')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === 'cheer_up'
-                ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Cheer-Up ({cheerUpList.length})
-          </button>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-zinc-800 text-white font-semibold border border-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              All Audio ({audios.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('praise')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'praise'
+                  ? 'bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Correct Answer ({praiseList.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('cheer_up')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'cheer_up'
+                  ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Incorrect Answer ({cheerUpList.length})
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="p-8 text-center text-xs text-zinc-500">Loading audio library...</div>
         ) : displayedAudios.length === 0 ? (
-          <div className="surface-card p-8 text-center text-zinc-500 text-xs">No voiceover clips found</div>
+          <div className="surface-card p-8 text-center text-zinc-500 text-xs">No feedback audio recordings found</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {displayedAudios.map((item) => (
@@ -490,13 +496,13 @@ export const AudioReviewPage: React.FC = () => {
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
                         item.type === 'praise'
-                          ? 'bg-emerald-500/15 text-emerald-300'
-                          : 'bg-amber-500/15 text-amber-300'
+                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                       }`}
                     >
-                      {item.type === 'praise' ? 'Praise' : 'Cheer-Up'}
+                      {item.type === 'praise' ? 'Correct Response' : 'Incorrect Response'}
                     </span>
                   </div>
                   <p className="text-xs font-medium text-white truncate">"{item.phrase}"</p>
@@ -510,7 +516,7 @@ export const AudioReviewPage: React.FC = () => {
                         ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-bold'
                         : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white'
                     }`}
-                    title="Play voiceover clip"
+                    title="Play voice response"
                   >
                     {playingAudioId === item.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
@@ -518,7 +524,7 @@ export const AudioReviewPage: React.FC = () => {
                   <button
                     onClick={() => handleToggleActive(item.id)}
                     className="cursor-pointer p-1 text-zinc-400 hover:text-white"
-                    title={item.is_active ? 'Active in shuffle' : 'Disabled in shuffle'}
+                    title={item.is_active ? 'Active in gameplay feedback' : 'Muted in gameplay feedback'}
                   >
                     {item.is_active ? (
                       <ToggleRight className="w-5 h-5 text-emerald-400" />
@@ -530,7 +536,7 @@ export const AudioReviewPage: React.FC = () => {
                   <button
                     onClick={() => setDeleteTarget(item)}
                     className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                    title="Delete clip"
+                    title="Delete feedback audio"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -554,7 +560,7 @@ export const AudioReviewPage: React.FC = () => {
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
               <div className="flex items-center gap-2.5">
                 <Trash2 className="w-4 h-4 text-rose-400" />
-                <h3 className="text-sm font-semibold text-white">Delete Voiceover</h3>
+                <h3 className="text-sm font-semibold text-white">Delete Feedback Audio</h3>
               </div>
               <button
                 onClick={() => setDeleteTarget(null)}
@@ -566,10 +572,10 @@ export const AudioReviewPage: React.FC = () => {
 
             <div className="px-5 py-4 space-y-2">
               <p className="text-sm text-zinc-300">
-                Delete voiceover phrase <span className="font-semibold text-white">"{deleteTarget.phrase}"</span>?
+                Delete feedback message <span className="font-semibold text-white">"{deleteTarget.phrase}"</span>?
               </p>
               <p className="text-xs text-zinc-500 leading-relaxed">
-                This voice recording will be removed from gameplay feedback shuffles.
+                This voice recording will be removed from student gameplay feedback responses.
               </p>
             </div>
 

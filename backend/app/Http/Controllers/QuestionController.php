@@ -45,8 +45,11 @@ class QuestionController extends Controller
             }
         }
 
+        $questionType = $request->input('question_type', 'multiple_choice');
+
         $validated = $request->validate([
             'order_index'                => ['required', 'integer', 'min:1'],
+            'question_type'              => ['nullable', 'string', 'in:multiple_choice,identification'],
             'sentence'                   => ['required', 'string'],
             'highlighted_word'           => ['required', 'string'],
             'image_url'                  => ['nullable', 'string'],
@@ -60,7 +63,7 @@ class QuestionController extends Controller
             'voice_video'                => ['nullable', 'file', 'max:51200'], // 50MB max
             'voice_video_file'           => ['nullable', 'file', 'max:51200'],
             'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
-            'answers'                    => ['required', 'array', 'min:2', 'max:4'],
+            'answers'                    => [$questionType === 'identification' ? 'nullable' : 'required', 'array', $questionType === 'identification' ? 'min:1' : 'min:2', 'max:4'],
             'answers.*.text'             => ['required', 'string'],
             'answers.*.is_correct'       => ['required', 'boolean'],
         ]);
@@ -105,16 +108,28 @@ class QuestionController extends Controller
             ]);
         }
 
-        // rules-and-validation §3: exactly ONE correct answer required
-        $correctCount = collect($validated['answers'])->where('is_correct', true)->count();
-        if ($correctCount !== 1) {
-            throw ValidationException::withMessages([
-                'answers' => ['Question must have exactly one correct answer choice.'],
-            ]);
+        $answersList = $validated['answers'] ?? [];
+        if ($questionType === 'identification') {
+            if (empty($answersList)) {
+                $answersList = [
+                    ['text' => strtolower($validated['highlighted_word']), 'is_correct' => true],
+                ];
+            } else {
+                $answersList = array_map(fn ($a) => ['text' => $a['text'], 'is_correct' => true], $answersList);
+            }
+        } else {
+            // rules-and-validation §3: exactly ONE correct answer required
+            $correctCount = collect($answersList)->where('is_correct', true)->count();
+            if ($correctCount !== 1) {
+                throw ValidationException::withMessages([
+                    'answers' => ['Multiple choice questions must have exactly one correct answer choice.'],
+                ]);
+            }
         }
 
         $question = $map->questions()->create([
             'order_index'                => $validated['order_index'],
+            'question_type'              => $questionType,
             'sentence'                   => $validated['sentence'],
             'highlighted_word'           => strtolower($validated['highlighted_word']),
             'image_url'                  => $imageUrl,
@@ -126,7 +141,7 @@ class QuestionController extends Controller
             'has_image'                  => ! empty($imageUrl),
         ]);
 
-        foreach ($validated['answers'] as $ans) {
+        foreach ($answersList as $ans) {
             $question->answers()->create($ans);
         }
 
@@ -162,8 +177,11 @@ class QuestionController extends Controller
             }
         }
 
+        $questionType = $request->input('question_type', $question->question_type ?? 'multiple_choice');
+
         $validated = $request->validate([
             'order_index'                => ['sometimes', 'required', 'integer', 'min:1'],
+            'question_type'              => ['nullable', 'string', 'in:multiple_choice,identification'],
             'sentence'                   => ['sometimes', 'required', 'string'],
             'highlighted_word'           => ['sometimes', 'required', 'string'],
             'image_url'                  => ['nullable', 'string'],
@@ -177,7 +195,7 @@ class QuestionController extends Controller
             'voice_video'                => ['nullable', 'file', 'max:51200'],
             'voice_video_file'           => ['nullable', 'file', 'max:51200'],
             'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
-            'answers'                    => ['sometimes', 'required', 'array', 'min:2', 'max:4'],
+            'answers'                    => ['sometimes', 'required', 'array', $questionType === 'identification' ? 'min:1' : 'min:2', 'max:4'],
             'answers.*.text'             => ['required', 'string'],
             'answers.*.is_correct'       => ['required', 'boolean'],
         ]);
@@ -224,21 +242,27 @@ class QuestionController extends Controller
         }
 
         if (isset($validated['answers'])) {
-            $correctCount = collect($validated['answers'])->where('is_correct', true)->count();
-            if ($correctCount !== 1) {
-                throw ValidationException::withMessages([
-                    'answers' => ['Question must have exactly one correct answer choice.'],
-                ]);
+            $answersList = $validated['answers'];
+            if ($questionType === 'identification') {
+                $answersList = array_map(fn ($a) => ['text' => $a['text'], 'is_correct' => true], $answersList);
+            } else {
+                $correctCount = collect($answersList)->where('is_correct', true)->count();
+                if ($correctCount !== 1) {
+                    throw ValidationException::withMessages([
+                        'answers' => ['Question must have exactly one correct answer choice.'],
+                    ]);
+                }
             }
 
             $question->answers()->delete();
-            foreach ($validated['answers'] as $ans) {
+            foreach ($answersList as $ans) {
                 $question->answers()->create($ans);
             }
         }
 
         $question->update([
             'order_index'                => $validated['order_index'] ?? $question->order_index,
+            'question_type'              => $questionType,
             'sentence'                   => $sentence,
             'highlighted_word'           => $word,
             'image_url'                  => $imageUrl,
@@ -260,6 +284,13 @@ class QuestionController extends Controller
     public function destroy(Question $question): JsonResponse
     {
         $this->authorize('delete', $question);
+
+        // Auto-cleanup uploaded Cloudinary media to keep free storage clean
+        if (! empty($question->image_cloudinary_public_id)) {
+            try {
+                $this->cloudinaryService->deleteFile($question->image_cloudinary_public_id, 'image');
+            } catch (\Throwable) {}
+        }
 
         $map = $question->map;
         $question->delete();
