@@ -166,10 +166,8 @@ class GameQuestionController extends Controller
             ->exists();
 
         if ($alreadyCompleted) {
-            return response()->json([
-                'is_correct' => true,
-                'score'      => $session->score,
-                'message'    => 'Question already completed!',
+            throw ValidationException::withMessages([
+                'question_id' => ['This question has already been answered.'],
             ]);
         }
 
