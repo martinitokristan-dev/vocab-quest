@@ -37,6 +37,12 @@ class QuestionController extends Controller
     {
         $this->authorize('update', $map);
 
+        if ($map->questions()->count() >= 5) {
+            throw ValidationException::withMessages([
+                'questions' => ['Limit reached: Each kingdom stage can only have a maximum of 5 questions.'],
+            ]);
+        }
+
         // Support FormData JSON decoding for answers
         if (is_string($request->input('answers'))) {
             $decoded = json_decode($request->input('answers'), true);
@@ -52,16 +58,17 @@ class QuestionController extends Controller
             'question_type'              => ['nullable', 'string', 'in:multiple_choice,identification'],
             'sentence'                   => ['required', 'string'],
             'highlighted_word'           => ['required', 'string'],
+            'context_clue'               => ['nullable', 'string'],
             'image_url'                  => ['nullable', 'string'],
-            'image'                      => ['nullable', 'image', 'max:5120'], // 5MB max
-            'image_file'                 => ['nullable', 'image', 'max:5120'],
+            'image'                      => ['nullable', 'file'],           // no size/type limit — Cloudinary handles storage
+            'image_file'                 => ['nullable', 'file'],
             'image_cloudinary_public_id' => ['nullable', 'string'],
             'voice_audio_url'            => ['nullable', 'string'],
-            'voice_audio'                => ['nullable', 'file', 'max:25600'], // 25MB max
-            'voice_audio_file'           => ['nullable', 'file', 'max:25600'],
+            'voice_audio'                => ['nullable', 'file'],            // no size limit
+            'voice_audio_file'           => ['nullable', 'file'],
             'voice_video_url'            => ['nullable', 'string'],
-            'voice_video'                => ['nullable', 'file', 'max:51200'], // 50MB max
-            'voice_video_file'           => ['nullable', 'file', 'max:51200'],
+            'voice_video'                => ['nullable', 'file'],            // no size limit
+            'voice_video_file'           => ['nullable', 'file'],
             'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
             'answers'                    => [$questionType === 'identification' ? 'nullable' : 'required', 'array', $questionType === 'identification' ? 'min:1' : 'min:2', 'max:4'],
             'answers.*.text'             => ['required', 'string'],
@@ -132,6 +139,7 @@ class QuestionController extends Controller
             'question_type'              => $questionType,
             'sentence'                   => $validated['sentence'],
             'highlighted_word'           => strtolower($validated['highlighted_word']),
+            'context_clue'               => $validated['context_clue'] ?? null,
             'image_url'                  => $imageUrl,
             'image_cloudinary_public_id' => $imagePublicId,
             'voice_audio_url'            => $voiceAudioUrl,
@@ -184,16 +192,17 @@ class QuestionController extends Controller
             'question_type'              => ['nullable', 'string', 'in:multiple_choice,identification'],
             'sentence'                   => ['sometimes', 'required', 'string'],
             'highlighted_word'           => ['sometimes', 'required', 'string'],
+            'context_clue'               => ['nullable', 'string'],
             'image_url'                  => ['nullable', 'string'],
-            'image'                      => ['nullable', 'image', 'max:5120'],
-            'image_file'                 => ['nullable', 'image', 'max:5120'],
+            'image'                      => ['nullable', 'file'],           // no size/type limit
+            'image_file'                 => ['nullable', 'file'],
             'image_cloudinary_public_id' => ['nullable', 'string'],
             'voice_audio_url'            => ['nullable', 'string'],
-            'voice_audio'                => ['nullable', 'file', 'max:25600'],
-            'voice_audio_file'           => ['nullable', 'file', 'max:25600'],
+            'voice_audio'                => ['nullable', 'file'],
+            'voice_audio_file'           => ['nullable', 'file'],
             'voice_video_url'            => ['nullable', 'string'],
-            'voice_video'                => ['nullable', 'file', 'max:51200'],
-            'voice_video_file'           => ['nullable', 'file', 'max:51200'],
+            'voice_video'                => ['nullable', 'file'],
+            'voice_video_file'           => ['nullable', 'file'],
             'voice_media_type'           => ['nullable', 'string', 'in:audio,video,none'],
             'answers'                    => ['sometimes', 'required', 'array', $questionType === 'identification' ? 'min:1' : 'min:2', 'max:4'],
             'answers.*.text'             => ['required', 'string'],
@@ -265,6 +274,7 @@ class QuestionController extends Controller
             'question_type'              => $questionType,
             'sentence'                   => $sentence,
             'highlighted_word'           => $word,
+            'context_clue'               => array_key_exists('context_clue', $validated) ? $validated['context_clue'] : $question->context_clue,
             'image_url'                  => $imageUrl,
             'image_cloudinary_public_id' => $validated['image_cloudinary_public_id'] ?? $question->image_cloudinary_public_id,
             'voice_audio_url'            => $voiceAudioUrl,

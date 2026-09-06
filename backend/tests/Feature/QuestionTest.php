@@ -161,3 +161,37 @@ test('teacher cannot delete another teacher\'s question (403)', function () {
         ->deleteJson("/api/questions/{$question->id}")
         ->assertStatus(403);
 });
+
+test('deleting a non-existent or already-deleted question returns friendly 404 json', function () {
+    $teacher = User::factory()->create();
+
+    $this->actingAs($teacher)
+        ->deleteJson('/api/questions/999999')
+        ->assertStatus(404)
+        ->assertJson([
+            'message' => 'The requested Question was not found or has already been deleted.',
+        ]);
+});
+
+test('question creation fails when map already has 5 questions (422)', function () {
+    $teacher = User::factory()->create();
+    $map     = Map::factory()->create(['teacher_id' => $teacher->id]);
+
+    for ($i = 1; $i <= 5; $i++) {
+        Question::factory()->create(['map_id' => $map->id, 'order_index' => $i]);
+    }
+
+    $this->actingAs($teacher)
+        ->postJson("/api/maps/{$map->id}/questions", [
+            'order_index'      => 6,
+            'sentence'         => 'The extra question.',
+            'highlighted_word' => 'extra',
+            'answers'          => [
+                ['text' => 'More', 'is_correct' => true],
+                ['text' => 'Less', 'is_correct' => false],
+            ],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['questions']);
+});
+

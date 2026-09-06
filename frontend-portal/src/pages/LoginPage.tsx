@@ -28,21 +28,21 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#09090B] relative">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative">
       <div className="w-full max-w-sm">
         {/* Brand Header */}
         <div className="flex flex-col items-center mb-6 text-center">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-2.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-2.5 shadow-xs">
             <Sparkles className="w-5 h-5" />
           </div>
-          <h1 className="text-lg font-bold text-white tracking-tight">Vocab Quest</h1>
-          <p className="text-xs text-zinc-400">Teacher Portal Sign In</p>
+          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Vocab Quest</h1>
+          <p className="text-xs text-slate-500 font-medium">Teacher Portal Sign In</p>
         </div>
 
         {/* Card */}
-        <div className="surface-card border border-white/5 rounded-2xl p-6 space-y-4">
+        <div className="surface-card border border-slate-200 shadow-xl rounded-2xl p-6 space-y-4">
           {error && (
-            <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -50,9 +50,9 @@ export const LoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">Email Address</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
               <div className="relative flex items-center">
-                <Mail className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
+                <Mail className="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none" />
                 <input
                   type="email"
                   required
@@ -65,9 +65,9 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">Password</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
               <div className="relative flex items-center">
-                <Lock className="w-4 h-4 absolute left-3 text-zinc-500 pointer-events-none" />
+                <Lock className="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none" />
                 <input
                   type="password"
                   required
@@ -82,7 +82,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-2.5 text-xs font-bold mt-2"
+              className="btn-primary w-full py-2.5 text-xs font-bold mt-2 shadow-sm"
             >
               {loading ? (
                 <span>Signing in…</span>
@@ -95,13 +95,13 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="text-center pt-2 border-t border-white/5">
-            <p className="text-xs text-zinc-400">
+          <div className="text-center pt-2 border-t border-slate-100">
+            <p className="text-xs text-slate-500">
               Need a teacher account?{' '}
               <button
                 type="button"
                 onClick={() => navigate('/register')}
-                className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                className="text-emerald-600 hover:underline font-bold cursor-pointer"
               >
                 Register
               </button>

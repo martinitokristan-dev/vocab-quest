@@ -2,7 +2,7 @@ export interface DialogueSlide {
   speaker: string;
   titleBadge: string;
   text: string;
-  characterImage?: string; // If undefined, renders full-width narrative card (Kingdom 2)
+  characterImage?: string;
   buttonText: string;
 }
 
@@ -12,6 +12,25 @@ export interface KingdomDialogue {
   slides: DialogueSlide[];
 }
 
+export const GLOBAL_INTRO_DIALOGUE: KingdomDialogue = {
+  kingdomId: 0,
+  kingdomName: 'Vocab Quest',
+  slides: [
+    {
+      speaker: 'Guide',
+      titleBadge: 'WELCOME, BRAVE LEARNER!',
+      text: 'Welcome, brave learner! Your vocabulary adventure will take you through three exciting kingdoms, each with a different level of challenge. Read carefully, use the clues, and do your best!',
+      buttonText: 'NEXT ▶',
+    },
+    {
+      speaker: 'Guide',
+      titleBadge: 'HOW TO BEGIN',
+      text: 'Tap EPCES Kingdom on the map to begin your quest. Complete each level to earn golden stars and unlock the next challenge. Good luck, {playerName}!',
+      buttonText: 'LET\'S GO! ⚔️',
+    },
+  ],
+};
+
 export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
   1: {
     kingdomId: 1,
@@ -19,23 +38,16 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
     slides: [
       {
         speaker: 'Teacher Faith',
-        titleBadge: 'WELCOME TO EPCES KINGDOM! (EASY LEVEL)',
-        text: 'Mabuhay, {playerName}! Welcome to East Prosperidad Central Elementary School Kingdom. This is the Easy Level of your quest, and I will be your teacher on this vocabulary journey!',
-        characterImage: '/assets/guide/teacher_blue_pose1.png',
-        buttonText: 'NEXT ▶',
-      },
-      {
-        speaker: 'Teacher Faith',
-        titleBadge: 'EASY LEVEL INSTRUCTIONS',
-        text: 'Read each sentence carefully and identify the correct meaning of the highlighted vocabulary word. Answer on your 1st attempt to earn 3 Golden Stars!',
-        characterImage: '/assets/guide/teacher_blue_pose2.png',
+        titleBadge: 'WELCOME TO EPCES KINGDOM — EASY ROUND!',
+        text: 'Welcome to EPCES Kingdom, the Easy Round! In level 1 to 5, you will see a picture that represents the box word. Some context clues will also be highlighted to help you understand its meaning. Look at the picture, read the sentence carefully, use the highlighted clues, and choose the correct answer from the choices.',
+        characterImage: '/assets/guide/F2.png',
         buttonText: 'NEXT ▶',
       },
       {
         speaker: 'Teacher Faith',
         titleBadge: 'GET READY!',
-        text: 'You can listen to sentence audio by tapping the Replay button anytime. Tap START QUEST to begin Easy Question 1!',
-        characterImage: '/assets/guide/teacher_blue_pose2.png',
+        text: 'Take your time and enjoy the first step of your vocabulary adventure! Good luck, {playerName}!',
+        characterImage: '/assets/guide/F8.png',
         buttonText: 'START QUEST ⚔️',
       },
     ],
@@ -46,15 +58,15 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
     slides: [
       {
         speaker: 'Teacher Gevina',
-        titleBadge: 'BAYAN NG PROSPERIDAD (MEDIUM LEVEL)',
-        text: 'Mabuhay, {playerName}! You have crossed the river bridge and unlocked the Medium Level here in Bayan ng Prosperidad! The town plaza is bustling with exciting vocabulary challenges.',
+        titleBadge: 'BAYAN NG PROSPERIDAD — AVERAGE ROUND!',
+        text: 'Welcome to Bayan ng Prosperidad Municipal Kingdom, the Average Round! This time, in level 6-10 there will be no picture to guide you, but the context clues will still be highlighted. Read the sentence carefully, look for the clues, and use them to figure out the meaning of the box word. Then, choose the best answer from the choices.',
         characterImage: '/assets/guide/G2.png',
         buttonText: 'NEXT ▶',
       },
       {
         speaker: 'Teacher Gevina',
-        titleBadge: 'MEDIUM LEVEL CHALLENGE',
-        text: 'Solve all 5 medium level questions along the Bridge Promenade, Municipal Plaza, and Playground to unlock the road to the Provincial Capitol!',
+        titleBadge: 'STAY FOCUSED!',
+        text: 'You are getting closer! Stay focused, think carefully, and believe in yourself, {playerName}!',
         characterImage: '/assets/guide/G8.png',
         buttonText: 'ENTER BAYAN 🏛️',
       },
@@ -62,19 +74,19 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
   },
   3: {
     kingdomId: 3,
-    kingdomName: 'Provincial Capitol',
+    kingdomName: 'Agusan del Sur Provincial Capitol',
     slides: [
       {
         speaker: 'Principal Flores',
-        titleBadge: 'PROVINCIAL CAPITOL (DIFFICULT LEVEL)',
-        text: 'Mabuhay, {playerName}! Congratulations on reaching the highest peak of Prosperidad. I am Principal Flores, welcoming you to the Difficult Level at the Capitol grounds.',
+        titleBadge: 'PROVINCIAL CAPITOL — DIFFICULT ROUND!',
+        text: 'Welcome to Agusan del Sur Provincial Capitol Kingdom! This is the Difficult Round in the quest. In level 11-15, you will be reading a short story. Then, read each meaning. Look at the sentence marked with the [number]. Find the word in that sentence that matches the meaning. Then, type the word you found.',
         characterImage: '/assets/guide/teacher_yellow_pose1.png',
         buttonText: 'NEXT ▶',
       },
       {
         speaker: 'Principal Flores',
-        titleBadge: 'DIFFICULT LEVEL MASTERY',
-        text: 'This is the Difficult Level test of your vocabulary mastery! Focus your mind, choose wisely, and conquer the final challenge. Best of luck, Champion!',
+        titleBadge: 'FINAL CHALLENGE!',
+        text: 'Goodluck, {playerName}! You can do this!',
         characterImage: '/assets/guide/teacher_yellow_pose2.png',
         buttonText: 'BEGIN FINAL QUEST 🏆',
       },

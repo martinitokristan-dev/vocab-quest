@@ -20,8 +20,9 @@ class SoundManager {
 
   private currentVoiceAudio: HTMLAudioElement | null = null;
   private bgmGain: GainNode | null = null;
-  private isSpeechActive = false;
+  private isSpeechActive: boolean;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
+  private wasPlayingBeforePause: boolean = false;
 
   public onSpeakingStateChange(cb: (isSpeaking: boolean) => void) {
     this.speakingListeners.push(cb);
@@ -224,6 +225,56 @@ class SoundManager {
     } catch (e) {}
   }
 
+  // 4b. Kingdom entry whoosh
+  public playWhoosh() {
+    try {
+      this.initContext();
+      if (!this.ctx || this.settings.muted) return;
+      const vol = this.getEffectiveSfxVolume() * 0.5;
+      if (vol <= 0) return;
+
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(680, this.ctx.currentTime + 0.35);
+
+      gain.gain.setValueAtTime(vol * 0.35, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.35);
+    } catch (e) {}
+  }
+
+  // 4c. Sequential star pop chime
+  public playStar(starIndex: number) {
+    try {
+      this.initContext();
+      if (!this.ctx || this.settings.muted) return;
+      const vol = this.getEffectiveSfxVolume();
+      if (vol <= 0) return;
+
+      const freqs = [523.25, 659.25, 783.99];
+      const freq = freqs[Math.min(starIndex - 1, 2)] ?? 783.99;
+
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+      gain.gain.setValueAtTime(vol * 0.4, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.28);
+    } catch (e) {}
+  }
+
   // 5. Walking / Map Step Sound
   public playStep() {
     try {
@@ -358,6 +409,34 @@ class SoundManager {
       this.currentVoiceAudio = null;
     }
     this.notifySpeakingState(false);
+  }
+
+  // 10. Pause All Audio (for teacher pause)
+  public pauseAll() {
+    if (this.currentVoiceAudio && !this.currentVoiceAudio.paused) {
+      this.wasPlayingBeforePause = true;
+      this.currentVoiceAudio.pause();
+    } else {
+      this.wasPlayingBeforePause = false;
+    }
+    
+    // Also suspend AudioContext to stop all sound effects
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
+  }
+
+  // 11. Resume All Audio (for teacher resume)
+  public resumeAll() {
+    // Resume AudioContext for sound effects
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    
+    // Resume voice audio if it was playing
+    if (this.currentVoiceAudio && this.wasPlayingBeforePause) {
+      this.currentVoiceAudio.play().catch(() => {});
+    }
   }
 
   // 10. Interactive Character Selection Voice

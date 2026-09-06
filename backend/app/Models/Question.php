@@ -18,6 +18,7 @@ class Question extends Model
         'question_type',
         'sentence',
         'highlighted_word',
+        'context_clue',
         'image_url',
         'image_cloudinary_public_id',
         'has_context_highlight',
@@ -32,6 +33,23 @@ class Question extends Model
         'has_context_highlight' => 'boolean',
         'has_image'             => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (Question $question) {
+            if ($question->map_id) {
+                $count = Question::where('map_id', $question->map_id)->count();
+                Map::where('id', $question->map_id)->update(['question_count' => $count]);
+            }
+        });
+
+        static::deleted(function (Question $question) {
+            if ($question->map_id) {
+                $count = Question::where('map_id', $question->map_id)->count();
+                Map::where('id', $question->map_id)->update(['question_count' => $count]);
+            }
+        });
+    }
 
     public function map(): BelongsTo
     {

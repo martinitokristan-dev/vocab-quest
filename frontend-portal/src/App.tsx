@@ -17,9 +17,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const activeTab = location.pathname.split('/')[1] || 'maps';
 
   return (
-    <div className="min-h-screen bg-[#09090B] flex w-full">
+    <div className="h-screen w-full flex overflow-hidden bg-slate-50">
       <Sidebar activeTab={activeTab} />
-      <main className="flex-1 p-6 md:p-8 overflow-y-auto w-full">
+      <main className="flex-1 h-full overflow-y-auto w-full bg-slate-50 p-6 md:p-8 custom-scrollbar">
         {children}
       </main>
     </div>
@@ -32,7 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090B] flex items-center justify-center text-zinc-400">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-medium">Authenticating teacher session…</span>

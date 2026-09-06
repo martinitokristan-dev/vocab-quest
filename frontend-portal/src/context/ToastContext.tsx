@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -47,15 +47,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {toast.type === 'info' && <Info className="w-4 h-4 text-cyan-400 shrink-0" />}
             {toast.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />}
             <span className="leading-snug">{toast.message}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeToast(toast.id);
-              }}
-              className="ml-1 text-zinc-500 hover:text-zinc-300 p-0.5 rounded cursor-pointer transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
           </div>
         ))}
       </div>

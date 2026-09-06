@@ -29,7 +29,7 @@ class GameSessionController extends Controller
             ]);
         }
 
-        if ($room->status !== 'waiting') {
+        if (! in_array($room->status, ['waiting', 'in_progress'])) {
             $readableStatus = match ($room->status) {
                 'in_progress' => 'In Progress',
                 'paused'      => 'Paused',

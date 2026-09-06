@@ -1,5 +1,6 @@
 // 2.5D Minecraft / Voxel Style Grounded Kingdom World Map Engine (EPCES, Bayan ng Prosperidad, Provincial Capitol)
 import { soundManager } from './soundManager';
+import type { MapFlowOptions } from './mapFlowController';
 
 export interface StarHistoryItem {
   questionId?: number;
@@ -35,6 +36,8 @@ export interface BuildingKingdom {
   width: number;
   height: number;
   unlocked: boolean;
+  entered: boolean;
+  clickable: boolean;
   totalQuestions: number;
   icon: string;
   color: string;
@@ -49,6 +52,10 @@ export class Game2DMapRenderer {
   private animFrameId: number | null = null;
   private avatarImgUrl: string;
   private avatarImg: HTMLImageElement | null = null;
+
+  // Low-end device detection
+  private isLowEndDevice: boolean = false;
+  private animationQuality: 'high' | 'medium' | 'low' = 'high';
 
   // World Map Coordinate System (1774 x 887 Voxel Map)
   private readonly WORLD_WIDTH = 1774;
@@ -67,10 +74,24 @@ export class Game2DMapRenderer {
   private touchInitialDist = 0;
   private touchInitialZoom = 1.0;
 
-  private playerPos = { x: 174, y: 756 };
-  private targetPlayerPos = { x: 174, y: 756 };
+  private playerPos = { x: 140, y: 747 };
+  private targetPlayerPos = { x: 140, y: 747 };
 
   private onStepClickCallback: ((mapId: number, questionIndex: number) => void) | null = null;
+  private onKingdomClickCallback: ((kingdomId: number) => void) | null = null;
+  private onLockedKingdomClickCallback: (() => void) | null = null;
+
+  private mapFlowOptions: MapFlowOptions = {
+    activeMapId: 1,
+    enteredKingdomIds: [],
+    mapPhase: 'awaiting_kingdom_click',
+  };
+  private inputLocked = false;
+  private vacuumProgress = 0;
+  private vacuumAlpha = 0;
+  private vacuumFocal = { x: 0, y: 0 };
+  private fullScreenFadeAlpha = 0;
+  private showPlayerAvatar = true;
 
   // Assets
   private mapImg: HTMLImageElement | null = null;
@@ -106,7 +127,9 @@ export class Game2DMapRenderer {
       width: 310,
       height: 210,
       unlocked: true,
-      totalQuestions: 3,
+      entered: false,
+      clickable: true,
+      totalQuestions: 5,
       icon: '🏫',
       color: '#10B981',
       topBannerX: 280,
@@ -123,6 +146,8 @@ export class Game2DMapRenderer {
       width: 330,
       height: 210,
       unlocked: false,
+      entered: false,
+      clickable: false,
       totalQuestions: 5,
       icon: '🏛️',
       color: '#0284C7',
@@ -140,6 +165,8 @@ export class Game2DMapRenderer {
       width: 330,
       height: 210,
       unlocked: false,
+      entered: false,
+      clickable: false,
       totalQuestions: 5,
       icon: '🚩',
       color: '#F59E0B',
@@ -158,12 +185,19 @@ export class Game2DMapRenderer {
     currentQuestionIndex = 1,
     customMaps?: Array<{ id: number; title: string; background_url?: string }>,
     initialPlayerPos?: { x: number; y: number },
-    starsHistory?: StarHistoryItem[]
+    starsHistory?: StarHistoryItem[],
+    mapFlowOptions?: MapFlowOptions
   ) {
     this.avatarImgUrl = avatarImgUrl;
     if (starsHistory) {
       this.starsHistory = starsHistory;
     }
+    if (mapFlowOptions) {
+      this.mapFlowOptions = mapFlowOptions;
+    }
+
+    // Detect low-end device capabilities
+    this.detectDeviceCapabilities();
 
     this.canvas = document.createElement('canvas');
     this.resizeCanvas();
@@ -232,7 +266,7 @@ export class Game2DMapRenderer {
     // Minimum zoom covers the screen edge to edge without any empty space
     const baseScale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
     this.minZoom = baseScale;
-    this.maxZoom = baseScale * 2.8;
+    this.maxZoom = baseScale * 3.1;
     this.zoomLevel = baseScale;
 
     // Center the 1774 x 887 voxel map
@@ -247,33 +281,89 @@ export class Game2DMapRenderer {
     this.fitCameraToScreen();
   }
 
+  private detectDeviceCapabilities() {
+    // Check for low-end device indicators
+    const hardwareConcurrency = (navigator as any).hardwareConcurrency || 4;
+    const deviceMemory = (navigator as any).deviceMemory || 4;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // Low-end device criteria
+    this.isLowEndDevice =
+      hardwareConcurrency <= 2 ||
+      deviceMemory <= 2 ||
+      (isMobile && hardwareConcurrency <= 4);
+
+    // Set animation quality based on device
+    if (this.isLowEndDevice) {
+      this.animationQuality = 'low';
+    } else if (hardwareConcurrency <= 4 || deviceMemory <= 4) {
+      this.animationQuality = 'medium';
+    } else {
+      this.animationQuality = 'high';
+    }
+
+    console.log(`Device detected: ${this.animationQuality} quality, Low-end: ${this.isLowEndDevice}`);
+  }
+
   private loadAssets() {
     // 1. High-Resolution Voxel Prosperidad District Map
     const img = new Image();
-    img.src = '/assets/vocab-quest-map.png';
-    img.onload = () => {
+    img.src = '/assets/vocab-map.png';
+    (img as any).loading = 'eager';
+    const handleMapLoad = () => {
       this.mapImg = img;
     };
+    if ('decode' in img) {
+      img.decode().then(handleMapLoad).catch(() => {
+        (img as any).onload = handleMapLoad;
+      });
+    } else {
+      (img as any).onload = handleMapLoad;
+    }
 
     // 2. Student Avatar Mascot Sprite
     const avatar = new Image();
     avatar.src = this.avatarImgUrl;
-    avatar.onload = () => {
+    (avatar as any).loading = 'eager';
+    const handleAvatarLoad = () => {
       this.avatarImg = avatar;
     };
+    if ('decode' in avatar) {
+      avatar.decode().then(handleAvatarLoad).catch(() => {
+        (avatar as any).onload = handleAvatarLoad;
+      });
+    } else {
+      (avatar as any).onload = handleAvatarLoad;
+    }
   }
 
   private initSkyEnvironment() {
-    this.clouds = [
-      { x: 100, y: 65, scale: 1.3, speed: 0.3, opacity: 0.45, layer: 'bg' },
-      { x: 620, y: 55, scale: 1.5, speed: 0.25, opacity: 0.4, layer: 'bg' },
-      { x: 1250, y: 75, scale: 1.2, speed: 0.35, opacity: 0.5, layer: 'bg' },
-      { x: 280, y: 650, scale: 1.6, speed: 0.32, opacity: 0.55, layer: 'fg' },
-      { x: 1050, y: 700, scale: 1.8, speed: 0.28, opacity: 0.6, layer: 'fg' },
-    ];
-
+    // Reduce cloud count on low-end devices
+    if (this.animationQuality === 'low') {
+      this.clouds = [
+        { x: 100, y: 65, scale: 1.3, speed: 0.3, opacity: 0.45, layer: 'bg' },
+        { x: 620, y: 55, scale: 1.5, speed: 0.25, opacity: 0.4, layer: 'bg' },
+      ];
+    } else if (this.animationQuality === 'medium') {
+      this.clouds = [
+        { x: 100, y: 65, scale: 1.3, speed: 0.3, opacity: 0.45, layer: 'bg' },
+        { x: 620, y: 55, scale: 1.5, speed: 0.25, opacity: 0.4, layer: 'bg' },
+        { x: 1250, y: 75, scale: 1.2, speed: 0.35, opacity: 0.5, layer: 'bg' },
+        { x: 280, y: 650, scale: 1.6, speed: 0.32, opacity: 0.55, layer: 'fg' },
+      ];
+    } else {
+      this.clouds = [
+        { x: 100, y: 65, scale: 1.3, speed: 0.3, opacity: 0.45, layer: 'bg' },
+        { x: 620, y: 55, scale: 1.5, speed: 0.25, opacity: 0.4, layer: 'bg' },
+        { x: 1250, y: 75, scale: 1.2, speed: 0.35, opacity: 0.5, layer: 'bg' },
+        { x: 280, y: 650, scale: 1.6, speed: 0.32, opacity: 0.55, layer: 'fg' },
+        { x: 1050, y: 700, scale: 1.8, speed: 0.28, opacity: 0.6, layer: 'fg' },
+      ];
+    }
+    // Reduce sparkle count on low-end devices
+    const sparkleCount = this.animationQuality === 'low' ? 10 : this.animationQuality === 'medium' ? 25 : 40;
     this.sparkles = [];
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < sparkleCount; i++) {
       this.sparkles.push({
         x: Math.random() * this.WORLD_WIDTH,
         y: Math.random() * this.WORLD_HEIGHT,
@@ -286,7 +376,7 @@ export class Game2DMapRenderer {
   }
 
   /**
-   * Checkpoints physically aligned with the exact 13 voxel pink cubes on vocab-quest-map.png
+   * Checkpoints physically aligned with the exact 15 voxel pink cubes on vocab-map.png
    */
   private initLayout(activeMapId: number, currentQuestionIndex: number, starsHistory?: StarHistoryItem[]) {
     if (starsHistory) {
@@ -295,7 +385,12 @@ export class Game2DMapRenderer {
 
     this.kingdoms.forEach((k) => {
       k.unlocked = k.id <= activeMapId;
+      k.entered = this.mapFlowOptions.enteredKingdomIds.includes(k.id);
+      k.clickable = k.unlocked && !k.entered;
     });
+
+    // Always show mascot at the current active step (including before kingdom entry)
+    this.showPlayerAvatar = true;
 
     this.steps = [];
 
@@ -311,11 +406,13 @@ export class Game2DMapRenderer {
       return isCompleted ? 3 : 0;
     };
 
-    // --- LEVEL 1: EPCES Kingdom (Nodes 1, 2, 3) ---
+    // --- LEVEL 1: EPCES Kingdom (Nodes 1, 2, 3, 4, 5) ---
     const epcesStations = [
-      { name: 'EPCES Garden',      x: 174, y: 771, blockW: 58, blockH: 70, blockR: 13, starOffsetY: 48 },
-      { name: 'School Courtyard',  x: 351, y: 724, blockW: 58, blockH: 68, blockR: 13, starOffsetY: 46 },
-      { name: 'EPCES Bridge Ramp', x: 504, y: 669, blockW: 56, blockH: 66, blockR: 12, starOffsetY: 44 },
+      { name: 'EPCES Garden',           x: 140, y: 780, blockW: 60, blockH: 66, blockR: 13, starOffsetY: 46 },
+      { name: 'School Courtyard',       x: 287, y: 744, blockW: 60, blockH: 64, blockR: 13, starOffsetY: 44 },
+      { name: 'EPCES Bridge Ramp',      x: 411, y: 707, blockW: 58, blockH: 62, blockR: 12, starOffsetY: 42 },
+      { name: 'Riverside Overlook',     x: 515, y: 662, blockW: 58, blockH: 60, blockR: 12, starOffsetY: 42 },
+      { name: 'Timber Bridge Crossing', x: 616, y: 615, blockW: 56, blockH: 58, blockR: 12, starOffsetY: 40 },
     ];
 
     epcesStations.forEach((st, idx) => {
@@ -347,13 +444,13 @@ export class Game2DMapRenderer {
       }
     });
 
-    // --- LEVEL 2: Bayan ng Prosperidad (Nodes 4, 5, 6, 7, 8) ---
+    // --- LEVEL 2: Bayan ng Prosperidad (Nodes 6, 7, 8, 9, 10) ---
     const bayanStations = [
-      { name: 'Bridge Promenade',       x: 711,  y: 540, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
-      { name: 'West Terrace Walk',      x: 808,  y: 562, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
-      { name: 'Bayan Municipal Plaza',  x: 924,  y: 572, blockW: 54, blockH: 60, blockR: 11, starOffsetY: 41 },
-      { name: 'East Terrace Walk',      x: 1042, y: 562, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
-      { name: 'Park Playground Turn',   x: 1151, y: 535, blockW: 54, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'Bridge Promenade',       x: 720,  y: 537, blockW: 56, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'West Terrace Walk',      x: 816,  y: 558, blockW: 56, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'Bayan Municipal Plaza',  x: 932,  y: 566, blockW: 58, blockH: 60, blockR: 11, starOffsetY: 41 },
+      { name: 'East Terrace Walk',      x: 1043, y: 560, blockW: 56, blockH: 58, blockR: 11, starOffsetY: 40 },
+      { name: 'Park Playground Turn',   x: 1155, y: 536, blockW: 56, blockH: 58, blockR: 11, starOffsetY: 40 },
     ];
 
     bayanStations.forEach((st, idx) => {
@@ -385,13 +482,13 @@ export class Game2DMapRenderer {
       }
     });
 
-    // --- LEVEL 3: Provincial Capitol (Nodes 9, 10, 11, 12, 13) ---
+    // --- LEVEL 3: Provincial Capitol (Nodes 11, 12, 13, 14, 15) ---
     const capitolStations = [
-      { name: 'Capitol Hill Drive',    x: 1268, y: 366, blockW: 48, blockH: 52, blockR: 10, starOffsetY: 36 },
-      { name: 'Highland Incline',      x: 1345, y: 412, blockW: 50, blockH: 54, blockR: 10, starOffsetY: 37 },
-      { name: 'Capitol Colonnade Walk',x: 1428, y: 444, blockW: 52, blockH: 54, blockR: 10, starOffsetY: 37 },
-      { name: 'Grand Courtyard Loop',  x: 1524, y: 471, blockW: 53, blockH: 56, blockR: 10, starOffsetY: 38 },
-      { name: 'Provincial Capitol Steps', x: 1636, y: 486, blockW: 53, blockH: 56, blockR: 10, starOffsetY: 38 },
+      { name: 'Capitol Hill Drive',       x: 1265, y: 366, blockW: 52, blockH: 54, blockR: 10, starOffsetY: 36 },
+      { name: 'Highland Incline',         x: 1340, y: 405, blockW: 54, blockH: 54, blockR: 10, starOffsetY: 37 },
+      { name: 'Capitol Colonnade Walk',   x: 1430, y: 440, blockW: 56, blockH: 56, blockR: 10, starOffsetY: 37 },
+      { name: 'Grand Courtyard Loop',     x: 1526, y: 465, blockW: 56, blockH: 56, blockR: 10, starOffsetY: 38 },
+      { name: 'Provincial Capitol Steps', x: 1638, y: 484, blockW: 56, blockH: 58, blockR: 10, starOffsetY: 38 },
     ];
 
     capitolStations.forEach((st, idx) => {
@@ -428,8 +525,172 @@ export class Game2DMapRenderer {
     this.initLayout(activeMapId, currentQuestionIndex, starsHistory);
   }
 
-  public centerOnLocation(_x: number, _y: number) {
+  public setMapFlowOptions(opts: MapFlowOptions) {
+    this.mapFlowOptions = opts;
+    this.kingdoms.forEach((k) => {
+      k.unlocked = k.id <= opts.activeMapId;
+      k.entered = opts.enteredKingdomIds.includes(k.id);
+      k.clickable = k.unlocked && !k.entered;
+    });
+    this.showPlayerAvatar = true;
+  }
+
+  public isInputLocked(): boolean {
+    return this.inputLocked || this.isWalkingAnimation;
+  }
+
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  private easeInOutQuad(t: number): number {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  private worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+    return {
+      x: worldX * this.zoomLevel + this.panOffset.x,
+      y: worldY * this.zoomLevel + this.panOffset.y,
+    };
+  }
+
+  private computePanForWorldCenter(worldX: number, worldY: number, zoom: number): { x: number; y: number } {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    return {
+      x: w / 2 - worldX * zoom,
+      y: h / 2 - worldY * zoom,
+    };
+  }
+
+  /**
+   * Deep zoom into kingdom: pan eases toward center as zoom increases, clamped each frame
+   * so the map never exposes empty space outside the artwork.
+   */
+  private tweenKingdomEntryZoom(
+    worldX: number,
+    worldY: number,
+    anchorScreenX: number,
+    anchorScreenY: number,
+    targetZoom: number,
+    durationMs: number,
+    onProgress?: (progress: number, focalScreen: { x: number; y: number }) => void
+  ): Promise<void> {
+    const startZoom = this.zoomLevel;
+    const startTime = performance.now();
+
+    return new Promise((resolve) => {
+      const tick = (now: number) => {
+        const elapsed = now - startTime;
+        const rawT = Math.min(1, elapsed / durationMs);
+        const zoomT = this.easeInOutCubic(rawT);
+        const panBlend = this.easeInOutQuad(Math.max(0, (rawT - 0.12) / 0.88));
+
+        this.zoomLevel = startZoom + (targetZoom - startZoom) * zoomT;
+
+        const anchorPanX = anchorScreenX - worldX * this.zoomLevel;
+        const anchorPanY = anchorScreenY - worldY * this.zoomLevel;
+        const centerPan = this.computePanForWorldCenter(worldX, worldY, this.zoomLevel);
+
+        this.panOffset.x = anchorPanX + (centerPan.x - anchorPanX) * panBlend;
+        this.panOffset.y = anchorPanY + (centerPan.y - anchorPanY) * panBlend;
+        this.clampCameraBounds();
+
+        const focalScreen = this.worldToScreen(worldX, worldY);
+        if (onProgress) onProgress(rawT, focalScreen);
+
+        if (rawT < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  private animateFullScreenFade(from: number, to: number, durationMs: number): Promise<void> {
+    const startTime = performance.now();
+    return new Promise((resolve) => {
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - startTime) / durationMs);
+        const eased = this.easeInOutCubic(t);
+        this.fullScreenFadeAlpha = from + (to - from) * eased;
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          this.fullScreenFadeAlpha = to;
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  public async playKingdomEntryAnimation(kingdomId: number): Promise<void> {
+    const kingdom = this.kingdoms.find((k) => k.id === kingdomId);
+    if (!kingdom) return;
+
+    this.inputLocked = true;
+    this.fullScreenFadeAlpha = 0;
+    this.vacuumAlpha = 0;
+    this.vacuumProgress = 0;
+    soundManager.playWhoosh();
+
     this.fitCameraToScreen();
+
+    const focalX = kingdom.x;
+    const focalY = kingdom.y - kingdom.height * 0.1;
+    const anchor = this.worldToScreen(focalX, focalY);
+
+    // Deep zoom — feels like stepping into the kingdom building
+    const targetZoom = this.maxZoom;
+
+    // Phase 1: slow zoom into kingdom + tunnel vignette
+    await this.tweenKingdomEntryZoom(
+      focalX,
+      focalY,
+      anchor.x,
+      anchor.y,
+      targetZoom,
+      2200,
+      (progress, focalScreen) => {
+        this.vacuumFocal.x = focalScreen.x;
+        this.vacuumFocal.y = focalScreen.y;
+        if (progress > 0.35) {
+          const vignetteT = (progress - 0.35) / 0.65;
+          this.vacuumProgress = this.easeInOutQuad(vignetteT);
+          this.vacuumAlpha = this.easeInOutQuad(vignetteT) * 0.92;
+        }
+      }
+    );
+
+    // Phase 2: fade to black — "entering" the kingdom (stay black, no map reveal)
+    this.vacuumProgress = 1;
+    this.vacuumAlpha = 1;
+    await this.animateFullScreenFade(0, 1, 500);
+
+    // Reset camera under black so gameplay map is ready after dialogue
+    this.fitCameraToScreen();
+    this.vacuumProgress = 0;
+    this.vacuumAlpha = 0;
+    // fullScreenFadeAlpha stays at 1 — cleared when welcome dialogue opens
+
+    this.clampCameraBounds();
+    this.inputLocked = false;
+  }
+
+  /** Clear the post-entry black screen when welcome dialogue appears or map resumes. */
+  public clearEntryFade(): void {
+    this.fullScreenFadeAlpha = 0;
+    this.vacuumAlpha = 0;
+    this.vacuumProgress = 0;
+  }
+
+  public centerOnLocation(x: number, y: number) {
+    const targetPan = this.computePanForWorldCenter(x, y, this.zoomLevel);
+    this.panOffset = targetPan;
+    this.clampCameraBounds();
   }
 
   public centerOnActiveLocation() {
@@ -438,6 +699,14 @@ export class Game2DMapRenderer {
 
   public onStepClick(callback: (mapId: number, questionIndex: number) => void) {
     this.onStepClickCallback = callback;
+  }
+
+  public onKingdomClick(callback: (kingdomId: number) => void) {
+    this.onKingdomClickCallback = callback;
+  }
+
+  public onLockedKingdomClick(callback: () => void) {
+    this.onLockedKingdomClickCallback = callback;
   }
 
   public animateWalkingPath(
@@ -464,6 +733,7 @@ export class Game2DMapRenderer {
 
     // Mouse Dragging for Panning
     this.canvas.addEventListener('mousedown', (e) => {
+      if (this.inputLocked) return;
       this.isDragging = true;
       this.hasDragged = false;
       this.dragStart = { x: e.clientX, y: e.clientY };
@@ -498,6 +768,7 @@ export class Game2DMapRenderer {
       'wheel',
       (e) => {
         e.preventDefault();
+        if (this.inputLocked) return;
         const zoomDelta = e.deltaY < 0 ? 1.15 : 0.87;
         const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomLevel * zoomDelta));
 
@@ -571,6 +842,7 @@ export class Game2DMapRenderer {
     });
 
     this.canvas.addEventListener('click', (e) => {
+      if (this.inputLocked || this.isWalkingAnimation) return;
       if (!this.hasDragged) {
         this.handleClick(e.clientX, e.clientY);
       }
@@ -627,39 +899,15 @@ export class Game2DMapRenderer {
   }
 
   private handleClick(screenX: number, screenY: number) {
+    if (this.inputLocked || this.isWalkingAnimation) return;
+
     const worldX = (screenX - this.panOffset.x) / this.zoomLevel;
     const worldY = (screenY - this.panOffset.y) / this.zoomLevel;
 
-    // Check player avatar click
-    if (this.playerPos) {
-      const distToPlayer = Math.hypot(worldX - this.playerPos.x, worldY - (this.playerPos.y - 20));
-      if (distToPlayer < 55) {
-        const currentStep = this.steps.find((s) => s.current) || this.steps[0];
-        if (currentStep && this.onStepClickCallback) {
-          soundManager.playClick();
-          this.onStepClickCallback(currentStep.mapId, currentStep.questionIndex);
-          return;
-        }
-      }
-    }
+    const kingdomEntered = (mapId: number) =>
+      this.mapFlowOptions.enteredKingdomIds.includes(mapId);
 
-    // Check step nodes
-    for (const step of this.steps) {
-      const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
-      const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
-      const dist = Math.hypot(worldX - step.x, worldY - step.y);
-      if (dist < 48 || (inBlockX && inBlockY)) {
-        if (step.completed || step.current) {
-          soundManager.playClick();
-          if (this.onStepClickCallback) {
-            this.onStepClickCallback(step.mapId, step.questionIndex);
-          }
-        }
-        return;
-      }
-    }
-
-    // Check kingdom buildings
+    // Check kingdom buildings first (entry takes priority)
     for (const k of this.kingdoms) {
       if (
         worldX >= k.x - k.width / 2 &&
@@ -667,11 +915,48 @@ export class Game2DMapRenderer {
         worldY >= k.y - k.height / 2 &&
         worldY <= k.y + k.height / 2
       ) {
-        if (k.unlocked) {
+        if (k.clickable && !k.entered && this.onKingdomClickCallback) {
           soundManager.playClick();
-          const firstStep = this.steps.find((s) => s.mapId === k.id && s.current) || this.steps.find((s) => s.mapId === k.id);
-          if (firstStep && this.onStepClickCallback) {
-            this.onStepClickCallback(firstStep.mapId, firstStep.questionIndex);
+          this.onKingdomClickCallback(k.id);
+          return;
+        }
+        if (!k.unlocked) {
+          soundManager.playWrong();
+          if (this.onLockedKingdomClickCallback) {
+            this.onLockedKingdomClickCallback();
+          }
+        }
+        return;
+      }
+    }
+
+    // Check player avatar click (only when kingdom entered)
+    if (this.showPlayerAvatar && this.playerPos) {
+      const distToPlayer = Math.hypot(worldX - this.playerPos.x, worldY - (this.playerPos.y - 20));
+      if (distToPlayer < 55) {
+        const currentStep = this.steps.find((s) => s.current);
+        if (currentStep && kingdomEntered(currentStep.mapId) && this.onStepClickCallback) {
+          soundManager.playClick();
+          this.onStepClickCallback(currentStep.mapId, currentStep.questionIndex);
+          return;
+        }
+      }
+    }
+
+    // Check step nodes (only when kingdom entered)
+    for (const step of this.steps) {
+      const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
+      const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
+      const dist = Math.hypot(worldX - step.x, worldY - step.y);
+      if (dist < 48 || (inBlockX && inBlockY)) {
+        if (!kingdomEntered(step.mapId)) {
+          soundManager.playWrong();
+          return;
+        }
+        if (step.completed || step.current) {
+          soundManager.playClick();
+          if (this.onStepClickCallback) {
+            this.onStepClickCallback(step.mapId, step.questionIndex);
           }
         }
         return;
@@ -694,6 +979,15 @@ export class Game2DMapRenderer {
     }
   }
 
+  /** Re-attach canvas after DOM rebuild (e.g. returning from question screen). */
+  public remount(container: HTMLElement) {
+    container.replaceChildren(this.canvas);
+    this.resizeCanvas();
+    if (!this.animFrameId) {
+      this.startLoop();
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   private render() {
     const time = Date.now() * 0.001;
@@ -712,7 +1006,7 @@ export class Game2DMapRenderer {
           this.playerFacing = dx < 0 ? 'left' : 'right';
         }
 
-        const moveSpeed = 220;
+        const moveSpeed = 150;
         const step = moveSpeed * dt;
 
         if (dist <= step) {
@@ -777,11 +1071,55 @@ export class Game2DMapRenderer {
 
     // ── LAYER 5: Student Mascot Player Avatar & Running Dust ──
     this.drawRunDust();
-    this.drawPlayerAvatar(time);
+    if (this.showPlayerAvatar) {
+      this.drawPlayerAvatar(time);
+    }
 
     // 6. Magic Sparkles & Foreground Atmosphere
     this.drawSparkles(time);
     this.drawClouds('fg');
+
+    this.ctx.restore();
+
+    // Screen-space overlays during kingdom entry animation
+    if (this.vacuumAlpha > 0) {
+      this.drawVacuumOverlay();
+    }
+    if (this.fullScreenFadeAlpha > 0) {
+      this.drawFullScreenFade();
+    }
+  }
+
+  private drawFullScreenFade() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    this.ctx.save();
+    this.ctx.fillStyle = `rgba(2, 6, 23, ${this.fullScreenFadeAlpha})`;
+    this.ctx.fillRect(0, 0, w, h);
+    this.ctx.restore();
+  }
+
+  private drawVacuumOverlay() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const progress = this.vacuumProgress;
+    const alpha = this.vacuumAlpha;
+    const fx = this.vacuumFocal.x || w / 2;
+    const fy = this.vacuumFocal.y || h / 2;
+
+    this.ctx.save();
+
+    // Radial tunnel closing in on the kingdom focal point
+    const maxRadius = Math.hypot(w, h) * 0.85;
+    const holeRadius = maxRadius * Math.max(0.05, 1 - progress * 0.96);
+
+    const tunnelGrad = this.ctx.createRadialGradient(fx, fy, holeRadius * 0.08, fx, fy, holeRadius);
+    tunnelGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    tunnelGrad.addColorStop(0.35, `rgba(0,0,0,${0.35 * alpha})`);
+    tunnelGrad.addColorStop(0.7, `rgba(0,0,0,${0.75 * alpha})`);
+    tunnelGrad.addColorStop(1, `rgba(0,0,0,${0.98 * alpha})`);
+    this.ctx.fillStyle = tunnelGrad;
+    this.ctx.fillRect(0, 0, w, h);
 
     this.ctx.restore();
   }
@@ -965,20 +1303,21 @@ export class Game2DMapRenderer {
    */
   private drawLockedKingdoms(time: number) {
     this.kingdoms.forEach((k) => {
-      if (!k.unlocked) {
+      // Show lock overlay on kingdoms not yet entered (including first kingdom on fresh join)
+      if (!k.entered) {
         this.ctx.save();
 
         // 1. Soft Dark Feathered Mask over the locked kingdom structure
-        const maskW = k.width + 80;
-        const maskH = k.height + 60;
-        const darkGrad = this.ctx.createRadialGradient(k.x, k.y, k.width * 0.15, k.x, k.y, maskW * 0.58);
+        const maskW = k.width + 40;
+        const maskH = k.height + 20;
+        const darkGrad = this.ctx.createRadialGradient(k.x, k.y, k.width * 0.15, k.x, k.y, maskW * 0.5);
         darkGrad.addColorStop(0, 'rgba(2, 6, 23, 0.76)');
         darkGrad.addColorStop(0.55, 'rgba(15, 23, 42, 0.65)');
         darkGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
 
         this.ctx.fillStyle = darkGrad;
         this.ctx.beginPath();
-        this.ctx.ellipse(k.x, k.y, maskW * 0.55, maskH * 0.55, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(k.x, k.y, maskW * 0.5, maskH * 0.5, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
         // 2. Realistic 3D Metallic Padlock with gentle floating bob
@@ -1193,8 +1532,8 @@ export class Game2DMapRenderer {
     this.ctx.fill();
     this.ctx.stroke();
 
-    // 6. Floating "LOCKED" Badge Below Padlock (Clean dark pill, white text, no yellow border)
-    const badgeW = 74;
+    // 6. Floating "TAP TO UNLOCK" Badge Below Padlock (Clean dark pill, white text, no yellow border)
+    const badgeW = 110;
     const badgeH = 22;
     const badgeY = bodyY + bodyH + 14;
 
@@ -1209,7 +1548,7 @@ export class Game2DMapRenderer {
     this.ctx.fillStyle = '#FFFFFF';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText('LOCKED', x, badgeY);
+    this.ctx.fillText('TAP TO UNLOCK', x, badgeY);
 
     this.ctx.restore();
   }

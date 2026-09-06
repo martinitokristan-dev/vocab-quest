@@ -6,37 +6,83 @@ import {
   Square,
   Play,
   Pause,
-  Upload,
   Trash2,
   CheckCircle2,
   RotateCcw,
-  AlertCircle,
+  XCircle,
   ToggleLeft,
   ToggleRight,
   FileAudio,
   X,
   Loader2,
+  Globe,
+  Crown,
+  Volume2,
 } from 'lucide-react';
 
-const CORRECT_ANSWER_PRESETS = [
-  'Great job! That is the correct definition.',
-  'Excellent work! You found the right answer.',
-  'Well done! You mastered this vocabulary word.',
-  'Correct! Moving forward to the next challenge.',
-];
+type MapOption = { id: number; title: string; order_index: number };
 
-const INCORRECT_ANSWER_PRESETS = [
-  'Good attempt! Take another look and try again.',
-  'Almost there! Read the clues and try once more.',
-  'Not quite. Re-read the sentence carefully.',
-  'Keep trying! You can figure this one out.',
-];
+// Teacher and Kingdom information for elementary school teachers & students
+const TEACHER_GUIDES: Record<number, { teacher: string; kingdomName: string }> = {
+  1: { teacher: 'Teacher Faith', kingdomName: 'EPCES Adventure Entrance' },
+  2: { teacher: 'Teacher Gevina', kingdomName: 'Bayan ng Prosperidad' },
+  3: { teacher: 'Principal Flores', kingdomName: 'Provincial Capitol' },
+};
+
+// Kingdom theme styling for clean white/light theme
+const KINGDOM_COLORS: Record<number, { bg: string; text: string; border: string; activeBtn: string }> = {
+  1: {
+    bg: 'bg-sky-50',
+    text: 'text-sky-700',
+    border: 'border-sky-200',
+    activeBtn: 'bg-sky-500 text-white font-bold border-sky-500 shadow-sm shadow-sky-500/20',
+  },
+  2: {
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    border: 'border-purple-200',
+    activeBtn: 'bg-purple-600 text-white font-bold border-purple-600 shadow-sm shadow-purple-600/20',
+  },
+  3: {
+    bg: 'bg-amber-50',
+    text: 'text-amber-800',
+    border: 'border-amber-200',
+    activeBtn: 'bg-amber-500 text-white font-bold border-amber-500 shadow-sm shadow-amber-500/20',
+  },
+};
+
+function KingdomBadge({ mapId, maps }: { mapId: number | null; maps: MapOption[] }) {
+  if (mapId == null) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+        <Globe className="w-3 h-3 text-slate-500" />
+        All Kingdoms
+      </span>
+    );
+  }
+  const map = maps.find((m) => m.id === mapId);
+  const order = map?.order_index ?? 1;
+  const guide = TEACHER_GUIDES[order];
+  const colors = KINGDOM_COLORS[order] ?? KINGDOM_COLORS[1];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${colors.bg} ${colors.text} border ${colors.border}`}
+    >
+      <Crown className="w-3 h-3" />
+      {guide ? `${guide.teacher} • ${map ? map.title : guide.kingdomName}` : map ? map.title : `Kingdom ${mapId}`}
+    </span>
+  );
+}
 
 export const AudioReviewPage: React.FC = () => {
   const { showToast } = useToast();
   const [audios, setAudios] = useState<FeedbackAudioItem[]>([]);
+  const [maps, setMaps] = useState<MapOption[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Library filter tabs
   const [activeTab, setActiveTab] = useState<'all' | 'praise' | 'cheer_up'>('all');
+  const [filterMapId, setFilterMapId] = useState<number | null | 'all'>('all');
 
   // Delete Target State
   const [deleteTarget, setDeleteTarget] = useState<FeedbackAudioItem | null>(null);
@@ -44,6 +90,7 @@ export const AudioReviewPage: React.FC = () => {
 
   // Form State
   const [selectedType, setSelectedType] = useState<'praise' | 'cheer_up'>('praise');
+  const [selectedMapId, setSelectedMapId] = useState<number | null>(null); // null = all kingdoms
   const [phrase, setPhrase] = useState('');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -68,6 +115,7 @@ export const AudioReviewPage: React.FC = () => {
 
   useEffect(() => {
     fetchAudios();
+    fetchMaps();
     return () => {
       stopRecording();
       if (studioAudioRef.current) studioAudioRef.current.pause();
@@ -84,6 +132,16 @@ export const AudioReviewPage: React.FC = () => {
       console.error('Failed to load feedback audios:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMaps = async () => {
+    try {
+      const res = await api.getMaps();
+      const sorted = [...res.data].sort((a, b) => a.order_index - b.order_index);
+      setMaps(sorted);
+    } catch (err) {
+      console.warn('Failed to load kingdoms:', err);
     }
   };
 
@@ -131,12 +189,8 @@ export const AudioReviewPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     clearRecorder();
-    if (file.type.startsWith('audio/')) {
-      setAudioFile(file);
-      setAudioPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setFormError('Please select a valid audio file (MP3, WAV, M4A, WebM).');
-    }
+    setAudioFile(file);
+    setAudioPreviewUrl(URL.createObjectURL(file));
   };
 
   const clearRecorder = () => {
@@ -175,11 +229,11 @@ export const AudioReviewPage: React.FC = () => {
     setFormError(null);
 
     if (!phrase.trim()) {
-      setFormError('Please enter a feedback message script.');
+      setFormError('Please type what the teacher says.');
       return;
     }
     if (!audioBlob && !audioFile) {
-      setFormError('Please record voiceover or upload an audio file.');
+      setFormError('Please record your voice or upload an audio file.');
       return;
     }
 
@@ -189,15 +243,27 @@ export const AudioReviewPage: React.FC = () => {
         type: selectedType,
         phrase: phrase.trim(),
         audio_file: audioBlob || audioFile,
+        map_id: selectedMapId,
       });
 
       clearRecorder();
       setPhrase('');
-      showToast('Audio feedback response saved successfully!', 'success');
-      fetchAudios();
+      showToast('Voice feedback saved successfully!', 'success');
+      // Optimistic update: add new item to state without reloading
+      const newAudio = {
+        id: Date.now(), // temporary ID
+        type: selectedType,
+        phrase: phrase.trim(),
+        audio_url: audioPreviewUrl || '',
+        is_active: true,
+        map_id: selectedMapId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setAudios((prev) => [newAudio, ...prev]);
     } catch (err: any) {
-      setFormError(err.message || 'Failed to save feedback audio.');
-      showToast(err.message || 'Failed to save feedback audio.', 'error');
+      setFormError(err.message || 'Failed to save voice feedback.');
+      showToast(err.message || 'Failed to save voice feedback.', 'error');
     } finally {
       setSaving(false);
     }
@@ -206,8 +272,13 @@ export const AudioReviewPage: React.FC = () => {
   const handleToggleActive = async (id: number) => {
     try {
       await api.toggleFeedbackAudio(id);
-      showToast('Audio feedback status updated.', 'info');
-      fetchAudios();
+      showToast('Voice feedback status updated.', 'info');
+      // Optimistic update: toggle the item in state without reloading
+      setAudios((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, is_active: !item.is_active } : item
+        )
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -218,12 +289,13 @@ export const AudioReviewPage: React.FC = () => {
     try {
       setDeleting(true);
       await api.deleteFeedbackAudio(deleteTarget.id);
-      showToast('Audio feedback clip deleted.', 'info');
+      showToast('Voice feedback deleted.', 'info');
       setDeleteTarget(null);
-      fetchAudios();
+      // Optimistic update: remove the item from state without reloading
+      setAudios((prev) => prev.filter((item) => item.id !== deleteTarget.id));
     } catch (err: any) {
       setDeleteTarget(null);
-      showToast(err.message || 'Failed to delete audio feedback', 'error');
+      showToast(err.message || 'Failed to delete voice feedback', 'error');
     } finally {
       setDeleting(false);
     }
@@ -251,295 +323,527 @@ export const AudioReviewPage: React.FC = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Derived lists
   const praiseList = audios.filter((a) => a.type === 'praise');
   const cheerUpList = audios.filter((a) => a.type === 'cheer_up');
+  
+  // Filter by kingdom
+  const filteredPraiseList =
+    filterMapId === 'all'
+      ? praiseList
+      : filterMapId === null
+      ? praiseList.filter((a) => a.map_id == null)
+      : praiseList.filter((a) => a.map_id === filterMapId);
+  
+  const filteredCheerUpList =
+    filterMapId === 'all'
+      ? cheerUpList
+      : filterMapId === null
+      ? cheerUpList.filter((a) => a.map_id == null)
+      : cheerUpList.filter((a) => a.map_id === filterMapId);
+  
+  const typeFiltered =
+    activeTab === 'praise' ? filteredPraiseList : activeTab === 'cheer_up' ? filteredCheerUpList : audios;
+
   const displayedAudios =
-    activeTab === 'praise' ? praiseList : activeTab === 'cheer_up' ? cheerUpList : audios;
+    filterMapId === 'all'
+      ? typeFiltered
+      : filterMapId === null
+      ? typeFiltered.filter((a) => a.map_id == null)
+      : typeFiltered.filter((a) => a.map_id === filterMapId);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto animate-fade-in">
+    <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
       {/* Header */}
-      <div className="border-b border-white/5 pb-4">
-        <h2 className="text-xl font-bold text-white tracking-tight">Audio Feedback Studio</h2>
-        <p className="text-xs text-zinc-400 mt-0.5">
-          Record or upload teacher voice messages played during student question feedback
+      <div className="border-b border-slate-200 pb-4">
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <Volume2 className="w-5 h-5 text-emerald-600" />
+          <span>Audio Feedback Studio</span>
+        </h2>
+        <p className="text-xs text-slate-500 mt-1">
+          Record or upload teacher voice messages played when elementary students answer questions.
         </p>
       </div>
 
       {/* Recording Studio Card */}
-      <div className="surface-card p-5 rounded-xl border border-white/5 space-y-4">
-        {/* Category Switch */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-zinc-900/90 p-1 rounded-lg border border-white/5">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedType('praise');
-                clearRecorder();
-              }}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${
-                selectedType === 'praise'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Correct Answer Feedback</span>
-            </button>
+      <div className="surface-card p-6 rounded-2xl border border-slate-200 space-y-6 shadow-sm bg-white text-slate-900">
+        <form onSubmit={handleSaveFeedbackAudio} className="space-y-6">
+          {/* Step 1: Feedback Type */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                1
+              </span>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                When should this audio play?
+              </label>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedType('cheer_up');
-                clearRecorder();
-              }}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${
-                selectedType === 'cheer_up'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>Incorrect Answer Feedback</span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Option A: Correct Answer */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedType('praise');
+                  clearRecorder();
+                }}
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                  selectedType === 'praise'
+                    ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div
+                  className={`p-2.5 rounded-lg shrink-0 ${
+                    selectedType === 'praise'
+                      ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div
+                    className={`text-sm font-bold ${
+                      selectedType === 'praise' ? 'text-slate-900' : 'text-slate-700'
+                    }`}
+                  >
+                    Correct Answer
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Plays when the student chooses the right answer (Praise & Cheer)
+                  </div>
+                </div>
+              </button>
+
+              {/* Option B: Incorrect / Try Again */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedType('cheer_up');
+                  clearRecorder();
+                }}
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                  selectedType === 'cheer_up'
+                    ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div
+                  className={`p-2.5 rounded-lg shrink-0 ${
+                    selectedType === 'cheer_up'
+                      ? 'bg-amber-500 text-white font-bold shadow-xs'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div
+                    className={`text-sm font-bold ${
+                      selectedType === 'cheer_up' ? 'text-slate-900' : 'text-slate-700'
+                    }`}
+                  >
+                    Incorrect / Try Again
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Gentle encouragement to motivate students to try again (Cheer Up)
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
-        </div>
 
-        {formError && (
-          <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
-            {formError}
+          {/* Step 2: Kingdom / Teacher Assignment */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                2
+              </span>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Which teacher or kingdom will say this?
+              </label>
+            </div>
+
+            <select
+              value={selectedMapId === null ? 'universal' : selectedMapId || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedMapId(value === 'universal' ? null : Number(value));
+              }}
+              className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all"
+            >
+              <option value="universal">All Kingdoms & Teachers (Universal)</option>
+              {maps.map((map) => {
+                const order = map.order_index;
+                const guide = TEACHER_GUIDES[order];
+                return (
+                  <option key={map.id} value={map.id}>
+                    {guide ? `${guide.teacher} (${map.title})` : map.title}
+                  </option>
+                );
+              })}
+            </select>
+
+            {/* Active Kingdom selection badge */}
+            <div className="text-xs text-slate-600 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
+              <span className="text-slate-500">Will play during:</span>
+              <KingdomBadge mapId={selectedMapId} maps={maps} />
+            </div>
           </div>
-        )}
 
-        <form onSubmit={handleSaveFeedbackAudio} className="space-y-4">
-          {/* Message Script & Presets */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">
-              Feedback Message Script *
-            </label>
+          {/* Step 3: Message Script */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                  3
+                </span>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  What does the teacher say?
+                </label>
+              </div>
+              <span className="text-[11px] text-slate-500">Appears as subtitles on student screen</span>
+            </div>
+
             <input
               type="text"
               required
               placeholder={
                 selectedType === 'praise'
-                  ? 'e.g. Great job! That is the correct definition.'
-                  : 'e.g. Good attempt! Take another look and try again.'
+                  ? 'e.g. Awesome job! You found the right answer!'
+                  : 'e.g. Good try! Look at the clues and try once more!'
               }
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
-              className="minimal-input text-xs"
+              className="minimal-input text-sm py-2.5 px-3.5"
             />
-
-            {/* Quick Inspiration Templates */}
-            <div className="flex items-center gap-1.5 flex-wrap mt-2">
-              <span className="text-[10px] text-zinc-500 font-medium mr-1">Templates:</span>
-              {(selectedType === 'praise' ? CORRECT_ANSWER_PRESETS : INCORRECT_ANSWER_PRESETS).map((preset, pIdx) => (
-                <button
-                  key={pIdx}
-                  type="button"
-                  onClick={() => setPhrase(preset)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 border border-white/5 cursor-pointer transition-colors"
-                >
-                  "{preset}"
-                </button>
-              ))}
-            </div>
           </div>
 
-          {/* Recording & Upload Options */}
-          <div className="bg-zinc-900/60 p-4 rounded-xl border border-white/5 space-y-3">
-            {!isRecording && !audioPreviewUrl && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={startRecording}
-                  className="py-2.5 px-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                >
-                  <Mic className="w-4 h-4" />
-                  <span>Record with Microphone</span>
-                </button>
+          {/* Step 4: Record or Upload Audio */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                4
+              </span>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Teacher Voice Audio
+              </label>
+            </div>
 
-                <label className="py-2.5 px-3 rounded-lg border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <Upload className="w-4 h-4" />
-                  <span>Upload Audio File</span>
-                </label>
-              </div>
-            )}
-
-            {/* Active Recording Bar */}
-            {isRecording && (
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-rose-400 text-xs font-semibold">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                  <span>Recording: {formatSeconds(recordingSeconds)}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 fill-white" />
-                  <span>Stop Recording</span>
-                </button>
-              </div>
-            )}
-
-            {/* Audio Preview Bar */}
-            {audioPreviewUrl && !isRecording && (
-              <div className="p-2.5 rounded-lg bg-zinc-950 border border-white/10 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-zinc-200 min-w-0">
-                  <FileAudio className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="truncate max-w-[240px]">
-                    {audioFile ? audioFile.name : 'Voice recording ready'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={toggleStudioAudioPlayback}
-                    className="px-3 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                  >
-                    {isPlayingStudioPreview ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-slate-950" />}
-                    <span>{isPlayingStudioPreview ? 'Pause' : 'Test Audio'}</span>
-                  </button>
-
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              {!isRecording && !audioPreviewUrl && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={startRecording}
-                    className="p-1 text-zinc-400 hover:text-white cursor-pointer"
-                    title="Re-record"
+                    className="py-3 px-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <Mic className="w-4 h-4 text-emerald-600" />
+                    <span>Record with Microphone</span>
                   </button>
 
+                  <label className="py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <span>Upload Audio File (Any Format)</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Active Recording State */}
+              {isRecording && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-rose-700 text-xs font-bold">
+                    <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                    <span>Recording voice: {formatSeconds(recordingSeconds)}</span>
+                  </div>
                   <button
                     type="button"
-                    onClick={clearRecorder}
-                    className="p-1 text-zinc-400 hover:text-rose-400 cursor-pointer"
-                    title="Discard"
+                    onClick={stopRecording}
+                    className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Square className="w-3.5 h-3.5 fill-white" />
+                    <span>Finish Recording</span>
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Audio Preview State */}
+              {audioPreviewUrl && !isRecording && (
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                      <FileAudio className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <p className="font-bold text-slate-900 truncate">
+                        {audioFile ? audioFile.name : 'Voice recording ready'}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 font-semibold">Ready to save</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={toggleStudioAudioPlayback}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                      {isPlayingStudioPreview ? (
+                        <Pause className="w-3.5 h-3.5" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                      )}
+                      <span>{isPlayingStudioPreview ? 'Pause' : 'Test Audio'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                      title="Re-record"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={clearRecorder}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Discard"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-end pt-1">
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <X className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Form Footer Action */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+            <div className="text-xs text-slate-500">
+              {!phrase.trim() || (!audioBlob && !audioFile) ? (
+                <span>💡 Type what the teacher says and record or upload audio to save.</span>
+              ) : (
+                <span className="text-emerald-700 font-semibold">✓ Ready to save feedback audio!</span>
+              )}
+            </div>
             <button
               type="submit"
-              disabled={saving || isRecording || (!audioBlob && !audioFile)}
-              className="btn-primary text-xs font-bold"
+              disabled={saving || isRecording || !phrase.trim() || (!audioBlob && !audioFile)}
+              className="btn-primary text-xs font-bold py-2.5 px-5 shadow-sm cursor-pointer"
             >
-              {saving ? 'Saving...' : 'Save Feedback Audio'}
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving Voice Feedback...</span>
+                </>
+              ) : (
+                <span>Save Voice Feedback</span>
+              )}
             </button>
           </div>
         </form>
       </div>
 
       {/* Feedback Audio Library */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5">
+      <div className="space-y-4 pt-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-900 tracking-tight">Saved Voice Feedbacks</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Manage voice feedback messages currently available to students during gameplay.
+          </p>
+        </div>
+
+        {/* Filter Toolbar */}
+        <div className="space-y-2.5 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          {/* Category Filter */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'all'
-                  ? 'bg-zinc-800 text-white font-semibold border border-zinc-700'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-slate-800 text-white border border-slate-800 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              All Audio ({audios.length})
+              All Messages ({audios.length})
             </button>
             <button
               onClick={() => setActiveTab('praise')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'praise'
-                  ? 'bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              Correct Answer ({praiseList.length})
+              Correct Answers ({filteredPraiseList.length})
             </button>
             <button
               onClick={() => setActiveTab('cheer_up')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'cheer_up'
-                  ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              Incorrect Answer ({cheerUpList.length})
+              Try Again Clips ({filteredCheerUpList.length})
             </button>
           </div>
+
+          {/* Kingdom Filter */}
+          {maps.length > 0 && (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                Filter Kingdom:
+              </label>
+              <select
+                value={filterMapId === 'all' ? 'all' : filterMapId === null ? 'universal' : filterMapId}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'all') {
+                    setFilterMapId('all');
+                  } else if (value === 'universal') {
+                    setFilterMapId(null);
+                  } else {
+                    setFilterMapId(Number(value));
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all"
+              >
+                <option value="all">All Kingdoms</option>
+                <option value="universal">Universal (All Kingdoms)</option>
+                {maps.map((map) => {
+                  const order = map.order_index;
+                  const guide = TEACHER_GUIDES[order];
+                  return (
+                    <option key={map.id} value={map.id}>
+                      {guide ? `${guide.teacher} (${map.title})` : map.title}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
         </div>
 
+        {/* Audio Cards */}
         {loading ? (
-          <div className="p-8 text-center text-xs text-zinc-500">Loading audio library...</div>
+          <div className="p-8 text-center text-xs text-slate-500">Loading audio library...</div>
         ) : displayedAudios.length === 0 ? (
-          <div className="surface-card p-8 text-center text-zinc-500 text-xs">No feedback audio recordings found</div>
+          <div className="surface-card p-8 text-center text-slate-500 text-xs bg-white rounded-xl border border-slate-200">
+            No feedback audio recordings found for this selection.
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {displayedAudios.map((item) => (
               <div
                 key={item.id}
-                className="surface-card p-3.5 rounded-xl border border-white/5 flex items-center justify-between gap-3"
+                className="surface-card p-4 rounded-xl border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 bg-white shadow-xs"
               >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Feedback type badge */}
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          item.type === 'praise'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {item.type === 'praise' ? (
+                          <>
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            Correct
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-2.5 h-2.5" />
+                            Try Again
+                          </>
+                        )}
+                      </span>
+
+                      {/* Kingdom indicator badge */}
+                      <KingdomBadge mapId={item.map_id} maps={maps} />
+                    </div>
+
+                    {/* Active in game indicator */}
                     <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                        item.type === 'praise'
-                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      className={`text-[10px] font-semibold flex items-center gap-1 ${
+                        item.is_active ? 'text-emerald-700' : 'text-slate-400'
                       }`}
                     >
-                      {item.type === 'praise' ? 'Correct Response' : 'Incorrect Response'}
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          item.is_active ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      />
+                      {item.is_active ? 'Active' : 'Muted'}
                     </span>
                   </div>
-                  <p className="text-xs font-medium text-white truncate">"{item.phrase}"</p>
+
+                  <p className="text-sm font-bold text-slate-900 leading-snug">"{item.phrase}"</p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <button
                     onClick={() => handlePlayListItem(item.id, item.audio_url)}
-                    className={`p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                       playingAudioId === item.id
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-bold'
-                        : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white'
+                        ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm font-bold'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                     }`}
-                    title="Play voice response"
                   >
-                    {playingAudioId === item.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleToggleActive(item.id)}
-                    className="cursor-pointer p-1 text-zinc-400 hover:text-white"
-                    title={item.is_active ? 'Active in gameplay feedback' : 'Muted in gameplay feedback'}
-                  >
-                    {item.is_active ? (
-                      <ToggleRight className="w-5 h-5 text-emerald-400" />
+                    {playingAudioId === item.id ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5" />
+                        <span>Playing...</span>
+                      </>
                     ) : (
-                      <ToggleLeft className="w-5 h-5 text-zinc-600" />
+                      <>
+                        <Play className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Listen</span>
+                      </>
                     )}
                   </button>
 
-                  <button
-                    onClick={() => setDeleteTarget(item)}
-                    className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                    title="Delete feedback audio"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleToggleActive(item.id)}
+                      className="cursor-pointer p-1.5 text-slate-400 hover:text-slate-700 rounded-md transition-colors"
+                      title={item.is_active ? 'Click to mute' : 'Click to activate'}
+                    >
+                      {item.is_active ? (
+                        <ToggleRight className="w-5 h-5 text-emerald-600" />
+                      ) : (
+                        <ToggleLeft className="w-5 h-5 text-slate-300" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setDeleteTarget(item)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                      title="Delete voice clip"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -550,41 +854,43 @@ export const AudioReviewPage: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-xl shadow-2xl"
+            className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl shadow-2xl p-5 space-y-4 text-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
-              <div className="flex items-center gap-2.5">
-                <Trash2 className="w-4 h-4 text-rose-400" />
-                <h3 className="text-sm font-semibold text-white">Delete Feedback Audio</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Delete Voice Feedback</h3>
               </div>
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="p-1 text-zinc-500 hover:text-zinc-300 rounded-md cursor-pointer transition-colors"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-2">
-              <p className="text-sm text-zinc-300">
-                Delete feedback message <span className="font-semibold text-white">"{deleteTarget.phrase}"</span>?
+            <div className="space-y-2">
+              <p className="text-xs text-slate-600">
+                Are you sure you want to delete <span className="font-bold text-slate-900">"{deleteTarget.phrase}"</span>?
               </p>
-              <p className="text-xs text-zinc-500 leading-relaxed">
-                This voice recording will be removed from student gameplay feedback responses.
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                This voice recording will be permanently removed and will no longer play during gameplay.
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 pb-5">
+            <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="px-3.5 py-2 rounded-lg text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-white/8 cursor-pointer transition-colors disabled:opacity-50"
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -592,18 +898,15 @@ export const AudioReviewPage: React.FC = () => {
                 type="button"
                 onClick={confirmDeleteAudio}
                 disabled={deleting}
-                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 cursor-pointer transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-60"
               >
                 {deleting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Deleting...
+                    <span>Deleting...</span>
                   </>
                 ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete Clip
-                  </>
+                  <span>Delete Clip</span>
                 )}
               </button>
             </div>

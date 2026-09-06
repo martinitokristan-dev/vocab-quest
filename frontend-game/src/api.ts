@@ -40,6 +40,7 @@ export interface CurrentQuestionResponse {
       question_type?: 'multiple_choice' | 'identification';
       sentence: string;
       highlighted_word: string;
+      context_clue?: string | null;
       image_url: string | null;
       audio_url: string | null;
       voice_audio_url?: string | null;
@@ -69,6 +70,25 @@ export interface GameStatusResponse {
   is_completed: boolean;
   room_status: string;
   score: number;
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+export function isSessionAuthError(err: unknown): boolean {
+  if (err instanceof ApiError) return err.status === 401;
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('401') ||
+    msg.includes('Unauthenticated') ||
+    msg.includes('Invalid or expired student game session')
+  );
 }
 
 class StudentGameApiClient {
@@ -137,7 +157,7 @@ class StudentGameApiClient {
 
     if (!res.ok) {
       const errorMsg = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'API request failed');
-      throw new Error(errorMsg);
+      throw new ApiError(errorMsg, res.status);
     }
 
     return data;
@@ -182,8 +202,8 @@ class StudentGameApiClient {
   }
 
   async getFeedbackAudios(): Promise<{
-    praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
-    cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean }>;
+    praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
+    cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
   }> {
     try {
       const res = await fetch(`${API_BASE_URL}/game/feedback-audios`);

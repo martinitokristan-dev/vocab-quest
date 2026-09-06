@@ -19,6 +19,7 @@ class MapController extends Controller
     {
         $maps = Map::where('teacher_id', $request->user()->id)
             ->with(['character', 'questions'])
+            ->withCount('questions')
             ->orderBy('order_index')
             ->get();
 
