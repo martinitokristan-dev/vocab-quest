@@ -32,6 +32,7 @@ import { showStarBurstOverlay } from './starBurstOverlay';
 import { type StudentGameAppState } from './types/state';
 import { mergeHistoryWithCompleted } from './utils/history';
 import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/teacherAnimation';
+import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackAudios } from './utils/feedbackAudio';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -102,10 +103,7 @@ class StudentArcadeGame {
     mouthInterval: null as number | null,
     outroTimeouts: [] as number[]
   };
-  private feedbackAudios: {
-    praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
-    cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
-  } = { praise: [], cheer_up: [] };
+  private feedbackAudios: FeedbackAudios = { praise: [], cheer_up: [] };
 
   constructor() {
     this.appEl = document.getElementById('app') as HTMLElement;
@@ -295,15 +293,7 @@ class StudentArcadeGame {
   }
 
   private async loadFeedbackAudios() {
-    try {
-      const res = await gameApi.getFeedbackAudios();
-      this.feedbackAudios = res;
-      console.log('Loaded feedback audios:', this.feedbackAudios);
-      console.log('Praise clips count:', this.feedbackAudios.praise.length);
-      console.log('Cheer_up clips count:', this.feedbackAudios.cheer_up.length);
-    } catch (e) {
-      console.warn('Failed to load feedback voice audios:', e);
-    }
+    this.feedbackAudios = await loadFeedbackAudios();
   }
 
   private bindGlobalKeyboard() {
@@ -767,18 +757,7 @@ class StudentArcadeGame {
         const questionOrder = q.order_index || (this.state.history.filter((h) => (h.mapId || 1) === activeMapId).length + 1);
 
         // Check for teacher's uploaded praise audio clips — filter by active status & current kingdom
-        console.log('Current activeMapId:', activeMapId);
-        const activePraiseClips = this.feedbackAudios.praise.filter(
-          (p) => p.is_active !== false && (p.map_id == null || p.map_id === activeMapId)
-        );
-        console.log('Filtered activePraiseClips:', activePraiseClips);
-        const customPraise = activePraiseClips.length > 0
-          ? activePraiseClips[Math.floor(Math.random() * activePraiseClips.length)]
-          : null;
-        console.log('Selected customPraise:', customPraise);
-        if (customPraise) {
-          console.log('Custom praise audio URL:', customPraise.audio_url);
-        }
+        const customPraise = selectPraiseClip(this.feedbackAudios, activeMapId);
 
         let pIdx = Math.floor(Math.random() * PRAISE_PHRASES.length);
         if (pIdx === this.state.lastPraiseIndex) {
@@ -938,12 +917,7 @@ class StudentArcadeGame {
         }
       } else {
         // --- 2. WRONG ANSWER: SHUFFLED TEACHER CHEER-UP ENCOURAGEMENT ---
-        const activeCheerClips = this.feedbackAudios.cheer_up.filter(
-          (c) => c.is_active !== false && (c.map_id == null || c.map_id === activeMapId)
-        );
-        const customCheer = activeCheerClips.length > 0
-          ? activeCheerClips[Math.floor(Math.random() * activeCheerClips.length)]
-          : null;
+        const customCheer = selectCheerUpClip(this.feedbackAudios, activeMapId);
 
         let tIdx = Math.floor(Math.random() * TRY_AGAIN_PHRASES.length);
         if (tIdx === this.state.lastTryAgainIndex) {
