@@ -31,6 +31,7 @@ import {
 import { showStarBurstOverlay } from './starBurstOverlay';
 import { type StudentGameAppState } from './types/state';
 import { mergeHistoryWithCompleted } from './utils/history';
+import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/teacherAnimation';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -97,8 +98,10 @@ class StudentArcadeGame {
   private pollInterval: number | null = null;
   private loadingInterval: number | null = null;
   private lastNarratedQuestionId: number | null = null;
-  private teacherMouthInterval: number | null = null;
-  private teacherOutroTimeouts: number[] = [];
+  private teacherAnimationTimers = {
+    mouthInterval: null as number | null,
+    outroTimeouts: [] as number[]
+  };
   private feedbackAudios: {
     praise: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
     cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
@@ -168,14 +171,6 @@ class StudentArcadeGame {
     });
   }
 
-  private clearTeacherAnimationTimers() {
-    if (this.teacherMouthInterval) {
-      clearInterval(this.teacherMouthInterval);
-      this.teacherMouthInterval = null;
-    }
-    this.teacherOutroTimeouts.forEach((t) => clearTimeout(t));
-    this.teacherOutroTimeouts = [];
-  }
 
   private getPathForScreen(screen: StudentGameAppState['screen']): string {
     switch (screen) {
@@ -681,138 +676,17 @@ class StudentArcadeGame {
       badgeDot.classList.toggle('active-pulse', isSpeaking);
     }
 
-    const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
-    if (!spriteImg) return;
-
-    const activeMapId = this.state.currentData?.data?.map?.id || 1;
-    const isYellow = activeMapId === 3;
-    const isGevina = activeMapId === 2;
-
-    this.clearTeacherAnimationTimers();
-
-    if (isSpeaking && !this.state.submitting) {
-      spriteImg.className = 'teacher-character-img reading';
-      if (isYellow) {
-        spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
-      } else if (isGevina) {
-        // Kingdom 2: Teacher Gevina (G1 to G9)
-        const isReplaying = this.state.wrongAnswerIds.length > 0;
-        const introFrames = isReplaying
-          ? ['/assets/guide/G3.png']
-          : [
-              '/assets/guide/G1.png',
-              '/assets/guide/G2.png',
-              '/assets/guide/G2.png',
-              '/assets/guide/G2.png',
-              '/assets/guide/G3.png',
-            ];
-        // Smooth natural vowel reading loop (G4=AH, G5=EH, G6=OH, G3=Closed Rest)
-        const loopFrames = [
-          '/assets/guide/G4.png', // "AH" open
-          '/assets/guide/G5.png', // "EH" wide open
-          '/assets/guide/G6.png', // "OH" round open
-          '/assets/guide/G3.png', // Closed mouth breath rest
-        ];
-
-        let introIndex = 0;
-        let loopIndex = 0;
-        let isIntroFinished = isReplaying;
-
-        spriteImg.src = isReplaying ? loopFrames[0] : introFrames[0];
-
-        this.teacherMouthInterval = window.setInterval(() => {
-          if (!isIntroFinished) {
-            introIndex++;
-            if (introIndex < introFrames.length) {
-              spriteImg.src = introFrames[introIndex];
-            } else {
-              isIntroFinished = true;
-              spriteImg.src = loopFrames[0];
-            }
-          } else {
-            loopIndex = (loopIndex + 1) % loopFrames.length;
-            spriteImg.src = loopFrames[loopIndex];
-          }
-        }, 340);
-      } else {
-        // Kingdom 1: Teacher Faith (F1 to F9)
-        const isReplaying = this.state.wrongAnswerIds.length > 0;
-        const introFrames = isReplaying
-          ? ['/assets/guide/F3.png']
-          : [
-              '/assets/guide/F1.png',
-              '/assets/guide/F2.png',
-              '/assets/guide/F2.png',
-              '/assets/guide/F2.png',
-              '/assets/guide/F3.png',
-            ];
-
-        // Smooth natural vowel reading loop (F4=AH, F5=EH, F6=OH, F3=Closed Rest)
-        const loopFrames = [
-          '/assets/guide/F4.png', // "AH" open
-          '/assets/guide/F5.png', // "EH" wide open
-          '/assets/guide/F6.png', // "OH" round open
-          '/assets/guide/F3.png', // Closed mouth breath rest
-        ];
-
-        let introIndex = 0;
-        let loopIndex = 0;
-        let isIntroFinished = isReplaying;
-
-        spriteImg.src = isReplaying ? loopFrames[0] : introFrames[0];
-
-        this.teacherMouthInterval = window.setInterval(() => {
-          if (!isIntroFinished) {
-            introIndex++;
-            if (introIndex < introFrames.length) {
-              spriteImg.src = introFrames[introIndex];
-            } else {
-              isIntroFinished = true;
-              spriteImg.src = loopFrames[0];
-            }
-          } else {
-            loopIndex = (loopIndex + 1) % loopFrames.length;
-            spriteImg.src = loopFrames[loopIndex];
-          }
-        }, 340);
-      }
-    } else {
-      if (this.state.submitResult?.is_correct) {
-        spriteImg.src = isYellow
-          ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
-          : isGevina
-          ? (this.state.currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
-          : (this.state.currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
-        spriteImg.className = 'teacher-character-img celebrating';
-      } else if (this.state.wrongAnswerIds.length > 0 && this.state.currentFeedbackSprite) {
-        // Maintain sympathetic/try-again pose - DO NOT overwrite with idle timers!
-        spriteImg.src = this.state.currentFeedbackSprite;
-        spriteImg.className = 'teacher-character-img sympathetic';
-      } else {
-        spriteImg.className = 'teacher-character-img idle';
-        if (isYellow) {
-          spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
-        } else if (isGevina) {
-          // Smooth settle to closed mouth rest stance
-          spriteImg.src = '/assets/guide/G3.png';
-          const t = window.setTimeout(() => {
-            if (!soundManager.isNarrating() && !this.state.submitResult && this.state.wrongAnswerIds.length === 0) {
-              spriteImg.src = '/assets/guide/G1.png';
-            }
-          }, 400);
-          this.teacherOutroTimeouts.push(t);
-        } else {
-          // Smooth settle to closed mouth rest stance
-          spriteImg.src = '/assets/guide/F3.png';
-          const t = window.setTimeout(() => {
-            if (!soundManager.isNarrating() && !this.state.submitResult && this.state.wrongAnswerIds.length === 0) {
-              spriteImg.src = '/assets/guide/F1.png';
-            }
-          }, 400);
-          this.teacherOutroTimeouts.push(t);
-        }
-      }
-    }
+    this.teacherAnimationTimers = updateTeacherSpeakingUI(
+      {
+        isSpeaking,
+        submitting: this.state.submitting,
+        wrongAnswerIds: this.state.wrongAnswerIds,
+        submitResult: this.state.submitResult,
+        currentFeedbackSprite: this.state.currentFeedbackSprite,
+        currentData: this.state.currentData,
+      },
+      this.teacherAnimationTimers
+    );
   }
 
   private async handleSelectAnswer(answerId?: number | null, typedAnswer?: string | null) {
@@ -820,7 +694,7 @@ class StudentArcadeGame {
 
     this.state.submitting = true;
     soundManager.stopSpeech();
-    this.clearTeacherAnimationTimers();
+    clearTeacherAnimationTimers(this.teacherAnimationTimers);
 
     const q = this.state.currentData.data.question;
     const currentAttempts = (this.state.attempts[q.id] || 0) + 1;
@@ -1586,7 +1460,7 @@ class StudentArcadeGame {
           this.handleSelectAnswer(answerId, typedAnswer);
         },
         onTeacherAnimationClear: () => {
-          this.clearTeacherAnimationTimers();
+          clearTeacherAnimationTimers(this.teacherAnimationTimers);
         },
         onQuestionNarrated: (questionId) => {
           this.lastNarratedQuestionId = questionId;
