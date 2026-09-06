@@ -10,6 +10,8 @@ import { LoadingScreen } from './components/screens/LoadingScreen';
 import { WorldMapScreen } from './components/screens/WorldMapScreen';
 import { QuestionScreen } from './components/screens/QuestionScreen';
 import { CompletedScreen } from './components/screens/CompletedScreen';
+import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, getAvatarBySlug } from './utils/constants';
+import { showToast } from './utils/toast';
 import {
   type MapInteractionPhase,
   type PendingMapAction,
@@ -25,24 +27,6 @@ import {
   buildKingdomTransitionAction,
 } from './mapFlowController';
 import { showStarBurstOverlay } from './starBurstOverlay';
-
-const PRAISE_PHRASES = [
-  'Excellent work! You found the right meaning!',
-  'Fantastic choice! That is correct!',
-  'Brilliant job! You are a true vocabulary master!',
-  'Outstanding! Perfect answer!',
-  'Great job! Keep up the amazing learning!',
-  'Superb! You nailed that vocabulary word!',
-  'Wonderful! That is the exact definition!',
-  'Spot on! Keep conquering the quest!',
-];
-
-const TRY_AGAIN_PHRASES = [
-  "Not quite, but don't give up! Try again.",
-  "Good try! Listen to the question again and pick the best choice.",
-  "That's okay! Review the options and give it another shot.",
-  "Almost there! Listen closely and try another choice.",
-];
 
 interface StudentGameAppState {
   screen: 'title' | 'loading' | 'join' | 'world_map' | 'question' | 'completed';
@@ -110,19 +94,6 @@ interface StudentGameAppState {
   dialogueType: 'global' | 'kingdom';
   hasSeenGlobalIntro: boolean;
 }
-
-const AVATARS = [
-  { slug: 'learner-girl', label: 'Learner Girl', image: '/assets/mascot_girl.png' },
-  { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
-  { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
-  { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'morena-girl', label: 'Sporty Girl', image: '/assets/morena_girl.png' },
-  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/moreno_boy.png' },
-];
-
-const getAvatarBySlug = (slug: string) => {
-  return AVATARS.find((a) => a.slug === slug) || AVATARS[0];
-};
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -1792,72 +1763,7 @@ class StudentArcadeGame {
     type: 'warning' | 'info' | 'success' = 'warning',
     durationMs = 4000
   ) {
-    let container = document.getElementById('gameToastContainer');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'gameToastContainer';
-      container.className = 'game-toast-container';
-      document.body.appendChild(container);
-    }
-
-    container.innerHTML = '';
-
-    const toast = document.createElement('div');
-    toast.className = 'game-toast';
-
-    let iconSvg = '';
-    if (type === 'warning') {
-      iconSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
-      `;
-    } else if (type === 'success') {
-      iconSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-      `;
-    } else {
-      iconSvg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
-        </svg>
-      `;
-    }
-
-    toast.innerHTML = `
-      <div class="game-toast-icon-box toast-${type}">
-        ${iconSvg}
-      </div>
-      <div class="game-toast-content">
-        <div class="game-toast-title">${title}</div>
-        <div class="game-toast-message">${message}</div>
-      </div>
-    `;
-
-    const dismiss = () => {
-      toast.classList.add('toast-hiding');
-      setTimeout(() => {
-        toast.remove();
-      }, 250);
-    };
-
-    toast.addEventListener('click', dismiss);
-    container.appendChild(toast);
-
-    setTimeout(() => {
-      if (toast.parentElement) {
-        dismiss();
-      }
-    }, durationMs);
+    showToast(title, message, type, durationMs);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
