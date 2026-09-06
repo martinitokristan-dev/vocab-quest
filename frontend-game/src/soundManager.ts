@@ -20,7 +20,7 @@ class SoundManager {
 
   private currentVoiceAudio: HTMLAudioElement | null = null;
   private bgmGain: GainNode | null = null;
-  private isSpeechActive: boolean;
+  private isSpeechActive: boolean = false;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
   private wasPlayingBeforePause: boolean = false;
 
