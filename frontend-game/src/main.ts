@@ -26,6 +26,7 @@ import {
 } from './mapFlowController';
 import { showStarBurstOverlay } from './starBurstOverlay';
 import { type StudentGameAppState } from './types/state';
+import { mergeHistoryWithCompleted } from './utils/history';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -518,32 +519,7 @@ class StudentArcadeGame {
         const isMapChanged = this.state.currentData?.data?.map.id !== res.data.map.id;
         const shouldChangeScreen = (this.state.screen === 'join');
 
-        let mergedHistory = [...this.state.history];
-        if (res.data.completed_questions && res.data.completed_questions.length > 0) {
-          res.data.completed_questions.forEach((cq: any) => {
-            const existingIdx = mergedHistory.findIndex((h) => h.questionId === cq.question_id);
-            const starsCount = cq.stars ?? 3;
-            if (existingIdx === -1) {
-              mergedHistory.push({
-                questionId: cq.question_id,
-                mapId: cq.map_id,
-                orderIndex: cq.order_index,
-                questionIndex: cq.order_index,
-                word: cq.word,
-                isCorrect: true,
-                stars: starsCount,
-              });
-            } else {
-              mergedHistory[existingIdx] = {
-                ...mergedHistory[existingIdx],
-                mapId: cq.map_id,
-                orderIndex: cq.order_index,
-                questionIndex: cq.order_index,
-                stars: starsCount,
-              };
-            }
-          });
-        }
+        let mergedHistory = mergeHistoryWithCompleted(this.state.history, res.data.completed_questions || []);
 
         const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
         const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
