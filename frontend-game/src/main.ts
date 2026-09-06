@@ -34,6 +34,7 @@ import { mergeHistoryWithCompleted } from './utils/history';
 import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/teacherAnimation';
 import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackAudios } from './utils/feedbackAudio';
 import { syncUrl, initRouter, type ScreenType } from './utils/router';
+import { bindGlobalKeyboard } from './utils/keyboardHandler';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -197,32 +198,21 @@ class StudentArcadeGame {
   }
 
   private bindGlobalKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (this.state.isDialogueOpen) {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          this.nextDialogueSlide();
-          return;
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          this.closeKingdomDialogue();
-          return;
-        }
-      }
-
-      if (e.key === 'Escape') {
-        if (this.state.isHowToPlayOpen || this.state.isSettingsOpen) {
-          soundManager.stopSpeech();
-          this.setState({ isHowToPlayOpen: false, isSettingsOpen: false });
-        } else if (this.state.screen === 'world_map' || this.state.screen === 'question') {
-          soundManager.playClick();
-          const nextPauseState = !this.state.isPauseMenuOpen;
-          if (nextPauseState) {
-            soundManager.stopSpeech();
-          }
-          this.setState({ isPauseMenuOpen: nextPauseState });
-        }
-      }
+    bindGlobalKeyboard({
+      onNextDialogueSlide: () => this.nextDialogueSlide(),
+      onCloseDialogue: () => this.closeKingdomDialogue(),
+      onTogglePauseMenu: () => {
+        const nextPauseState = !this.state.isPauseMenuOpen;
+        this.setState({ isPauseMenuOpen: nextPauseState });
+      },
+      onCloseModals: () => {
+        this.setState({ isHowToPlayOpen: false, isSettingsOpen: false });
+      },
+      isDialogueOpen: () => this.state.isDialogueOpen,
+      isHowToPlayOpen: () => this.state.isHowToPlayOpen,
+      isSettingsOpen: () => this.state.isSettingsOpen,
+      isWorldMapOrQuestionScreen: () => this.state.screen === 'world_map' || this.state.screen === 'question',
+      isPauseMenuOpen: () => this.state.isPauseMenuOpen
     });
   }
 
