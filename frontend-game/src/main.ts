@@ -13,6 +13,7 @@ import { CompletedScreen } from './components/screens/CompletedScreen';
 import { HowToPlayModal } from './components/modals/HowToPlayModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { PauseMenuModal } from './components/modals/PauseMenuModal';
+import { DialogueOverlay } from './components/overlays/DialogueOverlay';
 import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, getAvatarBySlug } from './utils/constants';
 import { showToast } from './utils/toast';
 import {
@@ -48,6 +49,9 @@ class StudentArcadeGame {
   private howToPlayModal: HowToPlayModal | null = null;
   private settingsModal: SettingsModal | null = null;
   private pauseMenuModal: PauseMenuModal | null = null;
+
+  // Overlay components
+  private dialogueOverlay: DialogueOverlay | null = null;
 
   private state: StudentGameAppState = {
     screen: 'title',
@@ -1800,140 +1804,31 @@ class StudentArcadeGame {
   }
 
   private renderDialogueOverlay() {
-    const OVERLAY_ID = 'dialogueOverlayContainer';
-    const existing = document.getElementById(OVERLAY_ID);
-
-    if (!this.state.isDialogueOpen) {
-      if (existing) existing.remove();
-      return;
+    if (!this.dialogueOverlay) {
+      this.dialogueOverlay = new DialogueOverlay({
+        isOpen: this.state.isDialogueOpen,
+        dialogueType: this.state.dialogueType,
+        dialogueKingdomId: this.state.dialogueKingdomId,
+        dialogueSlideIndex: this.state.dialogueSlideIndex,
+        playerName: this.state.playerName,
+        onNextSlide: () => this.nextDialogueSlide(),
+        onPrevSlide: () => this.prevDialogueSlide(),
+        onClose: () => this.closeKingdomDialogue()
+      });
+    } else {
+      // Update props for re-render
+      this.dialogueOverlay = new DialogueOverlay({
+        isOpen: this.state.isDialogueOpen,
+        dialogueType: this.state.dialogueType,
+        dialogueKingdomId: this.state.dialogueKingdomId,
+        dialogueSlideIndex: this.state.dialogueSlideIndex,
+        playerName: this.state.playerName,
+        onNextSlide: () => this.nextDialogueSlide(),
+        onPrevSlide: () => this.prevDialogueSlide(),
+        onClose: () => this.closeKingdomDialogue()
+      });
     }
-
-    const kd = this.getActiveDialogue();
-    const slide = kd.slides[this.state.dialogueSlideIndex] || kd.slides[0];
-    const isFinalSlide = this.state.dialogueSlideIndex >= kd.slides.length - 1;
-    const hasPrev = this.state.dialogueSlideIndex > 0;
-
-    const formattedText = slide.text.replace(
-      '{playerName}',
-      `<span class="dialogue-name-highlight">${this.state.playerName || 'Adventurer'}</span>`
-    );
-
-    const dotsHtml = kd.slides
-      .map((_, i) => `<div class="dialogue-dot ${i === this.state.dialogueSlideIndex ? 'active' : ''}"></div>`)
-      .join('');
-
-    const prevBtnHtml = hasPrev
-      ? `<button id="dialoguePrevBtn" class="dialogue-btn-prev"><span>◀ PREV</span></button>`
-      : '';
-
-    // If overlay is already in the DOM, update in-place without tearing down backdrop (prevents screen blinking!)
-    if (existing) {
-      const speakerEl = existing.querySelector('.dialogue-speaker-name');
-      if (speakerEl) speakerEl.textContent = slide.speaker;
-
-      const badgeEl = existing.querySelector('.dialogue-badge-sub');
-      if (badgeEl) badgeEl.textContent = slide.titleBadge;
-
-      const textEl = existing.querySelector('.dialogue-speech-text');
-      if (textEl) textEl.innerHTML = formattedText;
-
-      const dotsContainer = existing.querySelector('.dialogue-step-dots');
-      if (dotsContainer) dotsContainer.innerHTML = dotsHtml;
-
-      const actionBtn = existing.querySelector('#dialogueActionBtn span');
-      if (actionBtn) actionBtn.textContent = slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶');
-
-      const actionsContainer = existing.querySelector('.dialogue-footer-actions');
-      if (actionsContainer) {
-        actionsContainer.innerHTML = `
-          ${prevBtnHtml}
-          <button id="dialogueActionBtn" class="dialogue-btn-action">
-            <span>${slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶')}</span>
-          </button>
-        `;
-        existing.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.prevDialogueSlide();
-        });
-        existing.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.nextDialogueSlide();
-        });
-      }
-
-      const charImg = existing.querySelector<HTMLImageElement>('.dialogue-char-img');
-      if (charImg && slide.characterImage) {
-        charImg.src = slide.characterImage;
-      }
-      return;
-    }
-
-    // Initial render
-    const overlay = document.createElement('div');
-    overlay.id = OVERLAY_ID;
-    overlay.className = 'dialogue-overlay-backdrop';
-
-    const charHtml = slide.characterImage
-      ? `<div class="dialogue-char-stage">
-           <img class="dialogue-char-img" src="${slide.characterImage}" alt="${slide.speaker}" />
-           <div class="dialogue-char-ground-shadow"></div>
-         </div>`
-      : '';
-
-    overlay.innerHTML = `
-      <div class="dialogue-wrapper ${slide.characterImage ? 'has-character' : 'full-dialogue'}">
-        <div class="dialogue-card">
-          <div class="dialogue-header">
-            <div class="dialogue-speaker-tag">
-              <span class="dialogue-speaker-name">${slide.speaker}</span>
-            </div>
-            <div class="dialogue-badge-sub">${slide.titleBadge}</div>
-            <button id="dialogueSkipBtn" class="dialogue-skip-btn">Skip ❯❯</button>
-          </div>
-
-          <div class="dialogue-body">
-            <div class="dialogue-speech-text">${formattedText}</div>
-          </div>
-
-          <div class="dialogue-footer">
-            <div class="dialogue-step-dots">
-              ${dotsHtml}
-            </div>
-            <div class="dialogue-footer-actions">
-              ${prevBtnHtml}
-              <button id="dialogueActionBtn" class="dialogue-btn-action">
-                <span>${slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶')}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        ${charHtml}
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    // Event Listeners
-    overlay.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.prevDialogueSlide();
-    });
-
-    overlay.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.nextDialogueSlide();
-    });
-
-    overlay.querySelector('#dialogueSkipBtn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.closeKingdomDialogue();
-    });
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        this.nextDialogueSlide();
-      }
-    });
+    this.dialogueOverlay.render();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
