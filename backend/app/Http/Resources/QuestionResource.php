@@ -16,6 +16,7 @@ class QuestionResource extends JsonResource
             'question_type'             => $this->question_type ?? 'multiple_choice',
             'sentence'                  => $this->sentence,
             'highlighted_word'          => $this->highlighted_word,
+            'context_clue'              => $this->context_clue,
             'image_url'                 => $this->image_url,
             'image_cloudinary_public_id' => $this->image_cloudinary_public_id,
             'voice_audio_url'            => $this->voice_audio_url,

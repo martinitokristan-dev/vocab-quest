@@ -16,7 +16,7 @@ class MapResource extends JsonResource
             'title'                          => $this->title,
             'background_url'                 => $this->background_url,
             'background_cloudinary_public_id' => $this->background_cloudinary_public_id,
-            'question_count'                 => $this->question_count,
+            'question_count'                 => $this->relationLoaded('questions') ? $this->questions->count() : ($this->questions_count ?? $this->questions()->count()),
             'published'                      => $this->published,
             'character'                      => $this->whenLoaded('character'),
             'questions'                      => QuestionResource::collection($this->whenLoaded('questions')),

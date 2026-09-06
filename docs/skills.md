@@ -92,6 +92,23 @@ Reject anything not covered above with a 422, not a silent default.
 
 ---
 
-## 6. When the agent is uncertain
+## 6. Typography scale (Teacher Portal)
+
+Apply these font sizes and weights consistently across the teacher portal:
+
+| Element | Recommended Size | Weight (Style) | Usage & Context |
+|---------|------------------|---------------|-----------------|
+| Hero Section (H1) | 48px – 64px | Bold / Black | Main landing page headline |
+| Section Heading (H2) | 32px – 40px | Bold | Top-level section titles |
+| Sub-heading (H3) | 24px – 28px | Semi-Bold | Card titles or subsections |
+| Body Text (Large) | 18px | Regular | Editorial text or intro paragraphs |
+| Body Text (Standard) | 16px | Regular | The baseline. Used for 90% of UI reading text |
+| Buttons & Nav Links | 14px – 16px | Medium / Semi-Bold | Clickable actions and navigation menus |
+| Labels & Form Titles | 14px | Medium | Input fields, tags, and small titles |
+| Indicators & Captions | 12px | Regular / Medium | Tooltips, metadata, errors, and badges |
+
+---
+
+## 7. When the agent is uncertain
 
 If a request is ambiguous or would require inventing a decision not covered in architecture.md (e.g. "what happens if a teacher deletes a vocabulary word that's referenced by a past game session"), **stop and ask** rather than picking a default silently. Small, reversible defaults (variable naming, file layout within an already-defined folder) don't need a check-in — architectural or data-integrity decisions do.

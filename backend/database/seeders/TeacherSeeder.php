@@ -26,12 +26,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 2. Create Map 1 (3 Questions)
+        // 2. Create Map 1
         $map1 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 1],
             [
                 'title'                          => 'EPCES Adventure Entrance',
-                'question_count'                 => 3,
+                'question_count'                 => 5,
                 'published'                      => true,
                 'background_url'                 => '/assets/kingdom_epces.jpg',
                 'background_cloudinary_public_id' => 'map_bg_1',
@@ -111,9 +111,10 @@ class TeacherSeeder extends Seeder
         );
         $q1->answers()->delete();
         $q1->answers()->createMany([
-            ['text' => 'Very tired',  'is_correct' => true],
-            ['text' => 'Very happy',  'is_correct' => false],
-            ['text' => 'Very scared', 'is_correct' => false],
+            ['text' => 'Very tired',      'is_correct' => true],
+            ['text' => 'Very happy',      'is_correct' => false],
+            ['text' => 'Very scared',     'is_correct' => false],
+            ['text' => 'Full of energy',  'is_correct' => false],
         ]);
 
         $q2 = Question::updateOrCreate(
@@ -131,6 +132,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Courageous', 'is_correct' => true],
             ['text' => 'Cowardly',   'is_correct' => false],
             ['text' => 'Silent',     'is_correct' => false],
+            ['text' => 'Fearful',    'is_correct' => false],
         ]);
 
         $q3 = Question::updateOrCreate(
@@ -145,9 +147,46 @@ class TeacherSeeder extends Seeder
         );
         $q3->answers()->delete();
         $q3->answers()->createMany([
-            ['text' => 'Victorious', 'is_correct' => true],
-            ['text' => 'Defeated',   'is_correct' => false],
-            ['text' => 'Angry',      'is_correct' => false],
+            ['text' => 'Victorious',   'is_correct' => true],
+            ['text' => 'Defeated',     'is_correct' => false],
+            ['text' => 'Angry',        'is_correct' => false],
+            ['text' => 'Disappointed', 'is_correct' => false],
+        ]);
+
+        $q1_4 = Question::updateOrCreate(
+            ['map_id' => $map1->id, 'order_index' => 4],
+            [
+                'sentence'              => 'The ancient library was filled with numerous fascinating books.',
+                'highlighted_word'      => 'numerous',
+                'image_url'             => 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=800&auto=format&fit=crop&q=80',
+                'has_context_highlight' => true,
+                'has_image'             => true,
+            ]
+        );
+        $q1_4->answers()->delete();
+        $q1_4->answers()->createMany([
+            ['text' => 'Many',   'is_correct' => true],
+            ['text' => 'Few',    'is_correct' => false],
+            ['text' => 'Hidden', 'is_correct' => false],
+            ['text' => 'Single', 'is_correct' => false],
+        ]);
+
+        $q1_5 = Question::updateOrCreate(
+            ['map_id' => $map1->id, 'order_index' => 5],
+            [
+                'sentence'              => 'She demonstrated remarkable resilience when overcoming the obstacle.',
+                'highlighted_word'      => 'resilience',
+                'image_url'             => 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&auto=format&fit=crop&q=80',
+                'has_context_highlight' => true,
+                'has_image'             => true,
+            ]
+        );
+        $q1_5->answers()->delete();
+        $q1_5->answers()->createMany([
+            ['text' => 'Strength to recover', 'is_correct' => true],
+            ['text' => 'Fear and worry',     'is_correct' => false],
+            ['text' => 'Laziness',           'is_correct' => false],
+            ['text' => 'Giving up quickly',  'is_correct' => false],
         ]);
 
         // 7. Seed Questions for Map 2 (Bayan ng Prosperidad - 5 Questions)
@@ -156,9 +195,10 @@ class TeacherSeeder extends Seeder
             [
                 'sentence'              => 'The diligent student organized all her study notes neatly.',
                 'highlighted_word'      => 'diligent',
-                'image_url'             => 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop&q=80',
+                'context_clue'          => 'organized all her study notes neatly',
+                'image_url'             => null,
                 'has_context_highlight' => true,
-                'has_image'             => true,
+                'has_image'             => false,
             ]
         );
         $q4->answers()->delete();
@@ -166,6 +206,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Hardworking and attentive', 'is_correct' => true],
             ['text' => 'Lazy and careless',         'is_correct' => false],
             ['text' => 'Forgetful',                 'is_correct' => false],
+            ['text' => 'Easily distracted',         'is_correct' => false],
         ]);
 
         $q5 = Question::updateOrCreate(
@@ -173,9 +214,10 @@ class TeacherSeeder extends Seeder
             [
                 'sentence'              => 'The town fiesta was filled with vibrant and colorful decorations.',
                 'highlighted_word'      => 'vibrant',
-                'image_url'             => 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&auto=format&fit=crop&q=80',
+                'context_clue'          => 'colorful decorations',
+                'image_url'             => null,
                 'has_context_highlight' => true,
-                'has_image'             => true,
+                'has_image'             => false,
             ]
         );
         $q5->answers()->delete();
@@ -183,6 +225,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Bright and lively', 'is_correct' => true],
             ['text' => 'Dull and gloomy',   'is_correct' => false],
             ['text' => 'Silent and dark',   'is_correct' => false],
+            ['text' => 'Pale and faded',    'is_correct' => false],
         ]);
 
         $q6 = Question::updateOrCreate(
@@ -190,16 +233,18 @@ class TeacherSeeder extends Seeder
             [
                 'sentence'              => 'The ancient tree stood in the town square for hundreds of years.',
                 'highlighted_word'      => 'ancient',
-                'image_url'             => 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&auto=format&fit=crop&q=80',
+                'context_clue'          => 'for hundreds of years',
+                'image_url'             => null,
                 'has_context_highlight' => true,
-                'has_image'             => true,
+                'has_image'             => false,
             ]
         );
         $q6->answers()->delete();
         $q6->answers()->createMany([
-            ['text' => 'Extremely old', 'is_correct' => true],
-            ['text' => 'Brand new',     'is_correct' => false],
-            ['text' => 'Tiny and weak', 'is_correct' => false],
+            ['text' => 'Extremely old',   'is_correct' => true],
+            ['text' => 'Brand new',       'is_correct' => false],
+            ['text' => 'Tiny and weak',   'is_correct' => false],
+            ['text' => 'Modern and young', 'is_correct' => false],
         ]);
 
         $q7 = Question::updateOrCreate(
@@ -207,9 +252,10 @@ class TeacherSeeder extends Seeder
             [
                 'sentence'              => 'The curious boy examined the mysterious footprint in the soil.',
                 'highlighted_word'      => 'curious',
-                'image_url'             => 'https://images.unsplash.com/photo-1507668077129-56e32842fceb?w=800&auto=format&fit=crop&q=80',
+                'context_clue'          => 'examined the mysterious footprint',
+                'image_url'             => null,
                 'has_context_highlight' => true,
-                'has_image'             => true,
+                'has_image'             => false,
             ]
         );
         $q7->answers()->delete();
@@ -217,6 +263,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Eager to investigate', 'is_correct' => true],
             ['text' => 'Uninterested',         'is_correct' => false],
             ['text' => 'Sleepy',               'is_correct' => false],
+            ['text' => 'Careless',             'is_correct' => false],
         ]);
 
         $q8 = Question::updateOrCreate(
@@ -224,16 +271,18 @@ class TeacherSeeder extends Seeder
             [
                 'sentence'              => 'The sunrise over the river created a peaceful morning view.',
                 'highlighted_word'      => 'peaceful',
-                'image_url'             => 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
+                'context_clue'          => 'sunrise over the river',
+                'image_url'             => null,
                 'has_context_highlight' => true,
-                'has_image'             => true,
+                'has_image'             => false,
             ]
         );
         $q8->answers()->delete();
         $q8->answers()->createMany([
-            ['text' => 'Calm and serene', 'is_correct' => true],
+            ['text' => 'Calm and serene',  'is_correct' => true],
             ['text' => 'Chaotic and loud', 'is_correct' => false],
-            ['text' => 'Dangerous',        'is_correct' => false],
+            ['text' => 'Dangerous',       'is_correct' => false],
+            ['text' => 'Stormy and wild',  'is_correct' => false],
         ]);
 
         // 8. Seed Questions for Map 3 (Provincial Capitol - 5 Questions)
@@ -252,6 +301,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Grand and impressive', 'is_correct' => true],
             ['text' => 'Hidden and small',     'is_correct' => false],
             ['text' => 'Ordinary',             'is_correct' => false],
+            ['text' => 'Simple and plain',     'is_correct' => false],
         ]);
 
         $q10 = Question::updateOrCreate(
@@ -269,6 +319,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Important in history', 'is_correct' => true],
             ['text' => 'Futuristic',           'is_correct' => false],
             ['text' => 'Unimportant',          'is_correct' => false],
+            ['text' => 'Fictional',            'is_correct' => false],
         ]);
 
         $q11 = Question::updateOrCreate(
@@ -286,6 +337,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Exceptionally clever', 'is_correct' => true],
             ['text' => 'Foolish',              'is_correct' => false],
             ['text' => 'Common',               'is_correct' => false],
+            ['text' => 'Unoriginal',           'is_correct' => false],
         ]);
 
         $q12 = Question::updateOrCreate(
@@ -303,6 +355,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Pleasantly agreeable and tuneful', 'is_correct' => true],
             ['text' => 'Harsh and screeching',             'is_correct' => false],
             ['text' => 'Completely silent',                'is_correct' => false],
+            ['text' => 'Clashing and noisy',               'is_correct' => false],
         ]);
 
         $q13 = Question::updateOrCreate(
@@ -320,6 +373,7 @@ class TeacherSeeder extends Seeder
             ['text' => 'Successful and thriving', 'is_correct' => true],
             ['text' => 'Poor and struggling',      'is_correct' => false],
             ['text' => 'Inactive',                 'is_correct' => false],
+            ['text' => 'Bankrupt and ruined',       'is_correct' => false],
         ]);
 
         // 9. Seed Active Game Room with PIN 123456
@@ -327,7 +381,7 @@ class TeacherSeeder extends Seeder
             ['teacher_id' => $teacher->id, 'pin' => '123456'],
             [
                 'name'           => 'Grade 5 — Section Alpha',
-                'status'         => 'waiting',
+                'status'         => 'in_progress',
                 'current_map_id' => $map1->id,
             ]
         );
@@ -364,6 +418,11 @@ class TeacherSeeder extends Seeder
                     'is_active' => true,
                 ]
             );
+        }
+
+        // Dynamically sync question counts for all maps based on actual seeded questions
+        foreach (Map::all() as $m) {
+            $m->update(['question_count' => $m->questions()->count()]);
         }
     }
 }

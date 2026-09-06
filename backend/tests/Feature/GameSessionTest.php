@@ -70,7 +70,7 @@ test('student join fails with non-existent PIN (422)', function () {
     ])->assertStatus(422)->assertJsonValidationErrors(['pin']);
 });
 
-test('student join is blocked when room status is in_progress (422)', function () {
+test('student can join when room status is in_progress (201)', function () {
     $env = setupGameRoom();
     $env['room']->update(['status' => 'in_progress']);
 
@@ -78,7 +78,7 @@ test('student join is blocked when room status is in_progress (422)', function (
         'pin'         => '123456',
         'player_name' => 'Alex',
         'avatar_slug' => 'wizard',
-    ])->assertStatus(422)->assertJsonValidationErrors(['pin']);
+    ])->assertStatus(201);
 });
 
 test('student join is blocked when room status is closed (422)', function () {

@@ -4,6 +4,49 @@ const RAW_URL = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_U
 export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
 export const API_BASE_URL = `${BACKEND_ORIGIN}/api`;
 
+// Simple in-memory cache with TTL
+class ApiCache {
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private ttl = 60000; // 60 seconds cache TTL
+
+  set(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    // Check if cache is expired
+    if (Date.now() - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  invalidate(pattern?: string): void {
+    if (pattern) {
+      // Invalidate all keys matching the pattern
+      for (const key of this.cache.keys()) {
+        if (key.includes(pattern)) {
+          this.cache.delete(key);
+        }
+      }
+    } else {
+      // Clear all cache
+      this.cache.clear();
+    }
+  }
+
+  invalidateAll(): void {
+    this.cache.clear();
+  }
+}
+
+const apiCache = new ApiCache();
+
 export function resolveMediaUrl(url?: string | null): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
@@ -43,6 +86,7 @@ export interface QuestionData {
   question_type?: 'multiple_choice' | 'identification';
   sentence: string;
   highlighted_word: string;
+  context_clue?: string | null;
   image_url?: string | null;
   voice_audio_url?: string | null;
   voice_video_url?: string | null;
@@ -93,6 +137,8 @@ export interface FeedbackAudioItem {
   phrase: string;
   audio_url: string;
   is_active: boolean;
+  map_id: number | null;
+  map?: { id: number; title: string; order_index: number } | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,7 +191,38 @@ class ApiClient {
     return localStorage.getItem('teacher_token');
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    let data: any = {};
+    const text = await response.text();
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { message: text };
+      }
+    }
+
+    if (!response.ok) {
+      // If 401 Unauthorized, clear stale token
+      if (response.status === 401) {
+        localStorage.removeItem('teacher_token');
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
+      const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : `Request failed with status ${response.status}`);
+      const error: any = new Error(errorMessage);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data as T;
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}, skipCache = false): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -157,27 +234,35 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Use cache for GET requests only
+    const isGetRequest = !options.method || options.method === 'GET';
+    const cacheKey = `${endpoint}`;
+    
+    if (isGetRequest && !skipCache) {
+      const cached = apiCache.get(cacheKey);
+      if (cached) {
+        return cached as T;
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      // If 401 Unauthorized, clear stale token
-      if (response.status === 401) {
-        localStorage.removeItem('teacher_token');
-        window.dispatchEvent(new Event('auth:unauthorized'));
-      }
-      const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
-      const error: any = new Error(errorMessage);
-      error.status = response.status;
-      error.data = data;
-      throw error;
+    const result = await this.handleResponse<T>(response);
+    
+    // Cache GET requests
+    if (isGetRequest) {
+      apiCache.set(cacheKey, result);
     }
+    
+    return result;
+  }
 
-    return data;
+  // Invalidate cache for specific patterns
+  invalidateCache(pattern?: string): void {
+    apiCache.invalidate(pattern);
   }
 
   // â”€â”€ Auth API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -221,9 +306,7 @@ class ApiClient {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE_URL}/maps`, { method: 'POST', headers, body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create map');
-      return data;
+      return this.handleResponse<{ data: MapData }>(res);
     }
 
     return this.request<{ data: MapData }>('/maps', {
@@ -250,15 +333,19 @@ class ApiClient {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE_URL}/maps/${id}`, { method: 'POST', headers, body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update map');
-      return data;
+      const result = this.handleResponse<{ data: MapData }>(res);
+      // Invalidate maps cache
+      this.invalidateCache('/maps');
+      return result;
     }
 
-    return this.request<{ data: MapData }>(`/maps/${id}`, {
+    const result = await this.request<{ data: MapData }>(`/maps/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
+    // Invalidate maps cache
+    this.invalidateCache('/maps');
+    return result;
   }
 
   async deleteMap(id: number) {
@@ -266,7 +353,10 @@ class ApiClient {
   }
 
   async publishMap(id: number) {
-    return this.request<{ data: MapData }>(`/maps/${id}/publish`, { method: 'POST' });
+    const result = await this.request<{ data: MapData }>(`/maps/${id}/publish`, { method: 'POST' });
+    // Invalidate maps cache
+    this.invalidateCache('/maps');
+    return result;
   }
 
   async saveMapCharacter(payload: {
@@ -291,6 +381,7 @@ class ApiClient {
     order_index: number;
     sentence: string;
     highlighted_word: string;
+    context_clue?: string;
     has_context_highlight?: boolean;
     has_image?: boolean;
     image_url?: string;
@@ -308,6 +399,7 @@ class ApiClient {
       formData.append('order_index', String(payload.order_index));
       formData.append('sentence', payload.sentence);
       formData.append('highlighted_word', payload.highlighted_word);
+      if (payload.context_clue) formData.append('context_clue', payload.context_clue);
       formData.append('has_context_highlight', payload.has_context_highlight ? '1' : '0');
       formData.append('has_image', (payload.image_file || payload.image_url) ? '1' : '0');
       if (payload.image_file) formData.append('image_file', payload.image_file);
@@ -341,21 +433,21 @@ class ApiClient {
         body: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
-        const error: any = new Error(errorMessage);
-        error.status = response.status;
-        error.data = data;
-        throw error;
-      }
-      return data;
+      const result = this.handleResponse<{ data: QuestionData }>(response);
+      // Invalidate questions cache
+      this.invalidateCache(`/maps/${mapId}/questions`);
+      this.invalidateCache('/maps');
+      return result;
     }
 
-    return this.request<{ data: QuestionData }>(`/maps/${mapId}/questions`, {
+    const result = await this.request<{ data: QuestionData }>(`/maps/${mapId}/questions`, {
       method: 'POST',
       body: JSON.stringify({ ...payload, map_id: mapId }),
     });
+    // Invalidate questions cache
+    this.invalidateCache(`/maps/${mapId}/questions`);
+    this.invalidateCache('/maps');
+    return result;
   }
 
   async updateQuestion(id: number, payload: Partial<Omit<QuestionData, 'answers'>> & {
@@ -370,6 +462,7 @@ class ApiClient {
       if (payload.order_index !== undefined) formData.append('order_index', String(payload.order_index));
       if (payload.sentence !== undefined) formData.append('sentence', payload.sentence);
       if (payload.highlighted_word !== undefined) formData.append('highlighted_word', payload.highlighted_word);
+      if (payload.context_clue !== undefined) formData.append('context_clue', payload.context_clue || '');
       if (payload.image_file) formData.append('image_file', payload.image_file);
       if (payload.image_url !== undefined) formData.append('image_url', payload.image_url || '');
 
@@ -403,25 +496,29 @@ class ApiClient {
         body: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Request failed');
-        const error: any = new Error(errorMessage);
-        error.status = response.status;
-        error.data = data;
-        throw error;
-      }
-      return data;
+      const result = this.handleResponse<{ data: QuestionData }>(response);
+      // Invalidate questions cache
+      this.invalidateCache(`/questions/${id}`);
+      this.invalidateCache('/maps');
+      return result;
     }
 
-    return this.request<{ data: QuestionData }>(`/questions/${id}`, {
+    const result = await this.request<{ data: QuestionData }>(`/questions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
+    // Invalidate questions cache
+    this.invalidateCache(`/questions/${id}`);
+    this.invalidateCache('/maps');
+    return result;
   }
 
   async deleteQuestion(id: number) {
-    return this.request<{ message: string }>(`/questions/${id}`, { method: 'DELETE' });
+    const result = await this.request<{ message: string }>(`/questions/${id}`, { method: 'DELETE' });
+    // Invalidate questions cache
+    this.invalidateCache('/questions');
+    this.invalidateCache('/maps');
+    return result;
   }
 
   // â”€â”€ Vocabulary Audio API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -459,15 +556,7 @@ class ApiClient {
       body: formData,
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Upload failed');
-      const error: any = new Error(errorMessage);
-      error.status = response.status;
-      error.data = data;
-      throw error;
-    }
-    return data;
+    return this.handleResponse(response);
   }
 
   // â”€â”€ Rooms API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -477,39 +566,61 @@ class ApiClient {
 
   async createRoom(payload?: { name?: string; max_students?: number; current_map_id?: number } | string) {
     const body = typeof payload === 'string' ? { name: payload } : payload || {};
-    return this.request<{ data: RoomData }>('/rooms', {
+    const result = await this.request<{ data: RoomData }>('/rooms', {
       method: 'POST',
       body: JSON.stringify(body),
     });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async startRoom(id: number) {
-    return this.request<{ data: RoomData }>(`/rooms/${id}/start`, { method: 'POST' });
+    const result = await this.request<{ data: RoomData }>(`/rooms/${id}/start`, { method: 'POST' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async pauseRoom(id: number) {
-    return this.request<{ data: RoomData }>(`/rooms/${id}/pause`, { method: 'POST' });
+    const result = await this.request<{ data: RoomData }>(`/rooms/${id}/pause`, { method: 'POST' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async resumeRoom(id: number) {
-    return this.request<{ data: RoomData }>(`/rooms/${id}/resume`, { method: 'POST' });
+    const result = await this.request<{ data: RoomData }>(`/rooms/${id}/resume`, { method: 'POST' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async closeRoom(id: number) {
-    return this.request<{ data: RoomData }>(`/rooms/${id}/close`, { method: 'POST' });
+    const result = await this.request<{ data: RoomData }>(`/rooms/${id}/close`, { method: 'POST' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async resetRoom(id: number) {
-    return this.request<{ data: RoomData }>(`/rooms/${id}/reset`, { method: 'POST' });
+    const result = await this.request<{ data: RoomData }>(`/rooms/${id}/reset`, { method: 'POST' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async deleteRoom(id: number) {
-    return this.request<{ message: string }>(`/rooms/${id}`, { method: 'DELETE' });
+    const result = await this.request<{ message: string }>(`/rooms/${id}`, { method: 'DELETE' });
+    // Invalidate rooms cache
+    this.invalidateCache('/rooms');
+    return result;
   }
 
   async getRoomResults(id: number) {
     return this.request<RoomResultsData>(`/rooms/${id}/results`);
   }
+
 
   // ── Feedback Praise & Cheer-Up Voiceover API ──
   async getFeedbackAudios() {
@@ -521,12 +632,16 @@ class ApiClient {
     phrase: string;
     audio_file?: File | Blob | null;
     audio_url?: string;
+    map_id?: number | null;
   }) {
     if (payload.audio_file) {
       const formData = new FormData();
       formData.append('type', payload.type);
       formData.append('phrase', payload.phrase);
       formData.append('audio_file', payload.audio_file, 'feedback_voice.webm');
+      if (payload.map_id != null) {
+        formData.append('map_id', String(payload.map_id));
+      }
 
       const token = this.getToken();
       const headers: Record<string, string> = { Accept: 'application/json' };
@@ -540,33 +655,42 @@ class ApiClient {
         body: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Upload failed');
-      }
-      return data;
+      const result = this.handleResponse<{ message: string; data: FeedbackAudioItem }>(response);
+      // Invalidate feedback audios cache
+      this.invalidateCache('/feedback-audios');
+      return result;
     } else {
-      return this.request<{ message: string; data: FeedbackAudioItem }>('/feedback-audios', {
+      const result = await this.request<{ message: string; data: FeedbackAudioItem }>('/feedback-audios', {
         method: 'POST',
         body: JSON.stringify({
           type: payload.type,
           phrase: payload.phrase,
           audio_url: payload.audio_url,
+          map_id: payload.map_id ?? null,
         }),
       });
+      // Invalidate feedback audios cache
+      this.invalidateCache('/feedback-audios');
+      return result;
     }
   }
 
   async toggleFeedbackAudio(id: number) {
-    return this.request<{ message: string; data: FeedbackAudioItem }>(`/feedback-audios/${id}/toggle`, {
+    const result = await this.request<{ message: string; data: FeedbackAudioItem }>(`/feedback-audios/${id}/toggle`, {
       method: 'POST',
     });
+    // Invalidate feedback audios cache
+    this.invalidateCache('/feedback-audios');
+    return result;
   }
 
   async deleteFeedbackAudio(id: number) {
-    return this.request<{ message: string }>(`/feedback-audios/${id}`, {
+    const result = await this.request<{ message: string }>(`/feedback-audios/${id}`, {
       method: 'DELETE',
     });
+    // Invalidate feedback audios cache
+    this.invalidateCache('/feedback-audios');
+    return result;
   }
 }
 

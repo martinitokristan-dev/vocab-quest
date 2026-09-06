@@ -23,11 +23,12 @@ class StudentQuestionResource extends JsonResource
             'question_type'             => $this->question_type ?? 'multiple_choice',
             'sentence'                  => $this->sentence,
             'highlighted_word'          => $this->highlighted_word,
+            'context_clue'              => $this->context_clue,
             'audio_url'                 => $this->voice_audio_url ?? $approvedAudio?->url,
             'voice_audio_url'           => $this->voice_audio_url,
             'voice_video_url'           => $this->voice_video_url,
             'voice_media_type'          => $this->voice_media_type ?? 'none',
-            'image_url'                 => $this->image_url,
+            'image_url'                 => ($this->map_id === 2) ? null : $this->image_url,
             'answers'                   => $isIdentification ? [] : $this->answers->map(fn ($ans) => [
                 'id'   => $ans->id,
                 'text' => $ans->text,

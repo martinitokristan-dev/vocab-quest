@@ -29,6 +29,17 @@ class Map extends Model
         'published'      => 'boolean',
     ];
 
+    public function getQuestionCountAttribute(): int
+    {
+        if ($this->relationLoaded('questions')) {
+            return $this->questions->count();
+        }
+        if (isset($this->attributes['questions_count'])) {
+            return (int) $this->attributes['questions_count'];
+        }
+        return $this->questions()->count();
+    }
+
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');

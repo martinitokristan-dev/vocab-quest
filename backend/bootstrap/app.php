@@ -17,5 +17,23 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->wantsJson()) {
+                $prev = $e->getPrevious();
+                if ($prev instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                    $modelName = class_basename($prev->getModel());
+                    return response()->json([
+                        'message' => "The requested {$modelName} was not found or has already been deleted.",
+                    ], 404);
+                }
+            }
+        });
+        $exceptions->render(function (\Illuminate\Database\Eloquent\ModelNotFoundException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->wantsJson()) {
+                $modelName = class_basename($e->getModel());
+                return response()->json([
+                    'message' => "The requested {$modelName} was not found or has already been deleted.",
+                ], 404);
+            }
+        });
     })->create();
