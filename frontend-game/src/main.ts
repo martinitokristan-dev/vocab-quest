@@ -1,5 +1,5 @@
 import './style.css';
-import { gameApi, type CurrentQuestionResponse, type SubmitAnswerResponse, isSessionAuthError } from './api';
+import { gameApi, isSessionAuthError } from './api';
 import { Game2DMapRenderer } from './game2d';
 import { soundManager } from './soundManager';
 import { Icons } from './icons';
@@ -13,8 +13,6 @@ import { CompletedScreen } from './components/screens/CompletedScreen';
 import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, getAvatarBySlug } from './utils/constants';
 import { showToast } from './utils/toast';
 import {
-  type MapInteractionPhase,
-  type PendingMapAction,
   globalLevelNumber,
   getStepRef,
   computeWalkPath,
@@ -27,73 +25,7 @@ import {
   buildKingdomTransitionAction,
 } from './mapFlowController';
 import { showStarBurstOverlay } from './starBurstOverlay';
-
-interface StudentGameAppState {
-  screen: 'title' | 'loading' | 'join' | 'world_map' | 'question' | 'completed';
-  pin: string;
-  playerName: string;
-  avatarSlug: string;
-  currentData: CurrentQuestionResponse | null;
-  selectedAnswerId: number | null;
-  submitResult: SubmitAnswerResponse | null;
-  submitting: boolean;
-  score: number;
-  error: string | null;
-  attempts: Record<number, number>; // questionId -> attempt count
-  history: Array<{
-    questionId: number;
-    mapId?: number;
-    orderIndex?: number;
-    questionIndex?: number;
-    word: string;
-    isCorrect: boolean;
-    stars: number;
-    selectedAnswerId?: number;
-    typedAnswer?: string;
-    questionData?: any;
-  }>;
-  viewingHistoryItem: {
-    questionId: number;
-    mapId?: number;
-    orderIndex?: number;
-    questionIndex?: number;
-    word: string;
-    isCorrect: boolean;
-    stars: number;
-    selectedAnswerId?: number;
-    typedAnswer?: string;
-    questionData?: any;
-  } | null;
-  lastPraiseIndex: number;
-  lastTryAgainIndex: number;
-  lastHappyPoseIndex: number;
-  lastSadPoseIndex: number;
-  customMascotSpeech: string | null;
-  currentFeedbackSprite: string | null;
-  wrongAnswerIds: number[];
-
-  // Modals, Dialogue & Status
-  isDialogueOpen: boolean;
-  dialogueKingdomId: number;
-  dialogueSlideIndex: number;
-  seenKingdomDialogues: number[];
-  isHowToPlayOpen: boolean;
-  isSettingsOpen: boolean;
-  isPauseMenuOpen: boolean;
-  isTeacherPaused: boolean;
-  roomStatus: 'waiting' | 'in_progress' | 'paused' | 'closed' | string;
-  loadingProgress: number; // 0 to 12 segments
-  loadingTargetScreen: 'join' | 'world_map';
-
-  // Map flow state
-  mapPhase: MapInteractionPhase;
-  enteredKingdomIds: number[];
-  pendingMapAction: PendingMapAction | null;
-  lastCompletedStep: { mapId: number; questionIndex: number } | null;
-  starCelebration: { stars: number; globalLevel: number } | null;
-  dialogueType: 'global' | 'kingdom';
-  hasSeenGlobalIntro: boolean;
-}
+import { type StudentGameAppState } from './types/state';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
