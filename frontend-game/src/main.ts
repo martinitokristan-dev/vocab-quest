@@ -33,6 +33,7 @@ import { type StudentGameAppState } from './types/state';
 import { mergeHistoryWithCompleted } from './utils/history';
 import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/teacherAnimation';
 import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackAudios } from './utils/feedbackAudio';
+import { syncUrl, initRouter, type ScreenType } from './utils/router';
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -170,126 +171,25 @@ class StudentArcadeGame {
   }
 
 
-  private getPathForScreen(screen: StudentGameAppState['screen']): string {
-    switch (screen) {
-      case 'title':
-        return '/';
-      case 'join':
-        return this.state.pin ? `/join?pin=${encodeURIComponent(this.state.pin)}` : '/join';
-      case 'world_map':
-        return '/map';
-      case 'question':
-        return '/play';
-      case 'completed':
-        return '/completed';
-      default:
-        return '/';
-    }
-  }
-
   private syncUrl(screen: StudentGameAppState['screen'], replace = false) {
-    if (screen === 'loading') return;
-    const targetPath = this.getPathForScreen(screen);
-    const currentFull = window.location.pathname + window.location.search;
-
-    if (currentFull !== targetPath) {
-      if (replace) {
-        window.history.replaceState({ screen }, '', targetPath);
-      } else {
-        window.history.pushState({ screen }, '', targetPath);
-      }
-    }
+    syncUrl(screen, this.state.pin, replace);
   }
 
   private initRouter() {
-    window.addEventListener('popstate', () => {
-      this.handlePopState();
-    });
-
-    // Parse initial route and restore student session profile if active
-    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
-    const params = new URLSearchParams(window.location.search);
-    const pinFromUrl = params.get('pin') || '';
-    const profile = gameApi.getSessionProfile();
-    const hasToken = Boolean(profile.token);
-
-    if (profile.playerName) this.state.playerName = profile.playerName;
-    if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
-    if (profile.pin) this.state.pin = profile.pin;
-    if (pinFromUrl) this.state.pin = pinFromUrl;
-
-    if (hasToken) {
-      if (path === '/completed') {
-        this.state.screen = 'completed';
-        this.syncUrl('completed', true);
+    initRouter({
+      onScreenChange: (screen: ScreenType) => {
+        this.setState({ screen });
         this.render();
-      } else if (path === '/play' || path === '/question') {
-        this.startLoading('world_map');
-        this.fetchCurrentQuestion().then(() => {
-          const isWaiting = this.state.roomStatus === 'waiting' ||
-                            this.state.currentData?.room_status === 'waiting' ||
-                            this.state.currentData?.data?.room_status === 'waiting';
-          if (isWaiting) {
-            this.setState({ screen: 'world_map' });
-            this.syncUrl('world_map', true);
-            this.showToast(
-              'Session Not Started',
-              'Your teacher has not started the session yet. Waiting for other players to join!',
-              'warning'
-            );
-          } else {
-            this.setState({ screen: 'question' });
-          }
-          this.startLightweightPoller();
-        });
-      } else {
-        this.startLoading('world_map');
-        this.fetchCurrentQuestion('world_map').then(() => {
-          this.startLightweightPoller();
-        });
+      },
+      onProfileRestore: (profile) => {
+        if (profile.playerName) this.state.playerName = profile.playerName;
+        if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
+        if (profile.pin) this.state.pin = profile.pin;
+      },
+      onPinUpdate: (pin) => {
+        this.state.pin = pin;
       }
-      return;
-    }
-
-    if (path === '/join') {
-      this.state.screen = 'join';
-      this.syncUrl('join', true);
-      this.render();
-    } else {
-      this.state.screen = 'title';
-      this.syncUrl('title', true);
-      this.render();
-    }
-  }
-
-  private handlePopState() {
-    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
-    const profile = gameApi.getSessionProfile();
-    const hasToken = Boolean(profile.token);
-
-    if (profile.playerName) this.state.playerName = profile.playerName;
-    if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
-    if (profile.pin) this.state.pin = profile.pin;
-
-    if (path === '/join') {
-      this.setState({ screen: 'join' });
-    } else if (path === '/map' || path === '/world-map') {
-      if (hasToken) {
-        this.setState({ screen: 'world_map' });
-      } else {
-        this.setState({ screen: 'join' });
-      }
-    } else if (path === '/play' || path === '/question') {
-      if (hasToken) {
-        this.setState({ screen: 'question' });
-      } else {
-        this.setState({ screen: 'join' });
-      }
-    } else if (path === '/completed') {
-      this.setState({ screen: 'completed' });
-    } else {
-      this.setState({ screen: hasToken ? 'world_map' : 'title' });
-    }
+    });
   }
 
   private async loadFeedbackAudios() {
