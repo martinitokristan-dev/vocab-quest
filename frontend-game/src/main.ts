@@ -10,6 +10,9 @@ import { LoadingScreen } from './components/screens/LoadingScreen';
 import { WorldMapScreen } from './components/screens/WorldMapScreen';
 import { QuestionScreen } from './components/screens/QuestionScreen';
 import { CompletedScreen } from './components/screens/CompletedScreen';
+import { HowToPlayModal } from './components/modals/HowToPlayModal';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { PauseMenuModal } from './components/modals/PauseMenuModal';
 import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, getAvatarBySlug } from './utils/constants';
 import { showToast } from './utils/toast';
 import {
@@ -40,6 +43,11 @@ class StudentArcadeGame {
   private worldMapScreen: WorldMapScreen | null = null;
   private questionScreen: QuestionScreen | null = null;
   private completedScreen: CompletedScreen | null = null;
+
+  // Modal components
+  private howToPlayModal: HowToPlayModal | null = null;
+  private settingsModal: SettingsModal | null = null;
+  private pauseMenuModal: PauseMenuModal | null = null;
 
   private state: StudentGameAppState = {
     screen: 'title',
@@ -1935,281 +1943,52 @@ class StudentArcadeGame {
     const existingModal = document.getElementById('modalContainer');
     if (existingModal) existingModal.remove();
 
-    if (!this.state.isHowToPlayOpen && !this.state.isSettingsOpen && !this.state.isPauseMenuOpen) {
-      return;
-    }
-
-    const modalContainer = document.createElement('div');
-    modalContainer.id = 'modalContainer';
-    modalContainer.className = 'modal-overlay';
-
     if (this.state.isHowToPlayOpen) {
-      modalContainer.innerHTML = `
-        <div class="modal-dialog modal-voxel-box" style="max-width: 720px; width: 92vw; padding: 30px 36px;">
-          <div class="modal-header">
-            <div class="modal-title minecraft-gold-title" style="font-family: var(--font-primary); font-size: 26px; font-weight: 700;">
-              HOW TO PLAY VOCAB QUEST
-            </div>
-            <button id="closeHowToPlayBtn" class="modal-close-btn voxel-close-btn" style="width: 40px; height: 40px; font-size: 20px;">✕</button>
-          </div>
-
-          <div class="how-to-vertical-list">
-            <div class="how-to-step-item">
-              <div class="step-badge-box step-badge-1">
-                <span>01</span>
-              </div>
-              <div class="step-info-col">
-                <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">JOIN GAME ROOM</div>
-                <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Enter your teacher's 6-digit Room PIN and choose your student character.</div>
-              </div>
-            </div>
-
-            <div class="how-to-step-item">
-              <div class="step-badge-box step-badge-2">
-                <span>02</span>
-              </div>
-              <div class="step-info-col">
-                <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">EXPLORE KINGDOMS</div>
-                <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Travel across EPCES School, Bayan ng Prosperidad, and the Provincial Capitol.</div>
-              </div>
-            </div>
-
-            <div class="how-to-step-item">
-              <div class="step-badge-box step-badge-3">
-                <span>03</span>
-              </div>
-              <div class="step-info-col">
-                <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">SOLVE VOCAB QUESTS</div>
-                <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Listen to pronunciations and earn stars on your first attempt!</div>
-              </div>
-            </div>
-
-            <div class="how-to-step-item">
-              <div class="step-badge-box step-badge-4">
-                <span>04</span>
-              </div>
-              <div class="step-info-col">
-                <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">LEVEL UP & WIN</div>
-                <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Earn quest points, unlock kingdoms, and top the classroom leaderboard.</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="closeHowToPlayBtnBottomFrame" class="vocab-btn-frame" style="margin-top: 20px;">
-            <button id="closeHowToPlayBtnBottom" class="vocab-btn vocab-btn-blue" style="height: 60px; font-size: 24px;">
-              <span>${Icons.check(22)}</span>
-              <span>GOT IT, LET'S PLAY</span>
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modalContainer);
-
-      const bottomFrame = document.getElementById('closeHowToPlayBtnBottomFrame');
-      bottomFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-
-      const closeHowTo = () => {
-        soundManager.playClick();
-        this.setState({ isHowToPlayOpen: false });
-      };
-      document.getElementById('closeHowToPlayBtn')?.addEventListener('click', closeHowTo);
-      bottomFrame?.addEventListener('click', closeHowTo);
+      if (!this.howToPlayModal) {
+        this.howToPlayModal = new HowToPlayModal({
+          onClose: () => this.setState({ isHowToPlayOpen: false })
+        });
+      }
+      this.howToPlayModal.render();
+      this.howToPlayModal.mount();
       return;
     }
 
     if (this.state.isSettingsOpen) {
-      const settings = soundManager.getSettings();
-
-      modalContainer.innerHTML = `
-        <div class="modal-dialog modal-voxel-box">
-          <div class="modal-header">
-            <div class="modal-title minecraft-gold-title" style="font-family: var(--font-primary); font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-              <span>${Icons.refresh(22)}</span>
-              <span>AUDIO & GAME SETTINGS</span>
-            </div>
-            <button id="closeSettingsBtn" class="modal-close-btn voxel-close-btn">✕</button>
-          </div>
-
-          <div class="settings-control-group">
-            <div class="settings-slider-row">
-              <div class="settings-slider-header">
-                <span class="minecraft-label" style="font-family: var(--font-primary); font-size: 16px; font-weight: 600;">Master Volume</span>
-                <span id="masterVolLabel" class="minecraft-value-badge">${Math.round(settings.masterVolume * 100)}%</span>
-              </div>
-              <input type="range" id="masterVolSlider" min="0" max="100" value="${Math.round(settings.masterVolume * 100)}" class="minecraft-range-slider" />
-            </div>
-
-            <div class="settings-slider-row">
-              <div class="settings-slider-header">
-                <span class="minecraft-label" style="font-family: var(--font-primary); font-size: 16px; font-weight: 600;">Sound Effects (SFX) Volume</span>
-                <span id="sfxVolLabel" class="minecraft-value-badge">${Math.round(settings.sfxVolume * 100)}%</span>
-              </div>
-              <input type="range" id="sfxVolSlider" min="0" max="100" value="${Math.round(settings.sfxVolume * 100)}" class="minecraft-range-slider" />
-            </div>
-
-            <div class="settings-slider-row">
-              <div class="settings-slider-header">
-                <span class="minecraft-label" style="font-family: var(--font-primary); font-size: 16px; font-weight: 600;">Background Music (BGM) Volume</span>
-                <span id="bgVolLabel" class="minecraft-value-badge">${Math.round(settings.bgmVolume * 100)}%</span>
-              </div>
-              <input type="range" id="bgmVolSlider" min="0" max="100" value="${Math.round(settings.bgmVolume * 100)}" class="minecraft-range-slider" />
-            </div>
-
-            <div class="settings-toggle-row">
-              <div>
-                <span class="minecraft-label" style="font-family: var(--font-primary); font-weight: 700; color: #F87171; display: block; font-size: 16px;">Mute All Audio</span>
-                <span style="font-size: 13px; color: #94A3B8;">Silence sound effects and vocabulary narration</span>
-              </div>
-              <input type="checkbox" id="muteToggle" ${settings.muted ? 'checked' : ''} class="minecraft-checkbox" />
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 14px; margin-top: 8px;">
-            <div id="testAudioBtnFrame" class="vocab-btn-frame" style="flex: 1;">
-              <button id="testAudioBtn" class="vocab-btn vocab-btn-blue" style="height: 52px; font-size: 20px;">
-                <span>${Icons.volume(20)}</span>
-                <span>TEST SOUND</span>
-              </button>
-            </div>
-            <div id="closeSettingsBtnBottomFrame" class="vocab-btn-frame" style="flex: 1;">
-              <button id="closeSettingsBtnBottom" class="vocab-btn vocab-btn-green" style="height: 52px; font-size: 20px;">
-                <span>${Icons.check(20)}</span>
-                <span>SAVE & CLOSE</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modalContainer);
-
-      const testFrame = document.getElementById('testAudioBtnFrame');
-      const saveFrame = document.getElementById('closeSettingsBtnBottomFrame');
-      testFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-      saveFrame?.addEventListener('mouseenter', () => soundManager.playHover());
-
-      const masterSlider = document.getElementById('masterVolSlider') as HTMLInputElement;
-      const sfxSlider = document.getElementById('sfxVolSlider') as HTMLInputElement;
-      const bgmSlider = document.getElementById('bgmVolSlider') as HTMLInputElement;
-      const muteCheckbox = document.getElementById('muteToggle') as HTMLInputElement;
-
-      masterSlider?.addEventListener('input', () => {
-        const val = Number(masterSlider.value) / 100;
-        soundManager.saveSettings({ masterVolume: val });
-        (document.getElementById('masterVolLabel') as HTMLElement).innerText = `${masterSlider.value}%`;
-      });
-
-      sfxSlider?.addEventListener('input', () => {
-        const val = Number(sfxSlider.value) / 100;
-        soundManager.saveSettings({ sfxVolume: val });
-        (document.getElementById('sfxVolLabel') as HTMLElement).innerText = `${sfxSlider.value}%`;
-      });
-
-      bgmSlider?.addEventListener('input', () => {
-        const val = Number(bgmSlider.value) / 100;
-        soundManager.saveSettings({ bgmVolume: val });
-        (document.getElementById('bgVolLabel') as HTMLElement).innerText = `${bgmSlider.value}%`;
-      });
-
-      muteCheckbox?.addEventListener('change', () => {
-        soundManager.playClick();
-        soundManager.saveSettings({ muted: muteCheckbox.checked });
-      });
-
-      testFrame?.addEventListener('click', () => {
-        soundManager.playSuccess();
-      });
-
-      const closeSettings = () => {
-        soundManager.playClick();
-        this.setState({ isSettingsOpen: false });
-      };
-
-      document.getElementById('closeSettingsBtn')?.addEventListener('click', closeSettings);
-      saveFrame?.addEventListener('click', closeSettings);
+      if (!this.settingsModal) {
+        this.settingsModal = new SettingsModal({
+          onClose: () => this.setState({ isSettingsOpen: false })
+        });
+      }
+      this.settingsModal.render();
+      this.settingsModal.mount();
       return;
     }
 
     if (this.state.isPauseMenuOpen) {
-      modalContainer.innerHTML = `
-        <div class="modal-dialog pause-menu-card">
-          <div class="pause-menu-header">
-            <div class="pause-menu-title">
-              <span>${Icons.menu(22)}</span>
-              <span>GAME PAUSED</span>
-            </div>
-          </div>
-
-          <div class="pause-menu-buttons">
-            <button id="pauseContinueBtn" class="pause-btn pause-btn-green">
-              <span>${Icons.play(20)}</span>
-              <span>CONTINUE QUEST</span>
-            </button>
-
-            <button id="pauseWorldMapBtn" class="pause-btn pause-btn-blue">
-              <span>${Icons.map(20)}</span>
-              <span>RETURN TO WORLD MAP</span>
-            </button>
-
-            <button id="pauseSettingsBtn" class="pause-btn pause-btn-yellow">
-              <span>${Icons.refresh(20)}</span>
-              <span>SETTINGS</span>
-            </button>
-
-            <button id="pauseQuitBtn" class="pause-btn pause-btn-red">
-              <span>${Icons.x(20)}</span>
-              <span>QUIT TO TITLE</span>
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modalContainer);
-
-      const contBtn = document.getElementById('pauseContinueBtn');
-      const mapBtn = document.getElementById('pauseWorldMapBtn');
-      const settBtn = document.getElementById('pauseSettingsBtn');
-      const quitBtn = document.getElementById('pauseQuitBtn');
-
-      contBtn?.addEventListener('mouseenter', () => soundManager.playHover());
-      mapBtn?.addEventListener('mouseenter', () => soundManager.playHover());
-      settBtn?.addEventListener('mouseenter', () => soundManager.playHover());
-      quitBtn?.addEventListener('mouseenter', () => soundManager.playHover());
-
-      contBtn?.addEventListener('click', () => {
-        soundManager.playClick();
-        this.setState({ isPauseMenuOpen: false });
-      });
-
-      mapBtn?.addEventListener('click', () => {
-        soundManager.playClick();
-        soundManager.stopSpeech();
-        this.setState({ isPauseMenuOpen: false, screen: 'world_map' });
-      });
-
-      settBtn?.addEventListener('click', () => {
-        soundManager.playClick();
-        this.setState({ isPauseMenuOpen: false, isSettingsOpen: true });
-      });
-
-      quitBtn?.addEventListener('click', () => {
-        soundManager.playClick();
-        soundManager.stopSpeech();
-        gameApi.clearSession();
-        if (this.pollInterval) clearInterval(this.pollInterval);
-        this.setState({
-          isPauseMenuOpen: false,
-          screen: 'title',
-          score: 0,
-          attempts: {},
-          history: [],
-          currentData: null,
-          submitResult: null,
-          wrongAnswerIds: [],
-          customMascotSpeech: null,
+      if (!this.pauseMenuModal) {
+        this.pauseMenuModal = new PauseMenuModal({
+          onClose: () => this.setState({ isPauseMenuOpen: false }),
+          onReturnToMap: () => this.setState({ isPauseMenuOpen: false, screen: 'world_map' }),
+          onOpenSettings: () => this.setState({ isPauseMenuOpen: false, isSettingsOpen: true }),
+          onQuitToTitle: () => this.setState({
+            isPauseMenuOpen: false,
+            screen: 'title',
+            score: 0,
+            attempts: {},
+            history: [],
+            currentData: null,
+            submitResult: null,
+            wrongAnswerIds: [],
+            customMascotSpeech: null,
+          }),
+          onClearPollInterval: () => {
+            if (this.pollInterval) clearInterval(this.pollInterval);
+          }
         });
-      });
+      }
+      this.pauseMenuModal.render();
+      this.pauseMenuModal.mount();
       return;
     }
   }
