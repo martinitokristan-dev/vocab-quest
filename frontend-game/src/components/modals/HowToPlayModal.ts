@@ -84,7 +84,7 @@ export class HowToPlayModal {
       </div>
     `;
 
-    this.attachEventListeners();
+    requestAnimationFrame(() => this.attachEventListeners());
   }
 
   /**

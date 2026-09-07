@@ -1,6 +1,6 @@
 import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
-import { Game2DMapRenderer } from '../../game2d';
+import { Game2DMapRenderer, type StarHistoryItem } from '../../game2d';
 
 interface WorldMapScreenProps {
   playerName: string;
@@ -9,6 +9,7 @@ interface WorldMapScreenProps {
   activeMapId: number;
   currentQuestionIndex: number;
   totalStars: number;
+  history: StarHistoryItem[];
   mapFlowOptions: any;
   mapRenderer: Game2DMapRenderer | null;
   onAvatarClick: () => void;
@@ -82,8 +83,10 @@ export class WorldMapScreen {
       <div id="canvasContainer" style="width: 100vw; height: 100vh;"></div>
     `;
 
-    this.attachEventListeners();
-    this.initMapRenderer();
+    requestAnimationFrame(() => {
+      this.attachEventListeners();
+      this.initMapRenderer();
+    });
   }
 
   /**
@@ -113,11 +116,19 @@ export class WorldMapScreen {
       this.props.mapRenderer.updateProgress(
         this.props.activeMapId,
         this.props.currentQuestionIndex,
-        [] // history will be passed via update
+        this.props.history || [] // Pass history for star display
       );
       this.props.mapRenderer.setMapFlowOptions(this.props.mapFlowOptions);
-      this.props.mapRenderer.remount(container);
-      this.props.onMapRendererUpdate(this.props.mapRenderer);
+      // Only remount if container is empty (canvas was removed)
+      if (container.children.length === 0) {
+        this.props.mapRenderer.remount(container);
+      }
+      // Call update callback to trigger pending actions
+      requestAnimationFrame(() => {
+        if (this.props.mapRenderer) {
+          this.props.onMapRendererUpdate(this.props.mapRenderer);
+        }
+      });
     } else {
       const renderer = new Game2DMapRenderer(
         container,
@@ -126,10 +137,13 @@ export class WorldMapScreen {
         this.props.currentQuestionIndex,
         undefined,
         undefined,
-        [], // history will be passed via update
+        this.props.history || [], // Pass history for star display
         this.props.mapFlowOptions
       );
-      this.props.onMapRendererInit(renderer);
+      // Call init callback after renderer is created
+      requestAnimationFrame(() => {
+        this.props.onMapRendererInit(renderer);
+      });
     }
   }
 
@@ -138,6 +152,7 @@ export class WorldMapScreen {
    */
   updateProps(newProps: Partial<WorldMapScreenProps>): void {
     this.props = { ...this.props, ...newProps };
+    // Re-render to update HUD elements, but preserve map renderer
     this.render();
   }
 

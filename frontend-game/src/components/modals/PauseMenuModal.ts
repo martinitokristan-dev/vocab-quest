@@ -62,7 +62,7 @@ export class PauseMenuModal {
       </div>
     `;
 
-    this.attachEventListeners();
+    requestAnimationFrame(() => this.attachEventListeners());
   }
 
   /**

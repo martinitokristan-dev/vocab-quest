@@ -7,6 +7,7 @@ use App\Models\GameSession;
 use App\Models\Room;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -50,24 +51,33 @@ class GameSessionController extends Controller
             ]);
         }
 
-        $session = GameSession::create([
-            'room_id'        => $room->id,
-            'current_map_id' => $room->current_map_id,
-            'player_name'    => $validated['player_name'],
-            'avatar_slug'    => $validated['avatar_slug'],
-            'token'          => Str::random(60),
-            'score'          => 0,
-            'is_completed'   => false,
-        ]);
+        try {
+            $session = GameSession::create([
+                'room_id'        => $room->id,
+                'current_map_id' => $room->current_map_id,
+                'player_name'    => $validated['player_name'],
+                'avatar_slug'    => $validated['avatar_slug'],
+                'token'          => Str::random(60),
+                'score'          => 0,
+                'is_completed'   => false,
+            ]);
 
-        return response()->json([
-            'message' => 'Successfully joined game session.',
-            'token'   => $session->token,
-            'player'  => [
-                'name'        => $session->player_name,
-                'avatar_slug' => $session->avatar_slug,
-            ],
-        ], 201);
+            // Invalidate room results cache so teacher sees student immediately
+            Cache::forget("room_results_{$room->id}");
+
+            return response()->json([
+                'message' => 'Successfully joined game session.',
+                'token'   => $session->token,
+                'player'  => [
+                    'name'        => $session->player_name,
+                    'avatar_slug' => $session->avatar_slug,
+                ],
+            ], 201);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            throw ValidationException::withMessages([
+                'player_name' => ['This name is already taken in this room. Please use a different name.'],
+            ]);
+        }
     }
 
     public function scoreboard(Request $request): JsonResponse

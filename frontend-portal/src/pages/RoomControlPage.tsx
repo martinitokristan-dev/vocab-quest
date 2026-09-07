@@ -190,7 +190,8 @@ export const RoomControlPage: React.FC = () => {
       await api.resetRoom(roomId);
       showToast('Room pupils reset.', 'info');
       setShowResetModal(false);
-      // Silent background refresh to get updated data
+      // Invalidate cache and refresh to get updated data
+      api.invalidateCache(`/rooms/${roomId}/results`);
       silentRefreshResults();
     } catch (err: any) {
       showToast(err.message || 'Failed to reset room', 'error');

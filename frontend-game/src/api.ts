@@ -1,6 +1,6 @@
 const RAW_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000').trim();
 export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
-export const API_BASE_URL = `${BACKEND_ORIGIN}/api`;
+export const API_BASE_URL = RAW_URL.endsWith('/api') ? RAW_URL : `${BACKEND_ORIGIN}/api`;
 
 export interface JoinGameResponse {
   message: string;
@@ -141,26 +141,35 @@ class StudentGameApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
     const token = this.getToken();
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(options.headers as Record<string, string>),
+      ...(options.headers as Record<string, string> || {}),
     };
-
+    
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
-    const data = await res.json();
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-    if (!res.ok) {
-      const errorMsg = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'API request failed');
-      throw new ApiError(errorMsg, res.status);
+    if (response.status === 401) {
+      this.clearToken();
+      throw new Error('Unauthorized');
     }
 
-    return data;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API Error ${response.status} for ${endpoint}:`, errorText);
+      throw new Error(errorText || `HTTP ${response.status}`);
+    }
+
+    return response.json();
   }
 
   async joinRoom(pin: string, player_name: string, avatar_slug: string): Promise<JoinGameResponse> {
@@ -188,7 +197,8 @@ class StudentGameApiClient {
     questionId: number,
     answerId?: number | null,
     stars: number = 3,
-    typedAnswer?: string | null
+    typedAnswer?: string | null,
+    attempts?: number
   ): Promise<SubmitAnswerResponse> {
     return this.request<SubmitAnswerResponse>('/game/answer', {
       method: 'POST',
@@ -197,6 +207,7 @@ class StudentGameApiClient {
         answer_id: answerId || undefined,
         typed_answer: typedAnswer || undefined,
         stars,
+        attempts,
       }),
     });
   }

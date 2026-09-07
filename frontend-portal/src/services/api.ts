@@ -618,7 +618,7 @@ class ApiClient {
   }
 
   async getRoomResults(id: number) {
-    return this.request<RoomResultsData>(`/rooms/${id}/results`);
+    return this.request<RoomResultsData>(`/rooms/${id}/results`, {}, true); // Skip cache for real-time updates
   }
 
 
