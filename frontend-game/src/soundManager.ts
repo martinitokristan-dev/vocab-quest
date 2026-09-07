@@ -439,30 +439,21 @@ class SoundManager {
     }
   }
 
-  // 10. Interactive Character Selection Voice
+  // 9. Play Character Voice (Avatar Selection)
   public speakCharacterVoice(slug: string) {
     if (typeof window === 'undefined') return;
+    this.stopSpeech();
+
     if (this.settings.muted) return;
 
-    const vol = this.getEffectiveSfxVolume();
-    if (vol <= 0) return;
-
     try {
-      this.stopSpeech();
-
-      const audioConfig: Record<
-        string,
-        { file: string; playbackRate: number }
-      > = {
+      const vol = this.getEffectiveSfxVolume();
+      const audioConfig: Record<string, { file: string; playbackRate: number }> = {
         'learner-girl': {
           file: '/assets/audio/voice_learner_girl.mp3',
           playbackRate: 1.0,
         },
         'learner-boy': {
-          file: '/assets/audio/voice_learner_boy.mp3',
-          playbackRate: 1.0,
-        },
-        'quest-boy': {
           file: '/assets/audio/voice_learner_boy.mp3',
           playbackRate: 1.0,
         },
@@ -478,11 +469,11 @@ class SoundManager {
           file: '/assets/audio/voice_sporty_girl.mp3',
           playbackRate: 1.0,
         },
-        'explorer-boy': {
+        'moreno-boy': {
           file: '/assets/audio/voice_explorer_boy.mp3',
           playbackRate: 1.0,
         },
-        'moreno-boy': {
+        'explorer-boy': {
           file: '/assets/audio/voice_explorer_boy.mp3',
           playbackRate: 1.0,
         },
@@ -499,10 +490,15 @@ class SoundManager {
 
       this.currentVoiceAudio = audio;
       audio.play().catch((err) => {
-        console.warn('Character voice playback error:', err);
+        // AbortError is expected when audio is interrupted by stopSpeech()
+        if (err.name !== 'AbortError') {
+          console.warn('Character voice playback error:', err);
+        }
+        this.currentVoiceAudio = null;
       });
     } catch (e) {
       console.warn('Character voice error:', e);
+      this.currentVoiceAudio = null;
     }
   }
 }

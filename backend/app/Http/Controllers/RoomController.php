@@ -162,13 +162,14 @@ class RoomController extends Controller
     {
         $this->authorize('update', $room);
 
-        $room->gameSessions()->delete();
+        // Force delete all game sessions and their associated student answers (cascade)
+        $deletedCount = $room->gameSessions()->forceDelete();
         $room->update(['status' => 'waiting']);
         Cache::forget("room_status_{$room->id}");
         Cache::forget("room_results_{$room->id}");
 
         return response()->json([
-            'message' => 'Room session reset.',
+            'message' => "Room session reset. {$deletedCount} pupil(s) removed.",
             'data'    => new RoomResource($room),
         ]);
     }

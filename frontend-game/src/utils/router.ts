@@ -6,6 +6,7 @@ interface RouterConfig {
   onScreenChange: (screen: ScreenType) => void;
   onProfileRestore: (profile: { playerName?: string; avatarSlug?: string; pin?: string; token?: string | null }) => void;
   onPinUpdate: (pin: string) => void;
+  onHasToken?: () => void;
 }
 
 /**
@@ -94,8 +95,13 @@ export function initRouter(config: RouterConfig): void {
     initialScreen = hasToken ? 'world_map' : 'title';
   }
 
-  config.onScreenChange(initialScreen);
-  syncUrl(initialScreen, profile.pin || pinFromUrl, true);
+  // If has token callback is provided, let it handle the loading and transition
+  if (config.onHasToken && hasToken) {
+    config.onHasToken();
+  } else {
+    config.onScreenChange(initialScreen);
+    syncUrl(initialScreen, profile.pin || pinFromUrl, true);
+  }
 }
 
 /**

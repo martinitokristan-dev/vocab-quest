@@ -6,8 +6,8 @@ const AVATARS = [
   { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
   { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
   { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'explorer-girl', label: 'Explorer Girl', image: '/assets/explorer_girl.png' },
-  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/explorer_boy.png' },
+  { slug: 'morena-girl', label: 'Morena Girl', image: '/assets/morena_girl.png' },
+  { slug: 'moreno-boy', label: 'Moreno Boy', image: '/assets/moreno_boy.png' },
 ];
 
 interface JoinScreenProps {
@@ -120,7 +120,7 @@ export class JoinScreen {
       </div>
     `;
 
-    this.attachEventListeners();
+    requestAnimationFrame(() => this.attachEventListeners());
   }
 
   /**
@@ -152,7 +152,7 @@ export class JoinScreen {
       card.addEventListener('mouseenter', () => soundManager.playHover());
       card.addEventListener('click', () => {
         const slug = card.getAttribute('data-slug');
-        if (slug && this.props.avatarSlug !== slug) {
+        if (slug) {
           soundManager.playClick();
           this.props.onAvatarSelect(slug);
 

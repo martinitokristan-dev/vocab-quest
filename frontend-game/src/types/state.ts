@@ -60,7 +60,7 @@ export interface StudentGameAppState {
   isTeacherPaused: boolean;
   roomStatus: 'waiting' | 'in_progress' | 'paused' | 'closed' | string;
   loadingProgress: number; // 0 to 12 segments
-  loadingTargetScreen: 'join' | 'world_map';
+  loadingTargetScreen: 'join' | 'world_map' | 'question';
 
   // Map flow state
   mapPhase: MapInteractionPhase;

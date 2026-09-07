@@ -2,14 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\FeedbackAudio;
 use App\Models\Map;
 use App\Models\MapCharacter;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\User;
 use App\Models\Vocabulary;
-use App\Models\VocabularyAudio;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -385,40 +383,6 @@ class TeacherSeeder extends Seeder
                 'current_map_id' => $map1->id,
             ]
         );
-
-        // 10. Seed Default Teacher Voice Praise & Cheer-Up Clips
-        $praisePhrases = [
-            'Fantastic job! That is the correct answer!',
-            'Excellent work! You are a true vocabulary champion!',
-            'Outstanding! You found the exact meaning!',
-            'Superb! Keep conquering the quest!',
-        ];
-
-        foreach ($praisePhrases as $p) {
-            FeedbackAudio::updateOrCreate(
-                ['phrase' => $p, 'type' => 'praise'],
-                [
-                    'audio_url' => 'https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3',
-                    'is_active' => true,
-                ]
-            );
-        }
-
-        $cheerUpPhrases = [
-            "Good try! Don't give up, give it another shot!",
-            'Almost there! Listen closely and choose the best meaning.',
-            'That is okay! Think about the clue and try again.',
-        ];
-
-        foreach ($cheerUpPhrases as $c) {
-            FeedbackAudio::updateOrCreate(
-                ['phrase' => $c, 'type' => 'cheer_up'],
-                [
-                    'audio_url' => 'https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3',
-                    'is_active' => true,
-                ]
-            );
-        }
 
         // Dynamically sync question counts for all maps based on actual seeded questions
         foreach (Map::all() as $m) {

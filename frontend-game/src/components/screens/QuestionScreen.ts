@@ -33,6 +33,7 @@ export class QuestionScreen {
   private container: HTMLElement;
   private props: QuestionScreenProps;
   private updateReadButton: (isSpeaking: boolean) => void = () => {};
+  private narrationTimeout: number | null = null;
 
   constructor(container: HTMLElement, props: QuestionScreenProps) {
     this.container = container;
@@ -72,7 +73,8 @@ export class QuestionScreen {
 
     // In Kingdom 2, format underlined context clue
     if (isGevina && question.context_clue) {
-      const clueRegex = new RegExp(`(${escapeRegExp(question.context_clue)})`, 'gi');
+      const clueText = question.context_clue.trim();
+      const clueRegex = new RegExp(`(${escapeRegExp(clueText)})`, 'gi');
       formattedSentence = formattedSentence.replace(
         clueRegex,
         `<span class="underlined-clue">$1</span>`
@@ -309,13 +311,20 @@ export class QuestionScreen {
       </div>
     `;
 
-    this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting);
+    requestAnimationFrame(() => this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting));
   }
+
+  private eventListenersAttached = false;
 
   /**
    * Attach event listeners
    */
   private attachEventListeners(question: any, isReview: boolean, isIdentification: boolean, submitResult: any, wrongAnswerIds: number[], submitting: boolean): void {
+    // Only attach event listeners once to prevent accumulation
+    if (this.eventListenersAttached) {
+      return;
+    }
+    this.eventListenersAttached = true;
     document.getElementById('questionAvatarBox')?.addEventListener('click', () => {
       soundManager.playClick();
       if (this.props.avatarSlug) {
@@ -375,31 +384,37 @@ export class QuestionScreen {
     });
 
     if (isIdentification && !isReview) {
-      const inputEl = document.getElementById('identificationTextInput') as HTMLInputElement | null;
-      const submitBtn = document.getElementById('identificationSubmitBtn');
+      setTimeout(() => {
+        const inputEl = document.getElementById('identificationTextInput') as HTMLInputElement | null;
+        const submitBtn = document.getElementById('identificationSubmitBtn');
 
-      const submitTyped = () => {
-        if (!inputEl) return;
-        const textVal = inputEl.value.trim();
-        soundManager.stopSpeech();
-        this.props.onAnswerSelect(null, textVal);
-      };
+        if (!inputEl || !submitBtn) {
+          console.error('Identification input elements not found:', { inputEl, submitBtn });
+          return;
+        }
 
-      submitBtn?.addEventListener('click', () => {
-        soundManager.playClick();
-        submitTyped();
-      });
+        const submitTyped = () => {
+          if (!inputEl) return;
+          const textVal = inputEl.value.trim();
+          console.log('Submitting identification answer:', textVal);
+          soundManager.stopSpeech();
+          this.props.onAnswerSelect(null, textVal);
+        };
 
-      inputEl?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
+        submitBtn.addEventListener('click', () => {
           soundManager.playClick();
           submitTyped();
-        }
-      });
+        });
 
-      setTimeout(() => {
-        inputEl?.focus();
+        inputEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            soundManager.playClick();
+            submitTyped();
+          }
+        });
+
+        inputEl.focus();
       }, 150);
     } else if (!isReview) {
       document.querySelectorAll('.answer-card').forEach((card) => {
@@ -408,6 +423,10 @@ export class QuestionScreen {
         card.addEventListener('pointerdown', () => {
           if (answerId && !submitting && !submitResult && !wrongAnswerIds.includes(answerId)) {
             card.classList.add('selected-active');
+            if (this.narrationTimeout) {
+              clearTimeout(this.narrationTimeout);
+              this.narrationTimeout = null;
+            }
             soundManager.stopSpeech();
             this.props.onTeacherAnimationClear();
             soundManager.playClick();
@@ -417,6 +436,10 @@ export class QuestionScreen {
         card.addEventListener('click', () => {
           if (answerId && !submitting && !submitResult && !wrongAnswerIds.includes(answerId)) {
             card.classList.add('selected-active');
+            if (this.narrationTimeout) {
+              clearTimeout(this.narrationTimeout);
+              this.narrationTimeout = null;
+            }
             soundManager.stopSpeech();
             this.props.onTeacherAnimationClear();
             this.props.onAnswerSelect(answerId);
@@ -428,7 +451,11 @@ export class QuestionScreen {
     // Auto-play teacher's recorded voiceover ONLY on active new question with a 1.5s preparation delay
     if (!isReview && !submitResult && this.props.lastNarratedQuestionId !== question.id) {
       this.props.onQuestionNarrated(question.id);
-      setTimeout(() => {
+      if (this.narrationTimeout) {
+        clearTimeout(this.narrationTimeout);
+      }
+      this.narrationTimeout = window.setTimeout(() => {
+        this.narrationTimeout = null;
         const voiceUrl = question.voice_audio_url || question.audio_url;
         if (voiceUrl) {
           soundManager.playCustomVoiceRecording(
@@ -445,7 +472,14 @@ export class QuestionScreen {
    * Update props and re-render
    */
   updateProps(newProps: Partial<QuestionScreenProps>): void {
+    const oldQuestionId = this.props.question?.id;
     this.props = { ...this.props, ...newProps };
+    const newQuestionId = this.props.question?.id;
+    
+    // Reset event listeners flag if question changes
+    if (oldQuestionId !== newQuestionId) {
+      this.eventListenersAttached = false;
+    }
     this.render();
   }
 
@@ -453,6 +487,11 @@ export class QuestionScreen {
    * Clean up event listeners
    */
   destroy(): void {
+    if (this.narrationTimeout) {
+      clearTimeout(this.narrationTimeout);
+      this.narrationTimeout = null;
+    }
+    this.eventListenersAttached = false;
     // Event listeners are automatically cleaned up when innerHTML is replaced
   }
 }

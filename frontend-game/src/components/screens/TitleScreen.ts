@@ -87,7 +87,7 @@ export class TitleScreen {
       </div>
     `;
 
-    this.attachEventListeners();
+    requestAnimationFrame(() => this.attachEventListeners());
   }
 
   /**

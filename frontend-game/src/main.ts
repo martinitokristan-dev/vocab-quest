@@ -186,9 +186,20 @@ class StudentArcadeGame {
         if (profile.playerName) this.state.playerName = profile.playerName;
         if (profile.avatarSlug) this.state.avatarSlug = profile.avatarSlug;
         if (profile.pin) this.state.pin = profile.pin;
+        if (profile.token) gameApi.setToken(profile.token);
       },
       onPinUpdate: (pin) => {
         this.state.pin = pin;
+      },
+      onHasToken: () => {
+        // If we have a token, show loading animation while fetching data
+        if (gameApi.getToken()) {
+          // Start loading animation with data fetch callback
+          this.startLoading('world_map', async () => {
+            // After loading animation completes, fetch current data
+            await this.fetchCurrentQuestion('world_map');
+          });
+        }
       }
     });
   }
@@ -271,9 +282,19 @@ class StudentArcadeGame {
         !this.mapRenderer;
       if (needsFullRender) {
         this.render();
-      } else if (partialState.pendingMapAction !== undefined && partialState.pendingMapAction !== null) {
-        this.syncMapRendererOptions();
-        this.executePendingMapAction();
+        // Delay pending map action execution until after render completes
+        if (partialState.pendingMapAction !== undefined && partialState.pendingMapAction !== null) {
+          requestAnimationFrame(() => {
+            this.syncMapRendererOptions();
+            this.executePendingMapAction();
+          });
+        }
+      } else {
+        // Always check for pending map action on world_map screen
+        if (partialState.pendingMapAction !== undefined && partialState.pendingMapAction !== null) {
+          this.syncMapRendererOptions();
+          this.executePendingMapAction();
+        }
       }
     } else if (this.state.screen === 'question') {
       // On question screen, avoid destroying DOM during feedback; only re-render on new question or review load
@@ -292,7 +313,7 @@ class StudentArcadeGame {
       this.loadingInterval = null;
     }
 
-    const totalSegments = 16;
+    const totalSegments = 15;
     let currentSegment = 0;
     this.setState({ screen: 'loading', loadingProgress: 0, loadingTargetScreen: targetScreen });
 
@@ -305,15 +326,8 @@ class StudentArcadeGame {
       }
 
       // Update segment elements directly in the DOM to avoid re-rendering entire screen
-      const segments = document.querySelectorAll('.loading-segment');
-      if (segments.length > 0) {
-        for (let i = 0; i < segments.length; i++) {
-          if (i < currentSegment) {
-            segments[i].classList.add('active');
-          } else {
-            segments[i].classList.remove('active');
-          }
-        }
+      if (this.loadingScreen) {
+        this.loadingScreen.updateProgress(currentSegment);
       }
 
       if (currentSegment >= totalSegments) {
@@ -590,7 +604,7 @@ class StudentArcadeGame {
     });
 
     try {
-      const res = await gameApi.submitAnswer(q.id, answerId, starsEarned, typedAnswer);
+      const res = await gameApi.submitAnswer(q.id, answerId, starsEarned, typedAnswer, currentAttempts);
 
       const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
 
@@ -705,6 +719,8 @@ class StudentArcadeGame {
           if (hasAdvanced) return;
           hasAdvanced = true;
 
+          soundManager.stopSpeech();
+
           await showStarBurstOverlay(starsEarned, globalLevel);
 
           const prevMapId = activeMapId;
@@ -801,9 +817,13 @@ class StudentArcadeGame {
         };
 
         if (customPraise?.audio_url) {
-          soundManager.playFeedbackAudio(customPraise.audio_url, proceedAfterPraise);
+          const fallbackTimer = setTimeout(proceedAfterPraise, 30000);
+          soundManager.playFeedbackAudio(customPraise.audio_url, () => {
+            clearTimeout(fallbackTimer);
+            setTimeout(proceedAfterPraise, 600);
+          });
         } else {
-          setTimeout(proceedAfterPraise, 900);
+          setTimeout(proceedAfterPraise, 1200);
         }
       } else {
         // --- 2. WRONG ANSWER: SHUFFLED TEACHER CHEER-UP ENCOURAGEMENT ---
@@ -1236,6 +1256,7 @@ class StudentArcadeGame {
         activeMapId,
         currentQuestionIndex,
         totalStars,
+        history: this.state.history,
         mapFlowOptions: this.getMapFlowOptions(activeMapId),
         mapRenderer: this.mapRenderer,
         onAvatarClick: () => {
@@ -1263,6 +1284,7 @@ class StudentArcadeGame {
           this.maybeShowGlobalIntro();
         }
       });
+      this.worldMapScreen.render();
     } else {
       this.worldMapScreen.updateProps({
         playerName: this.state.playerName,
@@ -1271,11 +1293,11 @@ class StudentArcadeGame {
         activeMapId,
         currentQuestionIndex,
         totalStars,
+        history: this.state.history,
         mapFlowOptions: this.getMapFlowOptions(activeMapId),
         mapRenderer: this.mapRenderer
       });
     }
-    this.worldMapScreen.render();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

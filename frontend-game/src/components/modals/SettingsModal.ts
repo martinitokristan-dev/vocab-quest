@@ -87,7 +87,7 @@ export class SettingsModal {
       </div>
     `;
 
-    this.attachEventListeners();
+    requestAnimationFrame(() => this.attachEventListeners());
   }
 
   /**

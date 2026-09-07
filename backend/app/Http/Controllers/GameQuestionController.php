@@ -166,8 +166,13 @@ class GameQuestionController extends Controller
             ->exists();
 
         if ($alreadyCompleted) {
-            throw ValidationException::withMessages([
-                'question_id' => ['This question has already been answered.'],
+            $totalSessionStars = (int) StudentAnswer::where('game_session_id', $session->id)
+                ->where('is_correct', true)
+                ->sum('stars');
+            return response()->json([
+                'is_correct' => true,
+                'score'      => $totalSessionStars,
+                'message'    => 'Correct answer!',
             ]);
         }
 

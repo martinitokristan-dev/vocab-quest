@@ -18,8 +18,9 @@ class RoomResultsController extends Controller
     {
         $this->authorize('view', $room);
 
-        // Cache results for 3 seconds per room — busted by RoomController on reset/close
-        $results = Cache::remember("room_results_{$room->id}", 3, fn () => $action->execute($room));
+        // Cache results for 1 second per room for near real-time updates
+        // Busted by RoomController on reset/close and GameSessionController on join
+        $results = Cache::remember("room_results_{$room->id}", 1, fn () => $action->execute($room));
 
         return response()->json(['data' => $results]);
     }

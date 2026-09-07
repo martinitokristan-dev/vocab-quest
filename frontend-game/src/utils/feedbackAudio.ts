@@ -25,9 +25,6 @@ export interface FeedbackAudios {
 export async function loadFeedbackAudios(): Promise<FeedbackAudios> {
   try {
     const res = await gameApi.getFeedbackAudios();
-    console.log('Loaded feedback audios:', res);
-    console.log('Praise clips count:', res.praise.length);
-    console.log('Cheer_up clips count:', res.cheer_up.length);
     return res;
   } catch (e) {
     console.warn('Failed to load feedback voice audios:', e);
@@ -37,6 +34,10 @@ export async function loadFeedbackAudios(): Promise<FeedbackAudios> {
 
 /**
  * Select a random praise clip for the current map
+ * Prioritizes uploaded audio over fallbacks:
+ * 1. First tries to find audio for current map
+ * 2. Then tries to find global audio (map_id is null)
+ * 3. Returns null if no uploaded audio exists (fallbacks will be used)
  * @param feedbackAudios - Loaded feedback audios
  * @param activeMapId - Current map/kingdom ID
  * @returns Selected praise clip or null
@@ -45,25 +46,29 @@ export function selectPraiseClip(
   feedbackAudios: FeedbackAudios,
   activeMapId: number
 ): FeedbackAudioClip | null {
-  const activePraiseClips = feedbackAudios.praise.filter(
-    (p) => p.is_active !== false && (p.map_id == null || p.map_id === activeMapId)
+  // First, try to find audio specifically for current map
+  let activePraiseClips = feedbackAudios.praise.filter(
+    (p) => p.is_active !== false && p.map_id === activeMapId
   );
-  console.log('Current activeMapId:', activeMapId);
-  console.log('Filtered activePraiseClips:', activePraiseClips);
+  
+  // If no map-specific audio, try global audio (map_id is null)
+  if (activePraiseClips.length === 0) {
+    activePraiseClips = feedbackAudios.praise.filter(
+      (p) => p.is_active !== false && p.map_id == null
+    );
+  }
   
   if (activePraiseClips.length === 0) return null;
   
-  const customPraise = activePraiseClips[Math.floor(Math.random() * activePraiseClips.length)];
-  console.log('Selected customPraise:', customPraise);
-  if (customPraise) {
-    console.log('Custom praise audio URL:', customPraise.audio_url);
-  }
-  
-  return customPraise;
+  return activePraiseClips[Math.floor(Math.random() * activePraiseClips.length)];
 }
 
 /**
  * Select a random cheer_up clip for the current map
+ * Prioritizes uploaded audio over fallbacks:
+ * 1. First tries to find audio for current map
+ * 2. Then tries to find global audio (map_id is null)
+ * 3. Returns null if no uploaded audio exists (fallbacks will be used)
  * @param feedbackAudios - Loaded feedback audios
  * @param activeMapId - Current map/kingdom ID
  * @returns Selected cheer_up clip or null
@@ -72,9 +77,17 @@ export function selectCheerUpClip(
   feedbackAudios: FeedbackAudios,
   activeMapId: number
 ): FeedbackAudioClip | null {
-  const activeCheerClips = feedbackAudios.cheer_up.filter(
-    (c) => c.is_active !== false && (c.map_id == null || c.map_id === activeMapId)
+  // First, try to find audio specifically for current map
+  let activeCheerClips = feedbackAudios.cheer_up.filter(
+    (c) => c.is_active !== false && c.map_id === activeMapId
   );
+  
+  // If no map-specific audio, try global audio (map_id is null)
+  if (activeCheerClips.length === 0) {
+    activeCheerClips = feedbackAudios.cheer_up.filter(
+      (c) => c.is_active !== false && c.map_id == null
+    );
+  }
   
   if (activeCheerClips.length === 0) return null;
   
