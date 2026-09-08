@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api, resolveMediaUrl, type MapData, type QuestionData } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { broadcastSync } from '../utils/realtimeSync';
 import {
   Trash2,
   CheckCircle2,
@@ -181,7 +182,7 @@ export const QuestionsPage: React.FC = () => {
 
   const silentRefreshQuestions = async (mapId: number) => {
     try {
-      const res = await api.getQuestions(mapId);
+      const res = await api.getQuestions(mapId, true);
       setQuestions(res.data);
     } catch (err) {
       console.error('Failed to silently refresh questions:', err);
@@ -634,6 +635,7 @@ export const QuestionsPage: React.FC = () => {
         }
       }
 
+      broadcastSync({ type: 'QUESTION_CHANGED', mapId: selectedMapId });
       closeModal();
     } catch (err: any) {
       setFormError(err.message || 'Failed to save question.');
@@ -654,6 +656,7 @@ export const QuestionsPage: React.FC = () => {
       // Optimistic update: remove the item from state without reloading
       setQuestions((prev) => prev.filter((q) => q.id !== target.id));
       silentRefreshMaps();
+      broadcastSync({ type: 'QUESTION_CHANGED', mapId: selectedMapId || undefined });
     } catch (err: any) {
       setDeleteTarget(null);
       if (

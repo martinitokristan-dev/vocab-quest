@@ -389,9 +389,9 @@ class ApiClient {
     });
   }
 
-  // â”€â”€ Questions API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  async getQuestions(mapId: number) {
-    return this.request<{ data: QuestionData[] }>(`/maps/${mapId}/questions`);
+  // ── Questions API ──────────────────────────────────────────────────────────
+  async getQuestions(mapId: number, skipCache = false) {
+    return this.request<{ data: QuestionData[] }>(`/maps/${mapId}/questions`, {}, skipCache);
   }
 
   async createQuestion(mapId: number, payload: {
@@ -640,8 +640,8 @@ class ApiClient {
 
 
   // ── Feedback Praise & Cheer-Up Voiceover API ──
-  async getFeedbackAudios() {
-    return this.request<FeedbackAudioResponse>('/feedback-audios');
+  async getFeedbackAudios(skipCache = false) {
+    return this.request<FeedbackAudioResponse>('/feedback-audios', {}, skipCache);
   }
 
   async uploadFeedbackAudio(payload: {

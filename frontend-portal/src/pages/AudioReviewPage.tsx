@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api, resolveMediaUrl, type FeedbackAudioItem } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { broadcastSync, subscribeSync } from '../utils/realtimeSync';
 import {
   Mic,
   Square,
@@ -95,17 +96,23 @@ export const AudioReviewPage: React.FC = () => {
   useEffect(() => {
     fetchAudios();
     fetchMaps();
+    const unsub = subscribeSync((msg) => {
+      if (msg.type === 'FEEDBACK_AUDIO_CHANGED') {
+        fetchAudios(true);
+      }
+    });
     return () => {
+      unsub();
       stopRecording();
       if (studioAudioRef.current) studioAudioRef.current.pause();
       if (listAudioRef.current) listAudioRef.current.pause();
     };
   }, []);
 
-  const fetchAudios = async () => {
+  const fetchAudios = async (skipCache = false) => {
     try {
       setLoading(true);
-      const res = await api.getFeedbackAudios();
+      const res = await api.getFeedbackAudios(skipCache);
       setAudios(res.data);
     } catch (err) {
       console.error('Failed to load feedback audios:', err);
@@ -229,18 +236,10 @@ export const AudioReviewPage: React.FC = () => {
       clearRecorder();
       setPhrase('');
       showToast('Voice feedback saved successfully!', 'success');
-      // Optimistic update: add new item to state without reloading
-      const newAudio = {
-        id: Date.now(), // temporary ID
-        type: selectedType,
-        phrase: phrase.trim(),
-        audio_url: audioPreviewUrl || '',
-        is_active: true,
-        map_id: selectedMapId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setAudios((prev) => [newAudio, ...prev]);
+      // Authoritative update: directly fetch fresh active audios from server
+      await fetchAudios(true);
+      // Instant broadcast to all open game tabs (0ms delay, zero polling)
+      broadcastSync({ type: 'FEEDBACK_AUDIO_CHANGED' });
     } catch (err: any) {
       setFormError(err.message || 'Failed to save voice feedback.');
       showToast(err.message || 'Failed to save voice feedback.', 'error');
@@ -259,6 +258,7 @@ export const AudioReviewPage: React.FC = () => {
           item.id === id ? { ...item, is_active: !item.is_active } : item
         )
       );
+      broadcastSync({ type: 'FEEDBACK_AUDIO_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to update status', 'error');
     }
@@ -273,6 +273,7 @@ export const AudioReviewPage: React.FC = () => {
       setDeleteTarget(null);
       // Optimistic update: remove the item from state without reloading
       setAudios((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      broadcastSync({ type: 'FEEDBACK_AUDIO_CHANGED' });
     } catch (err: any) {
       setDeleteTarget(null);
       showToast(err.message || 'Failed to delete voice feedback', 'error');
