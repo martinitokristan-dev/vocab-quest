@@ -221,6 +221,21 @@ describe('Real-Time Cross-Tab Sync (Zero Polling, Zero RAM Overhead)', () => {
           });
         }
 
+        // PUT /feedback-audios/:id
+        if (urlStr.includes('/feedback-audios/') && method === 'PUT') {
+          const id = Number(urlStr.split('/').pop());
+          const item = mockDb.find((a) => a.id === id);
+          if (item) {
+            const body = JSON.parse(options.body);
+            if (body.phrase) item.phrase = body.phrase;
+            if (body.type) item.type = body.type;
+            return new Response(JSON.stringify({ message: 'Updated', data: item }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
         return new Response(JSON.stringify({ message: 'Not found' }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' },
@@ -260,6 +275,13 @@ describe('Real-Time Cross-Tab Sync (Zero Polling, Zero RAM Overhead)', () => {
       // Wait for async gameClientFetch to resolve
       await vi.waitFor(() => {
         expect(gameClientAudioList).toHaveLength(2);
+      });
+
+      // --- 3. Teacher edits feedback audio phrase to fix typo ---
+      await api.updateFeedbackAudio(1, { phrase: 'Napakagaling!' });
+      broadcastSync({ type: 'FEEDBACK_AUDIO_CHANGED' });
+      await vi.waitFor(() => {
+        expect(gameClientAudioList[0].phrase).toBe('Napakagaling!');
       });
 
       // --- 4. Teacher toggles audio active status ---

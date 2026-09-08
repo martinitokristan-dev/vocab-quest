@@ -20,6 +20,7 @@ import {
   Crown,
   Volume2,
   Upload,
+  Pencil,
 } from 'lucide-react';
 
 type MapOption = { id: number; title: string; order_index: number };
@@ -85,6 +86,20 @@ export const AudioReviewPage: React.FC = () => {
   // List Playback State
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
 
+  // Edit Modal State
+  const [editingItem, setEditingItem] = useState<FeedbackAudioItem | null>(null);
+  const [editPhrase, setEditPhrase] = useState('');
+  const [editType, setEditType] = useState<'praise' | 'cheer_up'>('praise');
+  const [editMapId, setEditMapId] = useState<number | null>(null);
+  const [editAudioBlob, setEditAudioBlob] = useState<Blob | null>(null);
+  const [editAudioFile, setEditAudioFile] = useState<File | null>(null);
+  const [editAudioPreviewUrl, setEditAudioPreviewUrl] = useState<string | null>(null);
+  const [isEditRecording, setIsEditRecording] = useState(false);
+  const [editRecordingSeconds, setEditRecordingSeconds] = useState(0);
+  const [isPlayingEditAudio, setIsPlayingEditAudio] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<any>(null);
@@ -92,6 +107,12 @@ export const AudioReviewPage: React.FC = () => {
   const listAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const editMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const editAudioChunksRef = useRef<Blob[]>([]);
+  const editTimerIntervalRef = useRef<any>(null);
+  const editAudioRef = useRef<HTMLAudioElement | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchAudios();
@@ -104,8 +125,13 @@ export const AudioReviewPage: React.FC = () => {
     return () => {
       unsub();
       stopRecording();
+      if (editTimerIntervalRef.current) clearInterval(editTimerIntervalRef.current);
+      if (editMediaRecorderRef.current && editMediaRecorderRef.current.state !== 'inactive') {
+        editMediaRecorderRef.current.stop();
+      }
       if (studioAudioRef.current) studioAudioRef.current.pause();
       if (listAudioRef.current) listAudioRef.current.pause();
+      if (editAudioRef.current) editAudioRef.current.pause();
     };
   }, []);
 
@@ -296,6 +322,182 @@ export const AudioReviewPage: React.FC = () => {
     listAudioRef.current.src = resolveMediaUrl(url);
     listAudioRef.current.play().catch(() => {});
     setPlayingAudioId(id);
+  };
+
+  const openEditModal = (item: FeedbackAudioItem) => {
+    setEditingItem(item);
+    setEditPhrase(item.phrase);
+    setEditType(item.type);
+    setEditMapId(item.map_id);
+    setEditAudioBlob(null);
+    setEditAudioFile(null);
+    if (editAudioPreviewUrl && editAudioPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editAudioPreviewUrl);
+    }
+    setEditAudioPreviewUrl(null);
+    setIsEditRecording(false);
+    setEditRecordingSeconds(0);
+    setIsPlayingEditAudio(false);
+    setEditError(null);
+  };
+
+  const closeEditModal = () => {
+    stopEditRecording();
+    if (editAudioRef.current) {
+      editAudioRef.current.pause();
+      setIsPlayingEditAudio(false);
+    }
+    if (editAudioPreviewUrl && editAudioPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editAudioPreviewUrl);
+    }
+    setEditingItem(null);
+    setEditAudioBlob(null);
+    setEditAudioFile(null);
+    setEditAudioPreviewUrl(null);
+    setIsEditRecording(false);
+    setEditRecordingSeconds(0);
+    setEditError(null);
+  };
+
+  const startEditRecording = async () => {
+    try {
+      setEditError(null);
+      clearEditAudio();
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      editAudioChunksRef.current = [];
+
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported('audio/webm') && MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      editMediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          editAudioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(editAudioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        setEditAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setEditAudioPreviewUrl(url);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start(100);
+      setIsEditRecording(true);
+      setEditRecordingSeconds(0);
+
+      editTimerIntervalRef.current = setInterval(() => {
+        setEditRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Microphone error in edit modal:', err);
+      setEditError('Unable to access microphone. Please check browser permissions.');
+    }
+  };
+
+  const stopEditRecording = () => {
+    if (editTimerIntervalRef.current) {
+      clearInterval(editTimerIntervalRef.current);
+      editTimerIntervalRef.current = null;
+    }
+    if (editMediaRecorderRef.current && editMediaRecorderRef.current.state !== 'inactive') {
+      editMediaRecorderRef.current.stop();
+    }
+    setIsEditRecording(false);
+  };
+
+  const clearEditAudio = () => {
+    if (editAudioPreviewUrl && editAudioPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editAudioPreviewUrl);
+    }
+    setEditAudioBlob(null);
+    setEditAudioFile(null);
+    setEditAudioPreviewUrl(null);
+    if (editAudioRef.current) {
+      editAudioRef.current.pause();
+      setIsPlayingEditAudio(false);
+    }
+  };
+
+  const handleEditFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    clearEditAudio();
+    setEditAudioFile(file);
+    const url = URL.createObjectURL(file);
+    setEditAudioPreviewUrl(url);
+  };
+
+  const handlePlayEditCurrent = (url: string) => {
+    if (isPlayingEditAudio) {
+      if (editAudioRef.current) editAudioRef.current.pause();
+      setIsPlayingEditAudio(false);
+      return;
+    }
+    if (!editAudioRef.current) {
+      editAudioRef.current = new Audio();
+      editAudioRef.current.onended = () => setIsPlayingEditAudio(false);
+      editAudioRef.current.onpause = () => setIsPlayingEditAudio(false);
+    }
+    editAudioRef.current.src = resolveMediaUrl(url);
+    editAudioRef.current.play().catch(() => {});
+    setIsPlayingEditAudio(true);
+  };
+
+  const handlePlayEditPreview = () => {
+    if (!editAudioPreviewUrl) return;
+    if (isPlayingEditAudio) {
+      if (editAudioRef.current) editAudioRef.current.pause();
+      setIsPlayingEditAudio(false);
+      return;
+    }
+    if (!editAudioRef.current) {
+      editAudioRef.current = new Audio();
+      editAudioRef.current.onended = () => setIsPlayingEditAudio(false);
+      editAudioRef.current.onpause = () => setIsPlayingEditAudio(false);
+    }
+    editAudioRef.current.src = editAudioPreviewUrl;
+    editAudioRef.current.play().catch(() => {});
+    setIsPlayingEditAudio(true);
+  };
+
+  const handleSaveEditedAudio = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    setEditError(null);
+
+    if (!editPhrase.trim()) {
+      setEditError('Please enter what the teacher says (phrase).');
+      return;
+    }
+
+    try {
+      setEditSaving(true);
+      await api.updateFeedbackAudio(editingItem.id, {
+        phrase: editPhrase.trim(),
+        type: editType,
+        map_id: editMapId,
+        audio_file: editAudioBlob || editAudioFile || undefined,
+      });
+
+      showToast('Voice feedback updated successfully!', 'success');
+      await fetchAudios(true);
+      broadcastSync({ type: 'FEEDBACK_AUDIO_CHANGED' });
+      closeEditModal();
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update voice feedback.');
+      showToast(err.message || 'Failed to update voice feedback.', 'error');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const formatSeconds = (sec: number) => {
@@ -869,6 +1071,15 @@ export const AudioReviewPage: React.FC = () => {
                     </button>
 
                     <button
+                      onClick={() => openEditModal(item)}
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                      title="Edit voice feedback"
+                      aria-label="Edit voice feedback"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
+                    <button
                       onClick={() => setDeleteTarget(item)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                       title="Delete voice clip"
@@ -943,6 +1154,247 @@ export const AudioReviewPage: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Feedback Audio Modal */}
+      {editingItem && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+          onClick={closeEditModal}
+        >
+          <div
+            className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 space-y-5 text-slate-900 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit Voice Feedback</h3>
+                  <p className="text-[11px] text-slate-400">Update phrase, type, kingdom, or voice recording</p>
+                </div>
+              </div>
+              <button
+                onClick={closeEditModal}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditedAudio} className="space-y-4">
+              {/* Category / Type Selector */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Feedback Category
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditType('praise')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      editType === 'praise'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Correct (Praise)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditType('cheer_up')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      editType === 'cheer_up'
+                        ? 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-200 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <XCircle className="w-4 h-4 text-amber-600" />
+                    <span>Try Again (Encourage)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Phrase Input */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  What Teacher Says (Phrase)
+                </label>
+                <input
+                  type="text"
+                  value={editPhrase}
+                  onChange={(e) => setEditPhrase(e.target.value)}
+                  placeholder="e.g. Great job!, Kaya mo yan!, Amazing work!"
+                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                  required
+                />
+              </div>
+
+              {/* Kingdom Assignment */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Kingdom / Guide Assignment
+                </label>
+                <select
+                  value={editMapId === null ? 'universal' : editMapId}
+                  onChange={(e) => setEditMapId(e.target.value === 'universal' ? null : Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors cursor-pointer"
+                >
+                  <option value="universal">Universal (All Kingdoms & Teachers)</option>
+                  {maps.map((map) => {
+                    const order = map.order_index;
+                    const guide = TEACHER_GUIDES[order];
+                    return (
+                      <option key={map.id} value={map.id}>
+                        {guide ? `${guide.teacher} • ${map.title}` : map.title}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Audio Section */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Voice Audio
+                </label>
+                
+                {/* Current Audio playback preview */}
+                {!editAudioPreviewUrl && editingItem.audio_url && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-slate-500" />
+                      <span className="text-xs text-slate-700 font-medium">Current Audio</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePlayEditCurrent(editingItem.audio_url)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      {isPlayingEditAudio ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Pause</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Test Audio</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* If new audio preview exists */}
+                {editAudioPreviewUrl && (
+                  <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200 flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 text-indigo-700 text-xs font-medium">
+                      <Volume2 className="w-4 h-4" />
+                      <span>New Audio Ready</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handlePlayEditPreview}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 flex items-center gap-1 cursor-pointer"
+                      >
+                        {isPlayingEditAudio ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                        <span>{isPlayingEditAudio ? 'Pause' : 'Play'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearEditAudio}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer"
+                        title="Discard new audio"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional Replace Recording / Upload */}
+                {!isEditRecording && !editAudioPreviewUrl && (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={startEditRecording}
+                      className="py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Mic className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Replace (Mic)</span>
+                    </button>
+                    <label className="py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                      <input
+                        ref={editFileInputRef}
+                        type="file"
+                        accept="audio/*,video/mp4,video/webm,.mp3,.wav,.ogg,.m4a,.mp4,.webm"
+                        onChange={handleEditFileUpload}
+                        className="hidden"
+                      />
+                      <Upload className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Replace (File)</span>
+                    </label>
+                  </div>
+                )}
+
+                {isEditRecording && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-2 mt-2">
+                    <div className="flex items-center gap-2 text-rose-700 text-xs font-medium">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                      <span>Recording: {formatSeconds(editRecordingSeconds)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopEditRecording}
+                      className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Square className="w-3 h-3 fill-white" />
+                      <span>Finish</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={editSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-60"
+                >
+                  {editSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

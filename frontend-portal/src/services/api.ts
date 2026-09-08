@@ -695,6 +695,60 @@ class ApiClient {
     }
   }
 
+  async updateFeedbackAudio(
+    id: number,
+    payload: {
+      type?: 'praise' | 'cheer_up';
+      phrase?: string;
+      audio_file?: File | Blob | null;
+      audio_url?: string;
+      map_id?: number | null;
+    }
+  ) {
+    if (payload.audio_file) {
+      const formData = new FormData();
+      if (payload.type) formData.append('type', payload.type);
+      if (payload.phrase) formData.append('phrase', payload.phrase);
+      const fileName = payload.audio_file instanceof File
+        ? payload.audio_file.name
+        : 'feedback_voice.webm';
+      formData.append('audio_file', payload.audio_file, fileName);
+      if (payload.map_id !== undefined) {
+        formData.append('map_id', payload.map_id != null ? String(payload.map_id) : '');
+      }
+      formData.append('_method', 'PUT');
+
+      const token = this.getToken();
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/feedback-audios/${id}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const result = this.handleResponse<{ message: string; data: FeedbackAudioItem }>(response);
+      this.invalidateCache('/feedback-audios');
+      return result;
+    } else {
+      const body: Record<string, any> = {};
+      if (payload.type) body.type = payload.type;
+      if (payload.phrase) body.phrase = payload.phrase;
+      if (payload.audio_url) body.audio_url = payload.audio_url;
+      if (payload.map_id !== undefined) body.map_id = payload.map_id;
+
+      const result = await this.request<{ message: string; data: FeedbackAudioItem }>(`/feedback-audios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      this.invalidateCache('/feedback-audios');
+      return result;
+    }
+  }
+
   async toggleFeedbackAudio(id: number) {
     const result = await this.request<{ message: string; data: FeedbackAudioItem }>(`/feedback-audios/${id}/toggle`, {
       method: 'POST',
