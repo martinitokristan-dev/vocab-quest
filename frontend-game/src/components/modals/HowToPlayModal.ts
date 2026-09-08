@@ -49,8 +49,8 @@ export class HowToPlayModal {
               <span>02</span>
             </div>
             <div class="step-info-col">
-              <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">EXPLORE KINGDOMS</div>
-              <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Travel across EPCES School, Bayan ng Prosperidad, and the Provincial Capitol.</div>
+              <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">EXPLORE & ANSWER</div>
+              <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Walk across the Kingdom map nodes and solve contextual vocabulary questions.</div>
             </div>
           </div>
 
@@ -59,24 +59,14 @@ export class HowToPlayModal {
               <span>03</span>
             </div>
             <div class="step-info-col">
-              <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">SOLVE VOCAB QUESTS</div>
-              <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Listen to pronunciations and earn stars on your first attempt!</div>
-            </div>
-          </div>
-
-          <div class="how-to-step-item">
-            <div class="step-badge-box step-badge-4">
-              <span>04</span>
-            </div>
-            <div class="step-info-col">
               <div class="step-title-text" style="font-family: var(--font-primary); font-size: 18px; font-weight: 700;">LEVEL UP & WIN</div>
               <div class="step-desc-text" style="font-size: 16px; font-weight: 400;">Earn quest points, unlock kingdoms, and top the classroom leaderboard.</div>
             </div>
           </div>
         </div>
 
-        <div id="closeHowToPlayBtnBottomFrame" class="vocab-btn-frame" style="margin-top: 20px;">
-          <button id="closeHowToPlayBtnBottom" class="vocab-btn vocab-btn-blue" style="height: 60px; font-size: 24px;">
+        <div id="closeHowToPlayBtnBottomFrame" class="vocab-btn-frame" style="margin-top: 20px; width: 100%;">
+          <button id="closeHowToPlayBtnBottom" class="vocab-btn vocab-btn-blue" style="height: clamp(52px, 8vh, 60px); font-size: clamp(17px, 4vw, 22px); width: 100%;">
             <span>${Icons.check(22)}</span>
             <span>GOT IT, LET'S PLAY</span>
           </button>

@@ -54,6 +54,12 @@ export interface CurrentQuestionResponse {
       order_index: number;
       word: string;
     }>;
+    current_attempt?: {
+      attempts: number;
+      wrong_answer_ids?: number[];
+      last_answer_id?: number | null;
+      typed_answer?: string | null;
+    } | null;
     is_paused?: boolean;
     room_status?: string;
   };
@@ -63,6 +69,8 @@ export interface SubmitAnswerResponse {
   is_correct: boolean;
   score: number;
   message: string;
+  attempts?: number;
+  wrong_answer_ids?: number[];
 }
 
 export interface GameStatusResponse {
@@ -146,11 +154,13 @@ class StudentGameApiClient {
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
     
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      headers['X-Game-Session-Token'] = token;
     }
 
     const response = await fetch(url, {
@@ -158,15 +168,27 @@ class StudentGameApiClient {
       headers,
     });
 
-    if (response.status === 401) {
-      this.clearToken();
-      throw new Error('Unauthorized');
-    }
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API Error ${response.status} for ${endpoint}:`, errorText);
-      throw new Error(errorText || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.errors) {
+          errorMessage = Object.values(errorData.errors).flat().join(', ');
+        }
+      } catch {
+        const errorText = await response.text().catch(() => '');
+        if (errorText) errorMessage = errorText;
+      }
+      console.error(`API Error ${response.status} for ${endpoint}:`, errorMessage);
+
+      if (response.status === 401) {
+        this.clearToken();
+        throw new Error(errorMessage || 'Unauthorized');
+      }
+
+      throw new Error(errorMessage);
     }
 
     return response.json();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type RoomResultsData } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -19,6 +19,7 @@ import {
   Download,
   X,
   Loader2,
+  Eye,
 } from 'lucide-react';
 
 const CHARACTER_META: Record<string, { label: string; badgeClass: string }> = {
@@ -64,6 +65,7 @@ export const RoomControlPage: React.FC = () => {
   const { showToast } = useToast();
   const [showResetModal, setShowResetModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [selectedQuestionForModal, setSelectedQuestionForModal] = useState<any | null>(null);
 
   const fetchResults = async () => {
     try {
@@ -93,13 +95,26 @@ export const RoomControlPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [roomId]);
 
+  // Sort questions ascending from question 1 to 15 in game progression order
+  const question_breakdown = useMemo(() => {
+    const list = data?.question_breakdown || [];
+    return list.slice().sort((a, b) => {
+      if (a.question_number != null && b.question_number != null) {
+        return a.question_number - b.question_number;
+      }
+      const mapA = a.map_order ?? (a.map_id ?? 0);
+      const mapB = b.map_order ?? (b.map_id ?? 0);
+      if (mapA !== mapB) return mapA - mapB;
+      return (a.order_index ?? 0) - (b.order_index ?? 0);
+    });
+  }, [data?.question_breakdown]);
+
   if (loading) {
     return <div className="p-12 text-center text-xs text-slate-500">Loading classroom telemetry...</div>;
   }
 
   const room = data?.room;
   const students = data?.students || [];
-  const question_breakdown = data?.question_breakdown || [];
   const summary = data?.summary;
   const isClosed = room?.status === 'closed';
   const isPaused = room?.status === 'paused';
@@ -392,12 +407,17 @@ export const RoomControlPage: React.FC = () => {
         {/* Header Row with Export Action & View Switcher */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
-            <Users className="w-4 h-4 text-emerald-600" />
+            <Users className="w-4 h-4 text-slate-500" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                {isClosed ? 'Final Student Score Sheet & Grades' : 'Live Student Scoreboard'} ({pupilCount})
-              </h3>
-              <p className="text-[11px] text-slate-500">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {isClosed ? 'Final Student Score Sheet & Grades' : 'Live Student Scoreboard'}
+                </h3>
+                <span className="text-[11px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  {pupilCount}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
                 {isClosed
                   ? 'All scores and star ratings are permanently saved for grade sheet transfer'
                   : 'Live student progress and real-time star ratings'}
@@ -405,16 +425,16 @@ export const RoomControlPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 print:hidden">
+          <div className="flex items-center gap-3 print:hidden">
             {isClosed ? (
-              <span className="text-[11px] text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                 <span>Saved to Analytics</span>
               </span>
             ) : (
-              <span className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                Live updating
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live updating</span>
               </span>
             )}
 
@@ -422,20 +442,20 @@ export const RoomControlPage: React.FC = () => {
             {students.length > 0 && (
               <button
                 onClick={handleExportCSV}
-                className="btn-secondary text-xs py-1.5 px-3 cursor-pointer flex items-center gap-1.5 text-slate-700 hover:text-emerald-700 border-slate-200 shadow-xs"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 title="Download CSV score sheet to transfer to grading sheet"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 text-slate-500" />
                 <span>Export CSV</span>
               </button>
             )}
 
             {/* View Toggle */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/60">
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-md text-xs cursor-pointer transition-colors ${
-                  viewMode === 'table' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                className={`p-1.5 rounded-md text-xs cursor-pointer transition-all ${
+                  viewMode === 'table' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-400 hover:text-slate-700'
                 }`}
                 title="Table View"
               >
@@ -443,8 +463,8 @@ export const RoomControlPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md text-xs cursor-pointer transition-colors ${
-                  viewMode === 'grid' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                className={`p-1.5 rounded-md text-xs cursor-pointer transition-all ${
+                  viewMode === 'grid' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-400 hover:text-slate-700'
                 }`}
                 title="Cards Grid View"
               >
@@ -455,22 +475,22 @@ export const RoomControlPage: React.FC = () => {
         </div>
 
         {students.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 text-xs">
+          <div className="text-center py-12 text-slate-400 text-xs">
             {isClosed ? 'No student scores recorded for this session' : `Waiting for students to join with PIN "${room?.pin}"`}
           </div>
         ) : viewMode === 'table' ? (
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-xs text-slate-700 border-collapse min-w-[920px]">
-              <thead className="bg-slate-50 uppercase text-[10px] text-slate-500 font-bold border-b border-slate-200 tracking-wider">
+            <table className="w-full text-left text-xs text-slate-700 border-collapse min-w-[860px]">
+              <thead className="border-b border-slate-100 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3.5 w-16 text-center">Rank</th>
-                  <th className="px-5 py-3.5 w-44">Student Name</th>
-                  <th className="px-4 py-3.5 w-36">Character</th>
-                  <th className="px-4 py-3.5 w-48">Stage / Kingdom</th>
-                  <th className="px-4 py-3.5 w-40 text-center">Questions Answered</th>
-                  <th className="px-4 py-3.5 w-36 text-center">Final Stars</th>
-                  <th className="px-5 py-3.5 w-36 text-center">Progress</th>
-                  <th className="px-5 py-3.5 w-40 text-right">Status</th>
+                  <th className="py-3 px-4 w-16 text-center font-normal">Rank</th>
+                  <th className="py-3 px-4 font-normal">Student Name</th>
+                  <th className="py-3 px-4 font-normal">Character</th>
+                  <th className="py-3 px-4 font-normal">Stage / Kingdom</th>
+                  <th className="py-3 px-4 text-center font-normal">Questions</th>
+                  <th className="py-3 px-4 text-center font-normal">Final Stars</th>
+                  <th className="py-3 px-4 text-center font-normal">Progress</th>
+                  <th className="py-3 px-4 text-right font-normal">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -478,69 +498,62 @@ export const RoomControlPage: React.FC = () => {
                   const charInfo = getCharacterInfo(student.avatar_slug);
                   const answeredCount = student.correct_answers ?? student.questions_answered ?? 0;
                   return (
-                    <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3.5 text-center font-bold font-mono">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
-                            idx === 0
-                              ? 'text-amber-800 bg-amber-50 border border-amber-300'
-                              : idx === 1
-                              ? 'text-slate-700 bg-slate-100 border border-slate-300'
-                              : idx === 2
-                              ? 'text-amber-900 bg-amber-100/50 border border-amber-300'
-                              : 'text-slate-500'
-                          }`}
-                        >
-                          #{idx + 1}
-                        </span>
+                    <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4 text-center font-mono">
+                        {idx === 0 ? (
+                          <span className="font-semibold text-xs text-amber-500">#1</span>
+                        ) : idx === 1 ? (
+                          <span className="font-semibold text-xs text-slate-600">#2</span>
+                        ) : idx === 2 ? (
+                          <span className="font-semibold text-xs text-amber-700">#3</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">#{idx + 1}</span>
+                        )}
                       </td>
-                      <td className="px-5 py-3.5 font-bold text-slate-900 uppercase tracking-tight text-sm">
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 tracking-tight">
                         {student.player_name}
                       </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-semibold border ${charInfo.badgeClass}`}>
-                          {charInfo.label}
-                        </span>
+                      <td className="py-3.5 px-4 text-slate-500 font-normal">
+                        {charInfo.label}
                       </td>
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-1 rounded text-[11px] font-semibold">
-                          <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                      <td className="py-3.5 px-4 text-slate-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span>{student.current_map_title || `Kingdom ${student.current_map_order || 1}`}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="inline-flex items-center font-mono font-bold text-emerald-800 text-xs bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                          {answeredCount} / 15 Questions
+                      <td className="py-3.5 px-4 text-center font-mono">
+                        <span className="font-semibold text-slate-800">{answeredCount}</span>
+                        <span className="text-slate-400 text-[11px]"> / 15</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center justify-center gap-1 font-mono font-semibold text-slate-800">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span>{student.stars ?? student.score ?? 0}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <div className="inline-flex items-center gap-1.5 text-amber-800 font-extrabold bg-amber-50 px-3 py-1 rounded-lg text-xs border border-amber-300">
-                          <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                          <span className="text-sm">{student.stars ?? student.score ?? 0} Stars</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-center gap-2 max-w-[120px] mx-auto">
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
+                              className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                               style={{ width: `${student.progress_percentage || 0}%` }}
                             />
                           </div>
-                          <span className="font-mono text-[11px] font-bold text-slate-700 min-w-[28px]">
+                          <span className="font-mono text-[11px] text-slate-400 min-w-[28px] text-right">
                             {student.progress_percentage || 0}%
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="py-3.5 px-4 text-right">
                         {student.is_completed ? (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-3 py-1 rounded-md text-[11px] font-bold border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Finished Quest 🎉</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Completed</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md text-[11px] font-bold border border-amber-200">
-                            <MapPin className="w-3 h-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                             <span>Kingdom #{student.current_map_order || 1}</span>
                           </span>
                         )}
@@ -552,63 +565,66 @@ export const RoomControlPage: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {students.map((student, idx) => {
               const charInfo = getCharacterInfo(student.avatar_slug);
+              const answeredCount = student.correct_answers ?? student.questions_answered ?? 0;
               return (
                 <div
                   key={student.id}
-                  className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 hover:border-emerald-500 shadow-xs transition-colors"
+                  className="p-4 rounded-xl bg-white border border-slate-200/80 hover:border-slate-300 space-y-3 shadow-xs transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-mono font-bold text-emerald-700">#{idx + 1}</span>
-                        <span className="text-xs font-bold text-slate-900 uppercase">{student.player_name}</span>
+                        <span className="text-xs font-mono font-semibold text-slate-400">#{idx + 1}</span>
+                        <span className="text-sm font-semibold text-slate-900 tracking-tight">{student.player_name}</span>
                       </div>
-                      <span className={`inline-block mt-1 px-1.5 py-0.2 rounded text-[10px] font-semibold border ${charInfo.badgeClass}`}>
+                      <span className="text-xs text-slate-400 font-normal">
                         {charInfo.label}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 shrink-0">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                      <span>{student.stars ?? student.score ?? 0} Stars</span>
+                    <div className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-slate-800">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span>{student.stars ?? student.score ?? 0}</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px] space-y-1.5">
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span className="flex items-center gap-1 text-sky-700 font-semibold">
-                        <MapPin className="w-3 h-3" />
-                        <span>{student.current_map_title || `Stage ${student.current_map_order || 1}`}</span>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{student.current_map_title || `Kingdom ${student.current_map_order || 1}`}</span>
                       </span>
-                      <span className="text-slate-500 font-mono">
-                        {student.questions_answered} answered
+                      <span className="font-mono text-slate-600">
+                        {answeredCount} / 15
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-800 pt-0.5">
-                      <span className="font-bold">
-                        {student.is_completed ? (
-                          <span className="text-emerald-700 font-bold">Finished Quest 🎉</span>
-                        ) : (
+                    <div className="flex items-center justify-between">
+                      {student.is_completed ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Completed</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                           <span>Question #{student.current_question_number || 1}</span>
-                        )}
-                      </span>
-                      {(student as any).current_word && !student.is_completed && (
-                        <span className="text-emerald-800 font-bold bg-emerald-50 px-1.5 rounded text-[10px] border border-emerald-200">
-                          "{(student as any).current_word}"
                         </span>
                       )}
+                      <span className="font-mono text-[11px] text-slate-400">
+                        {student.progress_percentage || 0}%
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 transition-all duration-300"
-                      style={{ width: `${student.progress_percentage || 20}%` }}
-                    />
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                        style={{ width: `${student.progress_percentage || 0}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               );
@@ -620,61 +636,77 @@ export const RoomControlPage: React.FC = () => {
       {/* Question Accuracy Breakdown Section */}
       <div className="surface-card p-5 rounded-2xl border border-slate-200 space-y-4 bg-white shadow-xs text-slate-900">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-emerald-600" />
+          <div className="flex items-center gap-2.5">
+            <BarChart2 className="w-4 h-4 text-slate-500" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Classroom Question Accuracy & Vocabulary Mastery</h3>
-              <p className="text-[11px] text-slate-500">Breakdown of correct vs wrong attempts across all vocabulary words</p>
+              <h3 className="text-sm font-semibold text-slate-900">Classroom Question Accuracy & Vocabulary Mastery</h3>
+              <p className="text-[11px] text-slate-400">Breakdown of correct vs wrong attempts across all vocabulary words</p>
             </div>
           </div>
         </div>
 
         {question_breakdown && question_breakdown.length > 0 ? (
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 uppercase text-[10px] text-slate-500 font-semibold border-b border-slate-200">
+            <table className="w-full text-left text-xs text-slate-700 border-collapse min-w-[860px]">
+              <thead className="border-b border-slate-100 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
                 <tr>
-                  <th className="p-2.5">Word</th>
-                  <th className="p-2.5">Sentence Prompt</th>
-                  <th className="p-2.5">Total Attempts</th>
-                  <th className="p-2.5">Correct / Wrong</th>
-                  <th className="p-2.5">Class Accuracy</th>
+                  <th className="py-3 px-4 w-14 text-center font-normal">#</th>
+                  <th className="py-3 px-4 w-32 font-normal">Word</th>
+                  <th className="py-3 px-4 font-normal">Sentence Prompt</th>
+                  <th className="py-3 px-4 w-40 text-center font-normal">Total Attempts</th>
+                  <th className="py-3 px-4 w-44 text-center font-normal">Correct / Wrong (1st Try)</th>
+                  <th className="py-3 px-4 w-32 text-center font-normal">1st Attempt %</th>
+                  <th className="py-3 px-4 w-20 text-center font-normal">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {question_breakdown.map((q) => (
-                  <tr key={q.question_id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="p-2.5 font-bold text-emerald-700">{q.highlighted_word}</td>
-                    <td className="p-2.5 max-w-xs truncate text-slate-600">{q.sentence}</td>
-                    <td className="p-2.5 font-mono font-bold text-slate-700">{q.total_attempts}</td>
-                    <td className="p-2.5">
-                      <span className="text-emerald-700 font-bold">{q.correct_count}</span> /{' '}
-                      <span className="text-rose-600 font-bold">{q.wrong_count}</span>
-                    </td>
-                    <td className="p-2.5 font-semibold text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono">{q.accuracy_percentage}%</span>
-                        <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              q.accuracy_percentage >= 70
-                                ? 'bg-emerald-500'
-                                : q.accuracy_percentage >= 40
-                                ? 'bg-amber-500'
-                                : 'bg-rose-500'
-                            }`}
-                            style={{ width: `${q.accuracy_percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {question_breakdown.map((q, idx) => {
+                  const qNum = q.question_number ?? (idx + 1);
+                  const firstAttemptPct = q.first_attempt_percentage ?? q.accuracy_percentage ?? 0;
+                  const firstAttemptCount = q.first_attempt_count ?? q.correct_count;
+                  const firstAttemptWrong = q.first_attempt_wrong ?? q.wrong_count;
+
+                  return (
+                    <tr key={q.question_id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-400 text-center">
+                        #{qNum}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-semibold text-emerald-700">
+                        {q.highlighted_word}
+                      </td>
+                      <td className="py-3.5 px-4 max-w-xs truncate text-slate-600" title={q.sentence}>
+                        {q.sentence}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-800 text-center">
+                        {q.total_attempts} <span className="font-normal text-slate-400">({firstAttemptPct}%)</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-xs font-semibold text-center">
+                        <span className="text-emerald-600">{firstAttemptCount}</span>
+                        <span className="text-slate-300 font-normal px-1">/</span>
+                        <span className="text-rose-500">{firstAttemptWrong}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-800 text-center">
+                        {firstAttemptPct}%
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedQuestionForModal(q)}
+                          className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          title={`View Question #${qNum} Details`}
+                          aria-label={`View Question #${qNum} Details`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
-          <div className="text-slate-500 text-center py-6 text-xs">No vocabulary attempts recorded for this room</div>
+          <div className="text-slate-400 text-center py-8 text-xs">No vocabulary attempts recorded for this room</div>
         )}
       </div>
 
@@ -805,6 +837,125 @@ export const RoomControlPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Question Details Modal */}
+      {selectedQuestionForModal && (() => {
+        const q = selectedQuestionForModal;
+        const firstAttemptPct = q.first_attempt_percentage ?? q.accuracy_percentage ?? 0;
+        const firstAttemptCount = q.first_attempt_count ?? q.correct_count;
+        const secondAttemptCount = q.second_attempt_count ?? 0;
+        const secondAttemptPct = q.second_attempt_percentage ?? 0;
+        const thirdAttemptCount = q.third_attempt_count ?? 0;
+        const thirdAttemptPct = q.third_attempt_percentage ?? 0;
+        const totalStudents = q.total_students ?? (firstAttemptCount + (q.first_attempt_wrong ?? 0));
+
+        return (
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setSelectedQuestionForModal(null)}
+          >
+            <div
+              className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xl p-5 space-y-4 text-slate-900 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-semibold text-slate-400">
+                      #{q.question_number || (question_breakdown.findIndex((x) => x.question_id === q.question_id) + 1)}
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">
+                      {q.highlighted_word}
+                    </span>
+                    {q.map_title && (
+                      <span className="text-[11px] text-slate-400 font-sans">
+                        • {q.map_title}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    "{q.sentence}"
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuestionForModal(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {totalStudents === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  No pupils have attempted this question yet.
+                </div>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {/* 3 Attempts Breakdown */}
+                  <div className="grid grid-cols-3 gap-2.5 text-center">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[11px] font-semibold text-slate-500">1st Attempt</div>
+                      <div className="text-lg font-bold font-mono text-emerald-600 mt-0.5">
+                        {firstAttemptPct}%
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                        {firstAttemptCount} {firstAttemptCount === 1 ? 'pupil' : 'pupils'}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[11px] font-semibold text-slate-500">2nd Attempt</div>
+                      <div className="text-lg font-bold font-mono text-amber-600 mt-0.5">
+                        {secondAttemptPct}%
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                        {secondAttemptCount} {secondAttemptCount === 1 ? 'pupil' : 'pupils'}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[11px] font-semibold text-slate-500">3rd+ Attempt</div>
+                      <div className="text-lg font-bold font-mono text-rose-600 mt-0.5">
+                        {thirdAttemptPct}%
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                        {thirdAttemptCount} {thirdAttemptCount === 1 ? 'pupil' : 'pupils'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Distribution Progress Bar & Summary */}
+                  <div className="space-y-1.5 pt-0.5">
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                      <div
+                        className="bg-emerald-500 h-full transition-all duration-300"
+                        style={{ width: `${firstAttemptPct}%` }}
+                        title={`1st: ${firstAttemptPct}%`}
+                      />
+                      <div
+                        className="bg-amber-400 h-full transition-all duration-300"
+                        style={{ width: `${secondAttemptPct}%` }}
+                        title={`2nd: ${secondAttemptPct}%`}
+                      />
+                      <div
+                        className="bg-rose-500 h-full transition-all duration-300"
+                        style={{ width: `${thirdAttemptPct}%` }}
+                        title={`3rd+: ${thirdAttemptPct}%`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                      <span>{totalStudents} total {totalStudents === 1 ? 'pupil' : 'pupils'}</span>
+                      <span>{q.total_attempts} total attempts</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

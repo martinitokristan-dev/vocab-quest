@@ -80,7 +80,7 @@ export class WorldMapScreen {
       </div>
 
       <!-- Fullscreen 2D Canvas Container -->
-      <div id="canvasContainer" style="width: 100vw; height: 100vh;"></div>
+      <div id="canvasContainer" style="width: 100%; height: 100vh; height: 100dvh; position: fixed; inset: 0;"></div>
     `;
 
     requestAnimationFrame(() => {

@@ -176,12 +176,24 @@ export interface RoomResultsData {
   };
   question_breakdown?: {
     question_id: number;
+    question_number?: number;
     map_id?: number;
+    map_order?: number;
+    map_title?: string;
+    order_index?: number;
     sentence: string;
     highlighted_word: string;
     total_attempts: number;
+    total_students?: number;
     correct_count: number;
     wrong_count: number;
+    first_attempt_count?: number;
+    first_attempt_wrong?: number;
+    first_attempt_percentage?: number;
+    second_attempt_count?: number;
+    second_attempt_percentage?: number;
+    third_attempt_count?: number;
+    third_attempt_percentage?: number;
     accuracy_percentage: number;
   }[];
 }
@@ -381,15 +393,15 @@ class ApiClient {
     order_index: number;
     sentence: string;
     highlighted_word: string;
-    context_clue?: string;
+    context_clue?: string | null;
     has_context_highlight?: boolean;
     has_image?: boolean;
-    image_url?: string;
+    image_url?: string | null;
     image_file?: File | null;
     voice_audio_file?: File | Blob | null;
     voice_video_file?: File | Blob | null;
-    voice_audio_url?: string;
-    voice_video_url?: string;
+    voice_audio_url?: string | null;
+    voice_video_url?: string | null;
     voice_media_type?: 'audio' | 'video' | 'none';
     answers: { text: string; is_correct: boolean }[];
   }) {

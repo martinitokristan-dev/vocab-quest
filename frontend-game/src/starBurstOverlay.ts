@@ -5,8 +5,7 @@ const STAR_ANIM_MS = 450;
 const VIEW_DURATION_MS = 500; // Extra time to view earned stars before closing
 
 function starSvgHtml(): string {
-  const sizeValue = 90;
-  return `<svg class="star-burst-svg" viewBox="0 0 36 36" width="${sizeValue}" height="${sizeValue}">
+  return `<svg class="star-burst-svg" viewBox="0 0 36 36" width="100%" height="100%">
     <defs>
       <linearGradient id="burstStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="#FFF566" />
@@ -22,8 +21,7 @@ function starSvgHtml(): string {
 }
 
 function grayStarSvgHtml(): string {
-  const sizeValue = 90;
-  return `<svg class="star-burst-svg" viewBox="0 0 36 36" width="${sizeValue}" height="${sizeValue}">
+  return `<svg class="star-burst-svg" viewBox="0 0 36 36" width="100%" height="100%">
     <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
           fill="rgba(100, 100, 100, 0.3)" />
   </svg>`;

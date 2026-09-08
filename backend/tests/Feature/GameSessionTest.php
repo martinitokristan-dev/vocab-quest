@@ -149,12 +149,12 @@ test('submitting duplicate answer for same question returns 422', function () {
             'answer_id'   => $env['a1_correct']->id,
         ])->assertOk();
 
-    // Second attempt on same question
+    // Second attempt on same question (idempotent graceful response)
     $this->withHeader('X-Game-Session-Token', $session->token)
         ->postJson('/api/game/answer', [
             'question_id' => $env['q1']->id,
             'answer_id'   => $env['a1_correct']->id,
-        ])->assertStatus(422)->assertJsonValidationErrors(['question_id']);
+        ])->assertOk()->assertJson(['is_correct' => true]);
 });
 
 test('student completes map 1 and automatically advances to map 2 then finishes game', function () {
@@ -189,4 +189,51 @@ test('student can view room scoreboard', function () {
         ->getJson('/api/game/scoreboard')
         ->assertOk()
         ->assertJsonCount(1, 'data');
+});
+
+test('wrong answer submissions accumulate wrong_answer_ids and return current_attempt on question fetch', function () {
+    $env     = setupGameRoom();
+    $a1_wrong2 = Answer::factory()->create(['question_id' => $env['q1']->id, 'is_correct' => false, 'text' => 'Angry']);
+    $session = GameSession::factory()->create([
+        'room_id'        => $env['room']->id,
+        'current_map_id' => $env['map1']->id,
+    ]);
+
+    // 1st wrong answer
+    $res1 = $this->withHeader('X-Game-Session-Token', $session->token)
+        ->postJson('/api/game/answer', [
+            'question_id' => $env['q1']->id,
+            'answer_id'   => $env['a1_wrong']->id,
+            'attempts'    => 1,
+            'stars'       => 0,
+        ]);
+    $res1->assertOk()
+        ->assertJson([
+            'is_correct'       => false,
+            'attempts'         => 1,
+            'wrong_answer_ids' => [$env['a1_wrong']->id],
+        ]);
+
+    // 2nd wrong answer
+    $res2 = $this->withHeader('X-Game-Session-Token', $session->token)
+        ->postJson('/api/game/answer', [
+            'question_id' => $env['q1']->id,
+            'answer_id'   => $a1_wrong2->id,
+            'attempts'    => 2,
+            'stars'       => 0,
+        ]);
+    $res2->assertOk()
+        ->assertJson([
+            'is_correct'       => false,
+            'attempts'         => 2,
+            'wrong_answer_ids' => [$env['a1_wrong']->id, $a1_wrong2->id],
+        ]);
+
+    // Fetch current question (e.g. on page reload)
+    $fetchRes = $this->withHeader('X-Game-Session-Token', $session->token)
+        ->getJson('/api/game/question');
+
+    $fetchRes->assertOk()
+        ->assertJsonPath('data.current_attempt.attempts', 2)
+        ->assertJsonPath('data.current_attempt.wrong_answer_ids', [$env['a1_wrong']->id, $a1_wrong2->id]);
 });

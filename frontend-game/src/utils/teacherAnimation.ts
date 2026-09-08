@@ -55,8 +55,8 @@ export function updateTeacherSpeakingUI(
     } else {
       readIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>';
       readText.textContent = 'REPLAY';
-      readBtn.style.background = '#0284C7';
-      readBtn.style.borderColor = '#0369A1';
+      readBtn.style.background = '#059669';
+      readBtn.style.borderColor = '#047857';
     }
   }
 
@@ -66,7 +66,8 @@ export function updateTeacherSpeakingUI(
   }
 
   const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
-  if (!spriteImg) return timers;
+  const mobileSpriteImg = document.getElementById('mobileTeacherAvatar') as HTMLImageElement | null;
+  if (!spriteImg && !mobileSpriteImg) return timers;
 
   const activeMapId = state.currentData?.data?.map?.id || 1;
   const isYellow = activeMapId === 3;
@@ -75,9 +76,23 @@ export function updateTeacherSpeakingUI(
   clearTeacherAnimationTimers(timers);
 
   if (state.isSpeaking && !state.submitting) {
-    return startSpeakingAnimation(spriteImg, isYellow, isGevina, state.wrongAnswerIds, timers);
+    return startSpeakingAnimation(spriteImg, mobileSpriteImg, isYellow, isGevina, state.wrongAnswerIds, timers);
   } else {
-    return setIdleAnimation(spriteImg, isYellow, isGevina, state, timers);
+    return setIdleAnimation(spriteImg, mobileSpriteImg, isYellow, isGevina, state, timers);
+  }
+}
+
+/**
+ * Helper to update both desktop sprite and mobile avatar
+ */
+function setSpriteSrc(spriteImg: HTMLImageElement | null, mobileSpriteImg: HTMLImageElement | null, src: string, animClass?: string) {
+  if (spriteImg) {
+    spriteImg.src = src;
+    if (animClass) spriteImg.className = `teacher-character-img ${animClass}`;
+  }
+  if (mobileSpriteImg) {
+    mobileSpriteImg.src = src;
+    if (animClass) mobileSpriteImg.className = `mobile-teacher-avatar-img ${animClass}`;
   }
 }
 
@@ -85,16 +100,17 @@ export function updateTeacherSpeakingUI(
  * Start speaking animation for teacher
  */
 function startSpeakingAnimation(
-  spriteImg: HTMLImageElement,
+  spriteImg: HTMLImageElement | null,
+  mobileSpriteImg: HTMLImageElement | null,
   isYellow: boolean,
   isGevina: boolean,
   wrongAnswerIds: number[],
   timers: TeacherAnimationTimers
 ): TeacherAnimationTimers {
-  spriteImg.className = 'teacher-character-img reading';
+  setSpriteSrc(spriteImg, mobileSpriteImg, isYellow ? `/assets/guide/teacher_yellow_pose1.png` : isGevina ? `/assets/guide/G1.png` : `/assets/guide/F1.png`, 'reading');
   
   if (isYellow) {
-    spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
+    setSpriteSrc(spriteImg, mobileSpriteImg, `/assets/guide/teacher_yellow_pose1.png`, 'reading');
   } else if (isGevina) {
     // Kingdom 2: Teacher Gevina (G1 to G9)
     const isReplaying = wrongAnswerIds.length > 0;
@@ -115,7 +131,7 @@ function startSpeakingAnimation(
       '/assets/guide/G3.png', // Closed mouth breath rest
     ];
 
-    timers = runAnimationLoop(spriteImg, introFrames, loopFrames, isReplaying, timers);
+    timers = runAnimationLoop(spriteImg, mobileSpriteImg, introFrames, loopFrames, isReplaying, timers);
   } else {
     // Kingdom 1: Teacher Faith (F1 to F9)
     const isReplaying = wrongAnswerIds.length > 0;
@@ -137,7 +153,7 @@ function startSpeakingAnimation(
       '/assets/guide/F3.png', // Closed mouth breath rest
     ];
 
-    timers = runAnimationLoop(spriteImg, introFrames, loopFrames, isReplaying, timers);
+    timers = runAnimationLoop(spriteImg, mobileSpriteImg, introFrames, loopFrames, isReplaying, timers);
   }
 
   return timers;
@@ -147,7 +163,8 @@ function startSpeakingAnimation(
  * Run animation loop for teacher speaking
  */
 function runAnimationLoop(
-  spriteImg: HTMLImageElement,
+  spriteImg: HTMLImageElement | null,
+  mobileSpriteImg: HTMLImageElement | null,
   introFrames: string[],
   loopFrames: string[],
   isReplaying: boolean,
@@ -157,20 +174,20 @@ function runAnimationLoop(
   let loopIndex = 0;
   let isIntroFinished = isReplaying;
 
-  spriteImg.src = isReplaying ? loopFrames[0] : introFrames[0];
+  setSpriteSrc(spriteImg, mobileSpriteImg, isReplaying ? loopFrames[0] : introFrames[0]);
 
   timers.mouthInterval = window.setInterval(() => {
     if (!isIntroFinished) {
       introIndex++;
       if (introIndex < introFrames.length) {
-        spriteImg.src = introFrames[introIndex];
+        setSpriteSrc(spriteImg, mobileSpriteImg, introFrames[introIndex]);
       } else {
         isIntroFinished = true;
-        spriteImg.src = loopFrames[0];
+        setSpriteSrc(spriteImg, mobileSpriteImg, loopFrames[0]);
       }
     } else {
       loopIndex = (loopIndex + 1) % loopFrames.length;
-      spriteImg.src = loopFrames[loopIndex];
+      setSpriteSrc(spriteImg, mobileSpriteImg, loopFrames[loopIndex]);
     }
   }, 340);
 
@@ -181,42 +198,46 @@ function runAnimationLoop(
  * Set idle animation for teacher
  */
 function setIdleAnimation(
-  spriteImg: HTMLImageElement,
+  spriteImg: HTMLImageElement | null,
+  mobileSpriteImg: HTMLImageElement | null,
   isYellow: boolean,
   isGevina: boolean,
   state: TeacherAnimationState,
   timers: TeacherAnimationTimers
 ): TeacherAnimationTimers {
   if (state.submitResult?.is_correct) {
-    spriteImg.src = isYellow
+    const happySrc = isYellow
       ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
       : isGevina
       ? (state.currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
       : (state.currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
-    spriteImg.className = 'teacher-character-img celebrating';
-  } else if (state.wrongAnswerIds.length > 0 && state.currentFeedbackSprite) {
+    setSpriteSrc(spriteImg, mobileSpriteImg, happySrc, 'celebrating');
+  } else if (state.wrongAnswerIds.length > 0) {
+    const sadSrc = isYellow
+      ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_sad.png`)
+      : isGevina
+      ? (state.currentFeedbackSprite || `/assets/guide/teacher_gevina_incorrect_1.png`)
+      : (state.currentFeedbackSprite || `/assets/guide/teacher_blue_incorrect_1.png`);
     // Maintain sympathetic/try-again pose - DO NOT overwrite with idle timers!
-    spriteImg.src = state.currentFeedbackSprite;
-    spriteImg.className = 'teacher-character-img sympathetic';
+    setSpriteSrc(spriteImg, mobileSpriteImg, sadSrc, 'sympathetic');
   } else {
-    spriteImg.className = 'teacher-character-img idle';
     if (isYellow) {
-      spriteImg.src = `/assets/guide/teacher_yellow_pose1.png`;
+      setSpriteSrc(spriteImg, mobileSpriteImg, `/assets/guide/teacher_yellow_pose1.png`, 'idle');
     } else if (isGevina) {
       // Smooth settle to closed mouth rest stance
-      spriteImg.src = '/assets/guide/G3.png';
+      setSpriteSrc(spriteImg, mobileSpriteImg, '/assets/guide/G3.png', 'idle');
       const t = window.setTimeout(() => {
         if (!soundManager.isNarrating() && !state.submitResult && state.wrongAnswerIds.length === 0) {
-          spriteImg.src = '/assets/guide/G1.png';
+          setSpriteSrc(spriteImg, mobileSpriteImg, '/assets/guide/G1.png', 'idle');
         }
       }, 400);
       timers.outroTimeouts.push(t);
     } else {
       // Kingdom 1: Teacher Faith
-      spriteImg.src = '/assets/guide/F3.png';
+      setSpriteSrc(spriteImg, mobileSpriteImg, '/assets/guide/F3.png', 'idle');
       const t = window.setTimeout(() => {
         if (!soundManager.isNarrating() && !state.submitResult && state.wrongAnswerIds.length === 0) {
-          spriteImg.src = '/assets/guide/F1.png';
+          setSpriteSrc(spriteImg, mobileSpriteImg, '/assets/guide/F1.png', 'idle');
         }
       }, 400);
       timers.outroTimeouts.push(t);

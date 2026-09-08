@@ -75,11 +75,17 @@ export function globalLevelNumber(mapId: number, questionIndex: number): number 
 }
 
 export function getStepRef(mapId: number, questionIndex: number): StepRef | null {
-  const coords = STEP_COORDS[mapId]?.[questionIndex - 1];
+  const mapSteps = STEP_COORDS[mapId];
+  if (!mapSteps || mapSteps.length === 0) return null;
+  // Normalize index so both 1..5 local index and 6..10/11..15 global orderIndex resolve properly!
+  const zeroIndex = questionIndex > mapSteps.length
+    ? ((questionIndex - 1) % mapSteps.length)
+    : Math.max(0, questionIndex - 1);
+  const coords = mapSteps[zeroIndex];
   if (!coords) return null;
   return {
     mapId,
-    questionIndex,
+    questionIndex: zeroIndex + 1,
     x: coords.x,
     y: coords.y - coords.blockH / 2 + 10,
   };
@@ -117,7 +123,9 @@ export function buildKingdomTransitionAction(
   fromQuestionIndex: number,
   toMapId: number
 ): PendingMapAction | null {
-  const fromStep = getStepRef(fromMapId, fromQuestionIndex);
+  const mapSteps = STEP_COORDS[fromMapId] || [];
+  // Use fromQuestionIndex or fallback to the last station of fromMapId (e.g. station 5)
+  const fromStep = getStepRef(fromMapId, fromQuestionIndex) || getStepRef(fromMapId, mapSteps.length || 5);
   const toStep = getStepRef(toMapId, 1);
   if (!fromStep || !toStep) return null;
 
