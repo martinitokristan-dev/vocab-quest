@@ -61,7 +61,7 @@ class FeedbackAudioController extends Controller
             'voice_audio_file' => ['nullable', 'file', 'max:102400'],
             'voice_video_file' => ['nullable', 'file', 'max:102400'],
             'audio_url'        => ['nullable', 'string', 'max:1000'],
-            'map_id'           => ['nullable', 'integer', 'exists:maps,id'],
+            'map_id'           => ['nullable', 'integer'],
         ]);
 
         $audioUrl = $validated['audio_url'] ?? null;
