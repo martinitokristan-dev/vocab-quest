@@ -122,10 +122,6 @@ export const MapsPage: React.FC = () => {
             Manage the 3 progressive adventure kingdom stages on the unified World Map
           </p>
         </div>
-
-        <button onClick={() => openCreateModal(maps.length + 1)} className="btn-primary cursor-pointer shadow-sm">
-          <span>New Stage</span>
-        </button>
       </div>
 
       {error && (
@@ -259,9 +255,11 @@ export const MapsPage: React.FC = () => {
                   min="1"
                   max="3"
                   value={orderIndex}
-                  onChange={(e) => setOrderIndex(Number(e.target.value))}
-                  className="minimal-input text-xs"
+                  disabled
+                  readOnly
+                  className="minimal-input text-xs bg-slate-50 text-slate-500 cursor-not-allowed"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">Stage sequence is fixed to Stages 1–3.</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
