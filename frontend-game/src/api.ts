@@ -208,7 +208,12 @@ class StudentGameApiClient {
   }
 
   async getCurrentQuestion(): Promise<CurrentQuestionResponse> {
-    return this.request<CurrentQuestionResponse>('/game/question');
+    return this.request<CurrentQuestionResponse>(`/game/question?_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
   }
 
   async getGameStatus(): Promise<GameStatusResponse> {
@@ -239,7 +244,12 @@ class StudentGameApiClient {
     cheer_up: Array<{ id: number; phrase: string; audio_url: string; is_active: boolean; map_id: number | null }>;
   }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/game/feedback-audios`);
+      const res = await fetch(`${API_BASE_URL}/game/feedback-audios?_t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
       if (!res.ok) return { praise: [], cheer_up: [] };
       return res.json();
     } catch {

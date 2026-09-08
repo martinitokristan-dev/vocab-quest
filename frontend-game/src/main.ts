@@ -35,6 +35,7 @@ import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/te
 import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackAudios } from './utils/feedbackAudio';
 import { bindGlobalKeyboard } from './utils/keyboardHandler';
 import { initRouter, syncUrl, type ScreenType } from './utils/router';
+import { subscribeSync } from './utils/realtimeSync';
 
 // Suppress unhandled performance observer or browser extension errors (e.g. reportAllChanges reading 'startTime')
 window.addEventListener('error', (event) => {
@@ -66,6 +67,7 @@ class StudentArcadeGame {
 
   // Overlay components
   private dialogueOverlay: DialogueOverlay | null = null;
+  private unsubscribeSync: (() => void) | null = null;
 
   private state: StudentGameAppState = {
     screen: 'title',
@@ -129,9 +131,35 @@ class StudentArcadeGame {
     this.bindGlobalKeyboard();
     this.initRouter();
 
+    // Zero-overhead real-time event listener: instant sync with 0 timers and 0 extra RAM
+    this.unsubscribeSync = subscribeSync(async (msg) => {
+      if (msg.type === 'FEEDBACK_AUDIO_CHANGED') {
+        await this.loadFeedbackAudios();
+      } else if (msg.type === 'QUESTION_CHANGED') {
+        if (this.state.screen === 'world_map' || this.state.screen === 'question') {
+          await this.fetchCurrentQuestion();
+        }
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      this.destroy();
+    });
+
     soundManager.onSpeakingStateChange((isSpeaking) => {
       this.updateTeacherSpeakingUI(isSpeaking);
     });
+  }
+
+  public destroy() {
+    if (this.unsubscribeSync) {
+      this.unsubscribeSync();
+      this.unsubscribeSync = null;
+    }
+    if (this.pollInterval) {
+      window.clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   private preloadTeacherAssets() {
@@ -979,6 +1007,7 @@ class StudentArcadeGame {
                 thenScreen: 'question',
               },
             });
+            this.loadFeedbackAudios();
             this.startLightweightPoller();
           } catch (err: any) {
             console.error('Error proceeding after praise:', err);

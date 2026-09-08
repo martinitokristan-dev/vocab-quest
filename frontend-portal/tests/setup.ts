@@ -45,6 +45,54 @@ global.ResizeObserver = class ResizeObserver {
 global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 global.URL.revokeObjectURL = vi.fn();
 
+// Mock MediaStream
+global.MediaStream = class MediaStream {
+  getTracks() {
+    return [{ stop: vi.fn(), kind: 'audio' }];
+  }
+} as any;
+
+// Mock BroadcastChannel
+global.BroadcastChannel = class BroadcastChannel {
+  name: string;
+  onmessage: ((event: any) => void) | null = null;
+  private messageListeners = new Set<(event: any) => void>();
+  static channels = new Map<string, Set<BroadcastChannel>>();
+
+  constructor(name: string) {
+    this.name = name;
+    if (!BroadcastChannel.channels.has(name)) {
+      BroadcastChannel.channels.set(name, new Set());
+    }
+    BroadcastChannel.channels.get(name)!.add(this);
+  }
+
+  postMessage(message: any) {
+    const listeners = BroadcastChannel.channels.get(this.name);
+    if (listeners) {
+      listeners.forEach((ch) => {
+        if (ch !== this) {
+          const ev = { data: message };
+          if (ch.onmessage) ch.onmessage(ev as any);
+          ch.messageListeners.forEach((fn) => fn(ev as any));
+        }
+      });
+    }
+  }
+
+  addEventListener(type: string, fn: (event: any) => void) {
+    if (type === 'message') this.messageListeners.add(fn);
+  }
+
+  removeEventListener(type: string, fn: (event: any) => void) {
+    if (type === 'message') this.messageListeners.delete(fn);
+  }
+
+  close() {
+    BroadcastChannel.channels.get(this.name)?.delete(this);
+  }
+} as any;
+
 // Mock MediaRecorder
 global.MediaRecorder = class MediaRecorder {
   ondataavailable: ((event: any) => void) | null = null;
