@@ -18,6 +18,7 @@ import {
   Globe,
   Crown,
   Volume2,
+  Upload,
 } from 'lucide-react';
 
 type MapOption = { id: number; title: string; order_index: number };
@@ -89,6 +90,7 @@ export const AudioReviewPage: React.FC = () => {
   const studioAudioRef = useRef<HTMLAudioElement | null>(null);
   const listAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchAudios();
@@ -181,6 +183,7 @@ export const AudioReviewPage: React.FC = () => {
     if (studioAudioRef.current) studioAudioRef.current.pause();
     setIsPlayingStudioPreview(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (videoFileInputRef.current) videoFileInputRef.current.value = '';
   };
 
   const toggleStudioAudioPlayback = () => {
@@ -328,6 +331,11 @@ export const AudioReviewPage: React.FC = () => {
       : filterMapId === null
       ? typeFiltered.filter((a) => a.map_id == null)
       : typeFiltered.filter((a) => a.map_id === filterMapId);
+
+  const isVideoFile =
+    !!audioFile &&
+    (audioFile.type.startsWith('video/') ||
+      /\.(mp4|webm|ogg|mov|mkv)$/i.test(audioFile.name));
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -496,26 +504,47 @@ export const AudioReviewPage: React.FC = () => {
 
             <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
               {!isRecording && !audioPreviewUrl && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={startRecording}
-                    className="py-2.5 px-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
-                  >
-                    <Mic className="w-4 h-4 text-emerald-600" />
-                    <span>Record with Microphone</span>
-                  </button>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
+                    >
+                      <Mic className="w-4 h-4 text-emerald-600" />
+                      <span>Record Mic</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Live Voice</span>
+                    </button>
 
-                  <label className="py-2.5 px-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <span>Upload Audio File</span>
-                  </label>
+                    <label className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <Upload className="w-4 h-4 text-slate-500" />
+                      <span>Upload Audio</span>
+                      <span className="text-[10px] text-slate-400 font-normal">MP3, WAV, M4A</span>
+                    </label>
+
+                    <label className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs">
+                      <input
+                        ref={videoFileInputRef}
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,.mp4,.webm"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <Volume2 className="w-4 h-4 text-indigo-500" />
+                      <span>Upload Video</span>
+                      <span className="text-[10px] text-slate-400 font-normal">MP4, WebM (Audio track)</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-400 italic">
+                    Accepts all formats (MP3, WAV, WebM, MP4). Only audio is used during gameplay (no video display).
+                  </p>
                 </div>
               )}
 
@@ -537,17 +566,21 @@ export const AudioReviewPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Audio Preview State */}
-              {audioPreviewUrl && !isRecording && (
-                <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between gap-3 shadow-xs">
+              {/* Video Preview Bar (Audio only, with Test Audio button!) */}
+              {audioPreviewUrl && !isRecording && isVideoFile && (
+                <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                      <FileAudio className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                      <Volume2 className="w-4 h-4" />
                     </div>
-                    <div className="truncate">
-                      <p className="font-medium text-slate-900 truncate">
-                        {audioFile ? audioFile.name : 'Voice recording ready'}
-                      </p>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-900 text-xs">
+                        {audioFile ? audioFile.name : 'MP4 Voice Recording ready'}
+                      </div>
+                      <div className="text-[10px] text-indigo-700 font-medium flex items-center gap-1">
+                        <span>MP4 Video Recording (Audio Only — No Video Display)</span>
+                        {audioFile && <span>• {(audioFile.size / 1024).toFixed(1)} KB</span>}
+                      </div>
                     </div>
                   </div>
 
@@ -555,7 +588,51 @@ export const AudioReviewPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={toggleStudioAudioPlayback}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                    >
+                      {isPlayingStudioPreview ? (
+                        <Pause className="w-3.5 h-3.5" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                      )}
+                      <span>{isPlayingStudioPreview ? 'Pause' : 'Test Audio'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={clearRecorder}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Discard"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Audio Preview Bar */}
+              {audioPreviewUrl && !isRecording && !isVideoFile && (
+                <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                      <FileAudio className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-900 text-xs">
+                        {audioFile ? audioFile.name : 'Voice recording ready'}
+                      </div>
+                      <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
+                        <span>Audio Voiceover</span>
+                        {audioFile && <span>• {(audioFile.size / 1024).toFixed(1)} KB</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={toggleStudioAudioPlayback}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                     >
                       {isPlayingStudioPreview ? (
                         <Pause className="w-3.5 h-3.5" />

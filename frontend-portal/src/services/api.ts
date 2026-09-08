@@ -649,8 +649,14 @@ class ApiClient {
     if (payload.audio_file) {
       const formData = new FormData();
       formData.append('type', payload.type);
-      formData.append('phrase', payload.phrase);
-      formData.append('audio_file', payload.audio_file, 'feedback_voice.webm');
+      const fileName = payload.audio_file instanceof File
+        ? payload.audio_file.name
+        : 'feedback_voice.webm';
+      formData.append('audio_file', payload.audio_file, fileName);
+      formData.append('voice_audio_file', payload.audio_file, fileName);
+      if (fileName.toLowerCase().endsWith('.mp4') || (payload.audio_file instanceof File && payload.audio_file.type.startsWith('video/'))) {
+        formData.append('voice_video_file', payload.audio_file, fileName);
+      }
       if (payload.map_id != null) {
         formData.append('map_id', String(payload.map_id));
       }
