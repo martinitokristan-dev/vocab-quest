@@ -77,14 +77,14 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
     kingdomName: 'Agusan del Sur Provincial Capitol',
     slides: [
       {
-        speaker: 'Principal Flores',
+        speaker: 'Teacher Yanna',
         titleBadge: 'PROVINCIAL CAPITOL — DIFFICULT ROUND!',
         text: 'Welcome to Agusan del Sur Provincial Capitol Kingdom! This is the Difficult Round in the quest. In level 11-15, you will be reading a short story. Then, read each meaning. Look at the sentence marked with the [number]. Find the word in that sentence that matches the meaning. Then, type the word you found.',
         characterImage: '/assets/guide/teacher_yellow_pose1.png',
         buttonText: 'NEXT ▶',
       },
       {
-        speaker: 'Principal Flores',
+        speaker: 'Teacher Yanna',
         titleBadge: 'FINAL CHALLENGE!',
         text: 'Goodluck, {playerName}! You can do this!',
         characterImage: '/assets/guide/teacher_yellow_pose2.png',

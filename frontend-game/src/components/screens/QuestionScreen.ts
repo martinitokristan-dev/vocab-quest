@@ -69,7 +69,7 @@ export class QuestionScreen {
     const activeMapId = question.map?.id || 1;
     const isYellow = activeMapId === 3;
     const isGevina = activeMapId === 2;
-    const teacherName = isYellow ? 'Principal Flores' : isGevina ? 'Teacher Gevina' : 'Teacher Faith';
+    const teacherName = isYellow ? 'Teacher Yanna' : isGevina ? 'Teacher Gevina' : 'Teacher Faith';
 
     const currentWord = question.highlighted_word;
     const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
