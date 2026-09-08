@@ -55,17 +55,21 @@ class FeedbackAudioController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'type'       => ['required', 'in:praise,cheer_up'],
-            'phrase'     => ['required', 'string', 'max:255'],
-            'audio_file' => ['nullable', 'file'],           // no size or MIME restriction
-            'audio_url'  => ['nullable', 'string', 'max:1000'],
-            'map_id'     => ['nullable', 'integer', 'exists:maps,id'],
+            'type'             => ['required', 'in:praise,cheer_up'],
+            'phrase'           => ['required', 'string', 'max:255'],
+            'audio_file'       => ['nullable', 'file', 'max:102400'], // accepts all audio & video formats (mp3, mp4, webm, etc.) up to 100MB
+            'voice_audio_file' => ['nullable', 'file', 'max:102400'],
+            'voice_video_file' => ['nullable', 'file', 'max:102400'],
+            'audio_url'        => ['nullable', 'string', 'max:1000'],
+            'map_id'           => ['nullable', 'integer', 'exists:maps,id'],
         ]);
 
         $audioUrl = $validated['audio_url'] ?? null;
 
-        if ($request->hasFile('audio_file')) {
-            $file   = $request->file('audio_file');
+        $file = $request->file('audio_file') 
+            ?? $request->file('voice_audio_file') 
+            ?? $request->file('voice_video_file');
+        if ($file) {
             $upload = $this->cloudinaryService->uploadFile($file, 'feedback_audios', 'video');
             $audioUrl = $upload['url'];
         }
