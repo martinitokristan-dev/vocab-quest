@@ -344,5 +344,71 @@ describe('Real-Time Cross-Tab Sync (Zero Polling, Zero RAM Overhead)', () => {
 
       unsub();
     });
+
+    it('should simulate teacher updating a map and subscriber re-fetching without reload', async () => {
+      let mockMaps = [
+        { id: 1, title: 'Kingdom 1', order_index: 1, published: true, question_count: 5 },
+      ];
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url: any) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/maps')) {
+          return new Response(JSON.stringify({ data: mockMaps }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ message: 'Not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+
+      let currentMaps: any[] = [];
+      const fetchMaps = async () => {
+        const res = await api.getMaps(true);
+        currentMaps = res.data;
+      };
+
+      await fetchMaps();
+      expect(currentMaps[0].title).toBe('Kingdom 1');
+
+      // Subscribe to real-time map sync
+      const unsub = subscribeSync(async (msg) => {
+        if (msg.type === 'MAP_CHANGED') {
+          await fetchMaps();
+        }
+      });
+
+      // Teacher edits the map title / publishes
+      mockMaps = [
+        { id: 1, title: 'EPCES Adventure Entrance', order_index: 1, published: true, question_count: 5 },
+      ];
+
+      // Broadcast change
+      broadcastSync({ type: 'MAP_CHANGED' });
+
+      await vi.waitFor(() => {
+        expect(currentMaps[0].title).toBe('EPCES Adventure Entrance');
+      });
+
+      unsub();
+    });
+
+    it('should broadcast ROOM_STATUS_CHANGED to pause and resume active clients', async () => {
+      const receivedMessages: SyncMessage[] = [];
+      const unsub = subscribeSync((msg) => {
+        if (msg.type === 'ROOM_STATUS_CHANGED') {
+          receivedMessages.push(msg);
+        }
+      });
+
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
+
+      expect(receivedMessages).toHaveLength(1);
+      expect(receivedMessages[0].type).toBe('ROOM_STATUS_CHANGED');
+
+      unsub();
+    });
   });
 });
