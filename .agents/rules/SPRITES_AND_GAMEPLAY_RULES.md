@@ -38,7 +38,7 @@
 ---
 
 ### 🏛️ Kingdom 3 (Provincial Capitol / Hard Mode - `mapId === 3`)
-- **Character Name**: **Principal Flores**
+- **Character Name**: **Teacher Yanna**
 - **Visual Appearance**: Sunny Yellow DepEd uniform, brown batik ascot, black skirt, pumps.
 - **Base Idle & Reading Sprite**: `teacher_yellow_pose1.png`
 - **Feedback Reactions**:

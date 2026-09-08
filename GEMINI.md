@@ -10,7 +10,7 @@ Always review and follow [.agents/rules/SPRITES_AND_GAMEPLAY_RULES.md](.agents/r
 - **Kingdom Teachers**:
   - Kingdom 1: **Teacher Faith** (`F1`–`F9`, eyeglasses, blue DepEd uniform).
   - Kingdom 2: **Teacher Gevina** (`G1`–`G9`, no eyeglasses, blue DepEd uniform).
-  - Kingdom 3: **Principal Flores** (`teacher_yellow_*`, yellow DepEd uniform).
+  - Kingdom 3: **Teacher Yanna** (`teacher_yellow_*`, yellow DepEd uniform).
 - **Talking Animation**: Welcoming intro hand-gesture held for ~1s on initial question arrival $\rightarrow$ stationary body vowel loop (`AH` $\rightarrow$ `EH` $\rightarrow$ `OH` $\rightarrow$ `Closed Rest`) at 340ms cadence $\rightarrow$ 2-step settle outro (`F3`/`G3` $\rightarrow$ `F1`/`G1`).
 - **Answer Interruption**: Instant 0ms speech stop & mouth clear on answer tap.
 - **Reaction Poses**: Locked sympathetic pose on wrong answer; locked celebrating pose on correct answer.

@@ -24,9 +24,9 @@ import {
 
 // Teacher and Kingdom information for elementary school teachers & students
 const TEACHER_GUIDES: Record<number, { teacher: string; kingdomName: string }> = {
-  1: { teacher: 'Teacher Faith', kingdomName: 'EPCES Adventure Entrance' },
-  2: { teacher: 'Teacher Gevina', kingdomName: 'Bayan ng Prosperidad' },
-  3: { teacher: 'Principal Flores', kingdomName: 'Provincial Capitol' },
+  1: { teacher: 'Teacher Faith', kingdomName: 'EPCES Elementary & Riverside' },
+  2: { teacher: 'Teacher Gevina', kingdomName: 'Ancient Library & Enchanted Forest' },
+  3: { teacher: 'Teacher Yanna', kingdomName: 'Provincial Capitol' },
 };
 
 
