@@ -20,12 +20,14 @@ class StudentAnswer extends Model
         'is_correct',
         'stars',
         'attempts',
+        'wrong_answer_ids',
     ];
 
     protected $casts = [
-        'is_correct' => 'boolean',
-        'stars'      => 'integer',
-        'attempts'   => 'integer',
+        'is_correct'       => 'boolean',
+        'stars'            => 'integer',
+        'attempts'         => 'integer',
+        'wrong_answer_ids' => 'array',
     ];
 
     public function gameSession(): BelongsTo

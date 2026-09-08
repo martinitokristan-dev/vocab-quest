@@ -51,6 +51,59 @@ class GameSessionController extends Controller
             ]);
         }
 
+        $existingSession = GameSession::where('room_id', $room->id)
+            ->where('player_name', $validated['player_name'])
+            ->first();
+
+        if ($existingSession) {
+            $authHeader = $request->header('Authorization');
+            $providedToken = $request->header('X-Game-Session-Token')
+                ?? ($authHeader ? str_replace('Bearer ', '', $authHeader) : null);
+            $isSameToken = $providedToken && $providedToken === $existingSession->token;
+            $isInWaitingLobby = $room->status === 'waiting';
+            $isCompleted = (bool) $existingSession->is_completed;
+            $isSessionActive = Cache::has("session_active_{$existingSession->id}");
+
+            // Reconnection / name reuse is allowed if:
+            // 1. Pupil has the same token (reconnecting from same device/browser)
+            // 2. Room is in waiting lobby (game hasn't started or was reset)
+            // 3. Pupil previously completed their game (playing again / restart)
+            // 4. Player is not actively playing in this room (tab closed / disconnected / reset)
+            if ($isSameToken || $isInWaitingLobby || $isCompleted || ! $isSessionActive) {
+                // If reconnecting from same browser session, keep token to avoid race conditions with in-flight requests
+                $newToken = ($isSameToken && ! empty($existingSession->token)) ? $existingSession->token : Str::random(60);
+                $isResetting = $isCompleted || $isInWaitingLobby || (! $isSameToken && ! $isSessionActive);
+
+                $existingSession->update([
+                    'avatar_slug'    => $validated['avatar_slug'],
+                    'token'          => $newToken,
+                    'is_completed'   => false,
+                    'score'          => $isResetting ? 0 : $existingSession->score,
+                    'current_map_id' => $isResetting ? $room->current_map_id : $existingSession->current_map_id,
+                ]);
+
+                if ($isResetting) {
+                    $existingSession->studentAnswers()->delete();
+                }
+
+                Cache::forget("room_results_{$room->id}");
+                Cache::put("session_active_{$existingSession->id}", now()->timestamp, 20);
+
+                return response()->json([
+                    'message' => 'Successfully joined game session.',
+                    'token'   => $newToken,
+                    'player'  => [
+                        'name'        => $existingSession->player_name,
+                        'avatar_slug' => $existingSession->avatar_slug,
+                    ],
+                ], 200);
+            }
+
+            throw ValidationException::withMessages([
+                'player_name' => ['This name is currently active in this room. Please use a different name.'],
+            ]);
+        }
+
         try {
             $session = GameSession::create([
                 'room_id'        => $room->id,
@@ -75,7 +128,7 @@ class GameSessionController extends Controller
             ], 201);
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             throw ValidationException::withMessages([
-                'player_name' => ['This name is already taken in this room. Please use a different name.'],
+                'player_name' => ['This name is currently active in this room. Please use a different name.'],
             ]);
         }
     }

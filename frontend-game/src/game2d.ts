@@ -114,6 +114,18 @@ export class Game2DMapRenderer {
   private onWalkArrivalCallback: (() => void) | null = null;
   private lastFrameTime = 0;
 
+  // 3D Padlock Opening Animation State
+  private unlockingPadlock: {
+    kingdomId: number;
+    progress: number;
+    shackleLift: number;
+    shackleAngle: number;
+    lockWobbleX: number;
+    alpha: number;
+    mistAlpha: number;
+    dropY: number;
+  } | null = null;
+
   // Kingdom landmarks on the voxel map (with Top Roof Banner Coordinates)
   private kingdoms: BuildingKingdom[] = [
     {
@@ -259,19 +271,55 @@ export class Game2DMapRenderer {
     }
   }
 
+  public getActiveFocalPoint(): { x: number; y: number } {
+    const activeMapId = this.mapFlowOptions?.activeMapId || 1;
+    if (activeMapId === 3) {
+      return { x: 1450, y: 390 };
+    } else if (activeMapId === 2) {
+      return { x: 938, y: 500 };
+    } else {
+      return { x: 378, y: 620 };
+    }
+  }
+
   private fitCameraToScreen() {
     const w = this.canvas.width || window.innerWidth;
     const h = this.canvas.height || window.innerHeight;
 
-    // Minimum zoom covers the screen edge to edge without any empty space
-    const baseScale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
-    this.minZoom = baseScale;
-    this.maxZoom = baseScale * 3.1;
-    this.zoomLevel = baseScale;
+    const isPortraitMobile = w < 860 && w < h;
+    let baseScale: number;
 
-    // Center the 1774 x 887 voxel map
-    this.panOffset.x = (w - this.WORLD_WIDTH * baseScale) / 2;
-    this.panOffset.y = (h - this.WORLD_HEIGHT * baseScale) / 2;
+    if (isPortraitMobile) {
+      // Option A: "Kingdom Fit" - Fits all 5 stations of the active kingdom edge-to-edge
+      // with comfortable padding on mobile portrait screens (typically 360px - 430px wide).
+      const kingdomFitScale = Math.max(0.55, Math.min(0.70, w / 580));
+      baseScale = kingdomFitScale;
+      this.minZoom = Math.min(0.35, w / this.WORLD_WIDTH);
+      this.maxZoom = 2.4;
+      this.zoomLevel = kingdomFitScale;
+    } else {
+      // Desktop / Landscape view: fill viewport edge-to-edge
+      baseScale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
+      this.minZoom = baseScale;
+      this.maxZoom = baseScale * 3.1;
+      this.zoomLevel = baseScale;
+    }
+
+    // If whole map width fits comfortably on screen, center the entire map
+    if (w >= this.WORLD_WIDTH * baseScale) {
+      this.panOffset.x = (w - this.WORLD_WIDTH * baseScale) / 2;
+      this.panOffset.y = (h - this.WORLD_HEIGHT * baseScale) / 2;
+    } else {
+      // On mobile / portrait screens where map is wider than the viewport,
+      // center camera directly on the active kingdom / player position
+      const isAwaitingKingdom = this.mapFlowOptions?.mapPhase === 'awaiting_kingdom_click';
+      const focal = isAwaitingKingdom
+        ? this.getActiveFocalPoint()
+        : ((this.playerPos && this.playerPos.x > 0) ? this.playerPos : this.getActiveFocalPoint());
+      const targetPan = this.computePanForWorldCenter(focal.x, focal.y, baseScale);
+      this.panOffset.x = targetPan.x;
+      this.panOffset.y = targetPan.y;
+    }
     this.clampCameraBounds();
   }
 
@@ -523,9 +571,14 @@ export class Game2DMapRenderer {
 
   public updateProgress(activeMapId: number, currentQuestionIndex: number, starsHistory?: StarHistoryItem[]) {
     this.initLayout(activeMapId, currentQuestionIndex, starsHistory);
+    if (!this.isWalkingAnimation) {
+      this.centerOnActiveLocation();
+    }
   }
 
   public setMapFlowOptions(opts: MapFlowOptions) {
+    const prevActiveMapId = this.mapFlowOptions?.activeMapId;
+    const prevPhase = this.mapFlowOptions?.mapPhase;
     this.mapFlowOptions = opts;
     this.kingdoms.forEach((k) => {
       k.unlocked = k.id <= opts.activeMapId;
@@ -533,6 +586,9 @@ export class Game2DMapRenderer {
       k.clickable = k.unlocked && !k.entered;
     });
     this.showPlayerAvatar = true;
+    if ((prevActiveMapId !== opts.activeMapId || prevPhase !== opts.mapPhase) && !this.isWalkingAnimation) {
+      this.centerOnActiveLocation();
+    }
   }
 
   public isInputLocked(): boolean {
@@ -643,32 +699,38 @@ export class Game2DMapRenderer {
     const focalY = kingdom.y - kingdom.height * 0.1;
     const anchor = this.worldToScreen(focalX, focalY);
 
-    // Deep zoom — feels like stepping into the kingdom building
+    // Deep zoom — feels like stepping close to the kingdom gate & padlock
     const targetZoom = this.maxZoom;
 
-    // Phase 1: slow zoom into kingdom + tunnel vignette
+    // Phase 1: smooth zoom into kingdom + subtle tunnel vignette
     await this.tweenKingdomEntryZoom(
       focalX,
       focalY,
       anchor.x,
       anchor.y,
       targetZoom,
-      2200,
+      1500,
       (progress, focalScreen) => {
         this.vacuumFocal.x = focalScreen.x;
         this.vacuumFocal.y = focalScreen.y;
-        if (progress > 0.35) {
-          const vignetteT = (progress - 0.35) / 0.65;
-          this.vacuumProgress = this.easeInOutQuad(vignetteT);
-          this.vacuumAlpha = this.easeInOutQuad(vignetteT) * 0.92;
+        if (progress > 0.6) {
+          const vignetteT = (progress - 0.6) / 0.4;
+          this.vacuumProgress = this.easeInOutQuad(vignetteT) * 0.35;
+          this.vacuumAlpha = this.easeInOutQuad(vignetteT) * 0.35;
         }
       }
     );
 
-    // Phase 2: fade to black — "entering" the kingdom (stay black, no map reveal)
+    // Phase 1.5: Realistic 3D Padlock Opening Animation right in front of the camera!
+    if (!kingdom.entered) {
+      await this.animatePadlockUnlock(kingdomId);
+    }
+
+    // Phase 2: Whoosh & deep push into the open kingdom gates to black
+    soundManager.playWhoosh();
     this.vacuumProgress = 1;
     this.vacuumAlpha = 1;
-    await this.animateFullScreenFade(0, 1, 500);
+    await this.animateFullScreenFade(0, 1, 450);
 
     // Reset camera under black so gameplay map is ready after dialogue
     this.fitCameraToScreen();
@@ -678,6 +740,84 @@ export class Game2DMapRenderer {
 
     this.clampCameraBounds();
     this.inputLocked = false;
+  }
+
+  public animatePadlockUnlock(kingdomId: number): Promise<void> {
+    return new Promise((resolve) => {
+      const kingdom = this.kingdoms.find((k) => k.id === kingdomId);
+      const duration = 850; // Crisp 850ms mechanical unlatch & fade
+      const startTime = performance.now();
+      let hasPlayedSound = false;
+
+      this.unlockingPadlock = {
+        kingdomId,
+        progress: 0,
+        shackleLift: 0,
+        shackleAngle: 0,
+        lockWobbleX: 0,
+        alpha: 1,
+        mistAlpha: 1,
+        dropY: 0,
+      };
+
+      const tick = (now: number) => {
+        const elapsed = now - startTime;
+        const p = Math.min(1, elapsed / duration);
+
+        let shackleLift = 0;
+        let shackleAngle = 0;
+        let lockWobbleX = 0;
+        let alpha = 1;
+        let mistAlpha = 1;
+        let dropY = 0;
+
+        if (p < 0.15) {
+          // Subtle mechanical tension shudder
+          const t = p / 0.15;
+          lockWobbleX = Math.sin(t * Math.PI * 4) * 1.5 * (1 - t);
+        } else if (p < 0.50) {
+          // Mechanical latch release: shackle pops UP (+13px) and swings open (-35 deg / -0.6 rad)
+          if (!hasPlayedSound) {
+            hasPlayedSound = true;
+            soundManager.playPadlockUnlock();
+          }
+          const t = (p - 0.15) / 0.35; // 0 to 1
+          const popEase = Math.sin(t * Math.PI * 0.5);
+          shackleLift = popEase * 13;
+          shackleAngle = -popEase * 0.6;
+        } else {
+          // Shackle stays open; padlock and dark mist fade away smoothly
+          const t = (p - 0.50) / 0.50; // 0 to 1
+          shackleLift = 13;
+          shackleAngle = -0.6;
+          dropY = t * 10;
+          alpha = Math.max(0, 1 - t * 1.35);
+          mistAlpha = Math.max(0, 1 - t);
+        }
+
+        if (this.unlockingPadlock) {
+          this.unlockingPadlock.progress = p;
+          this.unlockingPadlock.shackleLift = shackleLift;
+          this.unlockingPadlock.shackleAngle = shackleAngle;
+          this.unlockingPadlock.lockWobbleX = lockWobbleX;
+          this.unlockingPadlock.alpha = alpha;
+          this.unlockingPadlock.mistAlpha = mistAlpha;
+          this.unlockingPadlock.dropY = dropY;
+        }
+
+        if (p < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          this.unlockingPadlock = null;
+          if (kingdom) {
+            kingdom.entered = true;
+          }
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(tick);
+    });
   }
 
   /** Clear the post-entry black screen when welcome dialogue appears or map resumes. */
@@ -693,8 +833,37 @@ export class Game2DMapRenderer {
     this.clampCameraBounds();
   }
 
+  public centerOnKingdom(kingdomId: number) {
+    let focalX = 378;
+    let focalY = 620;
+    if (kingdomId === 3) {
+      focalX = 1450;
+      focalY = 390;
+    } else if (kingdomId === 2) {
+      focalX = 938;
+      focalY = 500;
+    } else {
+      focalX = 378;
+      focalY = 620;
+    }
+    const targetPan = this.computePanForWorldCenter(focalX, focalY, this.zoomLevel);
+    this.panOffset = targetPan;
+    this.clampCameraBounds();
+  }
+
   public centerOnActiveLocation() {
-    this.fitCameraToScreen();
+    if (this.mapFlowOptions?.mapPhase === 'awaiting_kingdom_click') {
+      const activeMapId = this.mapFlowOptions?.activeMapId || 1;
+      this.centerOnKingdom(activeMapId);
+      return;
+    }
+
+    const focal = (this.playerPos && this.playerPos.x > 0)
+      ? this.playerPos
+      : this.getActiveFocalPoint();
+    const targetPan = this.computePanForWorldCenter(focal.x, focal.y, this.zoomLevel);
+    this.panOffset = targetPan;
+    this.clampCameraBounds();
   }
 
   public onStepClick(callback: (mapId: number, questionIndex: number) => void) {
@@ -717,6 +886,10 @@ export class Game2DMapRenderer {
     if (!waypoints || waypoints.length === 0) return;
     this.playerPos = { x: waypoints[0].x, y: waypoints[0].y };
     this.targetPlayerPos = { x: waypoints[0].x, y: waypoints[0].y };
+    // Immediately pre-center camera on the start of the walking path so mobile view looks directly at the character
+    const startPan = this.computePanForWorldCenter(waypoints[0].x, waypoints[0].y, this.zoomLevel);
+    this.panOffset = startPan;
+    this.clampCameraBounds();
     this.isWalkingAnimation = true;
     this.walkBubbleText = bubbleText;
     this.walkingWaypoints = waypoints;
@@ -866,10 +1039,11 @@ export class Game2DMapRenderer {
 
     if (!hoveredS) {
       for (const step of this.steps) {
-        const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
-        const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
+        const hitRadius = Math.max(48, 30 / this.zoomLevel);
+        const inBlockX = Math.abs(worldX - step.x) <= Math.max(hitRadius * 0.8, step.blockW * 0.8);
+        const inBlockY = Math.abs(worldY - step.y) <= Math.max(hitRadius * 0.8, step.blockH * 0.8);
         const dist = Math.hypot(worldX - step.x, worldY - step.y);
-        if (dist < 48 || (inBlockX && inBlockY)) {
+        if (dist < hitRadius || (inBlockX && inBlockY)) {
           hoveredS = step;
           break;
         }
@@ -945,10 +1119,11 @@ export class Game2DMapRenderer {
 
     // Check step nodes (only when kingdom entered)
     for (const step of this.steps) {
-      const inBlockX = Math.abs(worldX - step.x) <= Math.max(40, step.blockW * 0.8);
-      const inBlockY = Math.abs(worldY - step.y) <= Math.max(45, step.blockH * 0.8);
+      const hitRadius = Math.max(48, 30 / this.zoomLevel);
+      const inBlockX = Math.abs(worldX - step.x) <= Math.max(hitRadius * 0.8, step.blockW * 0.8);
+      const inBlockY = Math.abs(worldY - step.y) <= Math.max(hitRadius * 0.8, step.blockH * 0.8);
       const dist = Math.hypot(worldX - step.x, worldY - step.y);
-      if (dist < 48 || (inBlockX && inBlockY)) {
+      if (dist < hitRadius || (inBlockX && inBlockY)) {
         if (!kingdomEntered(step.mapId)) {
           soundManager.playWrong();
           return;
@@ -1035,6 +1210,12 @@ export class Game2DMapRenderer {
           }
         }
       }
+
+      // Dynamic camera tracking: keep running mascot centered on screen (vital for mobile viewports)
+      const targetPan = this.computePanForWorldCenter(this.playerPos.x, this.playerPos.y, this.zoomLevel);
+      this.panOffset.x += (targetPan.x - this.panOffset.x) * 0.12;
+      this.panOffset.y += (targetPan.y - this.panOffset.y) * 0.12;
+      this.clampCameraBounds();
     } else {
       this.playerPos.x += (this.targetPlayerPos.x - this.playerPos.x) * 0.1;
       this.playerPos.y += (this.targetPlayerPos.y - this.playerPos.y) * 0.1;
@@ -1307,12 +1488,16 @@ export class Game2DMapRenderer {
       if (!k.entered) {
         this.ctx.save();
 
-        // 1. Soft Dark Feathered Mask over the locked kingdom structure
+        const isUnlocking = this.unlockingPadlock && this.unlockingPadlock.kingdomId === k.id;
+        const u = isUnlocking ? this.unlockingPadlock! : null;
+
+        // 1. Soft Dark Feathered Mask over the locked kingdom structure (fades during unlock)
         const maskW = k.width + 40;
         const maskH = k.height + 20;
         const darkGrad = this.ctx.createRadialGradient(k.x, k.y, k.width * 0.15, k.x, k.y, maskW * 0.5);
-        darkGrad.addColorStop(0, 'rgba(2, 6, 23, 0.76)');
-        darkGrad.addColorStop(0.55, 'rgba(15, 23, 42, 0.65)');
+        const mistA = u ? u.mistAlpha : 1;
+        darkGrad.addColorStop(0, `rgba(2, 6, 23, ${0.76 * mistA})`);
+        darkGrad.addColorStop(0.55, `rgba(15, 23, 42, ${0.65 * mistA})`);
         darkGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
 
         this.ctx.fillStyle = darkGrad;
@@ -1320,9 +1505,17 @@ export class Game2DMapRenderer {
         this.ctx.ellipse(k.x, k.y, maskW * 0.5, maskH * 0.5, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // 2. Realistic 3D Metallic Padlock with gentle floating bob
-        const padBob = Math.sin(time * 3 + k.id * 1.5) * 4;
-        this.drawRealisticPadlock(k.x, k.y + padBob, 42);
+        // 2. Realistic 3D Metallic Padlock with gentle floating bob or unlocking animation
+        const padBob = isUnlocking ? 0 : Math.sin(time * 3 + k.id * 1.5) * 4;
+        const lockY = k.y + padBob + (u ? u.dropY : 0);
+
+        this.drawRealisticPadlock(k.x, lockY, 42, isUnlocking ? {
+          shackleLift: u!.shackleLift,
+          shackleAngle: u!.shackleAngle,
+          lockWobbleX: u!.lockWobbleX,
+          alpha: u!.alpha,
+          hideBadge: true,
+        } : undefined);
 
         this.ctx.restore();
       }
@@ -1431,8 +1624,28 @@ export class Game2DMapRenderer {
   /**
    * Realistic 3D Metallic Dark Steel / Gray Padlock (Locked / Inactive)
    */
-  private drawRealisticPadlock(x: number, y: number, size = 42) {
+  private drawRealisticPadlock(
+    x: number,
+    y: number,
+    size = 42,
+    anim?: {
+      shackleLift?: number;
+      shackleAngle?: number;
+      lockWobbleX?: number;
+      alpha?: number;
+      hideBadge?: boolean;
+    }
+  ) {
     this.ctx.save();
+    if (anim?.alpha !== undefined) {
+      this.ctx.globalAlpha = Math.max(0, Math.min(1, anim.alpha));
+    }
+    const wobbleX = anim?.lockWobbleX || 0;
+    x += wobbleX;
+
+    const shackleLift = anim?.shackleLift || 0;
+    const shackleAngle = anim?.shackleAngle || 0;
+    const hideBadge = anim?.hideBadge || false;
 
     // 1. Soft Ambient Shadow behind the lock
     const glow = this.ctx.createRadialGradient(x, y, size * 0.2, x, y, size * 1.35);
@@ -1450,18 +1663,32 @@ export class Game2DMapRenderer {
     this.ctx.ellipse(x, y + size * 0.65, size * 0.55, size * 0.2, 0, 0, Math.PI * 2);
     this.ctx.fill();
 
-    // 3. Shackle (Hardened Chrome Steel Arch with Realistic Specular Highlight)
+    // 3. Shackle (Hardened Chrome Steel Arch with Realistic Specular Highlight & Unlocking Hinge)
     const shackleR = size * 0.32;
     const shackleThick = size * 0.16;
     const shackleY = y - size * 0.14;
 
+    this.ctx.save();
+    // Left leg hinge pivot point
+    const pivotX = x - shackleR + shackleThick * 0.5;
+    const pivotY = y + size * 0.08;
+
+    this.ctx.translate(pivotX, pivotY);
+    if (shackleAngle !== 0) {
+      this.ctx.rotate(shackleAngle);
+    }
+    this.ctx.translate(-pivotX, -pivotY - shackleLift);
+
     this.ctx.beginPath();
     this.ctx.arc(x, shackleY, shackleR, Math.PI, 0, false);
+    // Right leg: lifts completely clear of the lock socket when shackleLift pops up
     this.ctx.lineTo(x + shackleR, y + size * 0.12);
     this.ctx.lineTo(x + shackleR - shackleThick, y + size * 0.12);
     this.ctx.lineTo(x + shackleR - shackleThick, shackleY);
     this.ctx.arc(x, shackleY, shackleR - shackleThick, 0, Math.PI, true);
-    this.ctx.lineTo(x - shackleR, y + size * 0.12);
+    // Left leg: remains connected to the hinge inside body socket even when lifted
+    this.ctx.lineTo(x - shackleR + shackleThick, y + size * 0.12 + shackleLift);
+    this.ctx.lineTo(x - shackleR, y + size * 0.12 + shackleLift);
     this.ctx.closePath();
 
     const shackleGrad = this.ctx.createLinearGradient(x - shackleR, shackleY, x + shackleR, shackleY);
@@ -1476,6 +1703,7 @@ export class Game2DMapRenderer {
     this.ctx.lineWidth = 2.5;
     this.ctx.fill();
     this.ctx.stroke();
+    this.ctx.restore();
 
     // 4. Padlock Metallic Body (Dark Steel / Slate Gray Gradient)
     const bodyW = size * 0.96;
@@ -1533,22 +1761,24 @@ export class Game2DMapRenderer {
     this.ctx.stroke();
 
     // 6. Floating "TAP TO UNLOCK" Badge Below Padlock (Clean dark pill, white text, no yellow border)
-    const badgeW = 110;
-    const badgeH = 22;
-    const badgeY = bodyY + bodyH + 14;
+    if (!hideBadge) {
+      const badgeW = 110;
+      const badgeH = 22;
+      const badgeY = bodyY + bodyH + 14;
 
-    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    this.ctx.lineWidth = 1.5;
-    this.drawRoundedRect(x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6);
-    this.ctx.fill();
-    this.ctx.stroke();
+      this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      this.ctx.lineWidth = 1.5;
+      this.drawRoundedRect(x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6);
+      this.ctx.fill();
+      this.ctx.stroke();
 
-    this.ctx.font = '700 11px "Fredoka", "Quicksand", sans-serif';
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText('TAP TO UNLOCK', x, badgeY);
+      this.ctx.font = '700 11px "Fredoka", "Quicksand", sans-serif';
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('TAP TO UNLOCK', x, badgeY);
+    }
 
     this.ctx.restore();
   }
@@ -1631,7 +1861,6 @@ export class Game2DMapRenderer {
       }
 
       // 4. ACCURATE BOLD 3D YELLOW CANDY STARS ALIGNED BELOW NUMBER (LARGE & PROMINENT)
-      // Only rendered when question has been completed
       if (step.completed) {
         const starCount = Math.max(1, Math.min(3, step.stars || 3));
 

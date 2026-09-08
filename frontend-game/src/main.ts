@@ -33,8 +33,18 @@ import { type StudentGameAppState } from './types/state';
 import { mergeHistoryWithCompleted } from './utils/history';
 import { clearTeacherAnimationTimers, updateTeacherSpeakingUI } from './utils/teacherAnimation';
 import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackAudios } from './utils/feedbackAudio';
-import { syncUrl, initRouter, type ScreenType } from './utils/router';
 import { bindGlobalKeyboard } from './utils/keyboardHandler';
+import { initRouter, syncUrl, type ScreenType } from './utils/router';
+
+// Suppress unhandled performance observer or browser extension errors (e.g. reportAllChanges reading 'startTime')
+window.addEventListener('error', (event) => {
+  const msg = event.message || '';
+  const file = event.filename || '';
+  if (msg.includes('startTime') || file.includes('VM') || msg.includes('reportAllChanges')) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}, true);
 
 class StudentArcadeGame {
   private appEl: HTMLElement;
@@ -171,6 +181,60 @@ class StudentArcadeGame {
     });
   }
 
+
+  private getStoredAttempts(pin: string): Record<number, number> {
+    try {
+      const raw = localStorage.getItem(`vocab_attempts_${pin}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private saveStoredAttempts(pin: string, attempts: Record<number, number>): void {
+    try {
+      localStorage.setItem(`vocab_attempts_${pin}`, JSON.stringify(attempts));
+    } catch (e) {
+      console.error('Failed to save stored attempts:', e);
+    }
+  }
+
+  private getStoredWrongAnswers(pin: string, questionId: number): number[] {
+    try {
+      const raw = localStorage.getItem(`vocab_wrong_answers_${pin}_${questionId}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private saveStoredWrongAnswers(pin: string, questionId: number, wrongIds: number[]): void {
+    try {
+      localStorage.setItem(`vocab_wrong_answers_${pin}_${questionId}`, JSON.stringify(wrongIds));
+    } catch (e) {
+      console.error('Failed to save stored wrong answers:', e);
+    }
+  }
+
+  private clearStoredWrongAnswers(pin: string, questionId: number): void {
+    try {
+      localStorage.removeItem(`vocab_wrong_answers_${pin}_${questionId}`);
+    } catch {}
+  }
+
+  private clearAllStoredAttempts(pin: string): void {
+    try {
+      localStorage.removeItem(`vocab_attempts_${pin}`);
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`vocab_wrong_answers_${pin}_`)) {
+          toRemove.push(key);
+        }
+      }
+      toRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  }
 
   private syncUrl(screen: StudentGameAppState['screen'], replace = false) {
     syncUrl(screen, this.state.pin, replace);
@@ -362,6 +426,7 @@ class StudentArcadeGame {
     const pin = this.state.pin || gameApi.getSessionProfile().pin || '';
     if (pin) {
       clearMapFlowProgressForPin(pin);
+      this.clearAllStoredAttempts(pin);
     }
 
     if (this.mapRenderer) {
@@ -435,15 +500,44 @@ class StudentArcadeGame {
         const enteredKingdomIds = hydrateEnteredKingdomIds(pin, mergedHistory, activeMapId);
         const hasSeenGlobalIntro = isGlobalIntroSeen(pin);
 
+        // Restore persistent attempts & wrong answer IDs across reloads
+        const storedAttempts = this.getStoredAttempts(pin);
+        if (res.data.current_attempt?.attempts) {
+          storedAttempts[newQ.id] = Math.max(storedAttempts[newQ.id] || 0, res.data.current_attempt.attempts);
+          this.saveStoredAttempts(pin, storedAttempts);
+        }
+
+        let wrongIds = this.getStoredWrongAnswers(pin, newQ.id);
+        if (res.data.current_attempt?.wrong_answer_ids) {
+          for (const wId of res.data.current_attempt.wrong_answer_ids) {
+            if (!wrongIds.includes(wId)) wrongIds.push(wId);
+          }
+          this.saveStoredWrongAnswers(pin, newQ.id, wrongIds);
+        } else if (res.data.current_attempt?.last_answer_id) {
+          if (!wrongIds.includes(res.data.current_attempt.last_answer_id)) {
+            wrongIds.push(res.data.current_attempt.last_answer_id);
+            this.saveStoredWrongAnswers(pin, newQ.id, wrongIds);
+          }
+        }
+
+        const effectiveWrongIds = isNewQuestion
+          ? wrongIds
+          : Array.from(new Set([...this.state.wrongAnswerIds, ...wrongIds]));
+
+        const speech = effectiveWrongIds.length > 0
+          ? (this.state.customMascotSpeech || 'Oops! Give it another try!')
+          : (isNewQuestion || !this.state.submitResult ? null : this.state.customMascotSpeech);
+
         this.setState({
           screen: nextScreen,
           currentData: res,
           score: res.data.session.score,
           history: mergedHistory,
+          attempts: storedAttempts,
           selectedAnswerId: isNewQuestion ? null : this.state.selectedAnswerId,
           submitResult: isNewQuestion ? null : this.state.submitResult,
-          wrongAnswerIds: isNewQuestion ? [] : this.state.wrongAnswerIds,
-          customMascotSpeech: isNewQuestion ? null : this.state.customMascotSpeech,
+          wrongAnswerIds: effectiveWrongIds,
+          customMascotSpeech: speech,
           isTeacherPaused: isPaused,
           roomStatus: roomStatus,
           enteredKingdomIds,
@@ -452,7 +546,7 @@ class StudentArcadeGame {
       }
     } catch (err: any) {
       console.error('Fetch question error:', err);
-      if (isSessionAuthError(err)) {
+      if (isSessionAuthError(err) && this.state.screen !== 'join') {
         this.handleSessionResetByTeacher();
       }
     }
@@ -462,8 +556,16 @@ class StudentArcadeGame {
     if (this.pollInterval) clearInterval(this.pollInterval);
 
     const pingStatus = async () => {
-      // While showing praise/feedback animation or not authenticated, do not ping
-      if (this.state.submitResult || !gameApi.getToken()) return;
+      // Never ping if on join/title screen, submitting, showing praise, or without token
+      if (
+        this.state.screen === 'join' ||
+        this.state.screen === 'title' ||
+        this.state.submitting ||
+        this.state.submitResult ||
+        !gameApi.getToken()
+      ) {
+        return;
+      }
 
       try {
         const status = await gameApi.getGameStatus();
@@ -512,6 +614,7 @@ class StudentArcadeGame {
 
   private async handleJoin(e: Event) {
     e.preventDefault();
+    if (this.state.submitting) return;
     if (!this.state.pin || !this.state.playerName) {
       this.setState({ error: 'Please enter 6-digit PIN and Player Name' });
       return;
@@ -522,6 +625,7 @@ class StudentArcadeGame {
       this.setState({ error: null, submitting: true });
 
       clearMapFlowProgressForPin(this.state.pin);
+      this.clearAllStoredAttempts(this.state.pin);
 
       await gameApi.joinRoom(this.state.pin, this.state.playerName, this.state.avatarSlug);
       this.setState({
@@ -560,8 +664,8 @@ class StudentArcadeGame {
       } else {
         readIcon.innerHTML = Icons.rotateCcw(18);
         readText.textContent = 'REPLAY';
-        readBtn.style.background = '#0284C7';
-        readBtn.style.borderColor = '#0369A1';
+        readBtn.style.background = '#059669';
+        readBtn.style.borderColor = '#047857';
       }
     }
 
@@ -607,6 +711,7 @@ class StudentArcadeGame {
       const res = await gameApi.submitAnswer(q.id, answerId, starsEarned, typedAnswer, currentAttempts);
 
       const spriteImg = document.getElementById('teacherCharacterSprite') as HTMLImageElement | null;
+      const mobileSpriteImg = document.getElementById('mobileTeacherAvatar') as HTMLImageElement | null;
 
       if (res.is_correct) {
         // Pause background polling so poller does not race against the praise speech!
@@ -647,6 +752,10 @@ class StudentArcadeGame {
           spriteImg.src = chosenHappy;
           spriteImg.className = 'teacher-character-img celebrating';
         }
+        if (mobileSpriteImg) {
+          mobileSpriteImg.src = chosenHappy;
+          mobileSpriteImg.className = 'mobile-teacher-avatar-img celebrating';
+        }
 
         // Highlight correct answer card
         if (answerId) {
@@ -685,18 +794,31 @@ class StudentArcadeGame {
           },
         ];
 
-        // Update speech bubble & score counter directly on stage
+        // Update speech bubble & score counter directly on stage (both desktop & mobile)
         const bubbleText = document.querySelector('.teacher-speech-text');
         const bubbleContainer = document.querySelector('.teacher-speech-bubble');
+        const mobileBubbleText = document.getElementById('mobileTeacherSpeech');
+        const mobileBubbleContainer = document.querySelector('.mobile-teacher-bubble');
         const scoreVal = document.getElementById('questionScoreVal');
         if (bubbleText) bubbleText.textContent = `"${praiseText}"`;
         if (bubbleContainer) {
           bubbleContainer.className = 'teacher-speech-bubble bubble-correct';
+          (bubbleContainer as HTMLElement).style.display = '';
+        }
+        if (mobileBubbleText) mobileBubbleText.textContent = `"${praiseText}"`;
+        if (mobileBubbleContainer) {
+          mobileBubbleContainer.className = 'mobile-teacher-bubble bubble-correct';
+          const mobileStrip = document.getElementById('mobileTeacherStrip');
+          if (mobileStrip) mobileStrip.style.display = '';
         }
         if (scoreVal) {
           const totalStars = updatedHistory.reduce((acc, h) => acc + (h.stars || 0), 0);
           scoreVal.textContent = String(totalStars);
         }
+
+        const pin = this.state.pin || 'default';
+        this.saveStoredAttempts(pin, updatedAttempts);
+        this.clearStoredWrongAnswers(pin, q.id);
 
         this.setState({
           selectedAnswerId: answerId || null,
@@ -724,96 +846,146 @@ class StudentArcadeGame {
           await showStarBurstOverlay(starsEarned, globalLevel);
 
           const prevMapId = activeMapId;
-          await this.fetchCurrentQuestion('world_map');
 
-          if (this.state.screen === 'completed') {
-            this.startLightweightPoller();
-            return;
-          }
+          try {
+            const res = await gameApi.getCurrentQuestion();
 
-          if (!completedStep) {
-            this.setState({
-              submitResult: null,
-              selectedAnswerId: null,
-              wrongAnswerIds: [],
-              currentFeedbackSprite: null,
-              mapPhase: 'kingdom_active',
-              pendingMapAction: null,
-            });
-            this.startLightweightPoller();
-            return;
-          }
-
-          const newMapId = this.state.currentData?.data?.map?.id || prevMapId;
-          const newQIndex =
-            this.state.currentData?.data?.question?.order_index ||
-            this.state.currentData?.data?.map?.current_question_num ||
-            1;
-
-          if (newMapId !== prevMapId) {
-            const transitionAction = buildKingdomTransitionAction(
-              prevMapId,
-              questionOrder,
-              newMapId
-            );
-            const enteredKingdomIds = this.state.enteredKingdomIds.filter((id) => id < newMapId);
-
-            this.setState({
-              submitResult: null,
-              selectedAnswerId: null,
-              wrongAnswerIds: [],
-              currentFeedbackSprite: null,
-              screen: 'world_map',
-              mapPhase: transitionAction ? 'walking_to_question' : 'awaiting_kingdom_click',
-              pendingMapAction: transitionAction,
-              lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
-              enteredKingdomIds,
-            });
-
-            if (!transitionAction) {
-              this.showToast(
-                'New Kingdom Unlocked!',
-                'Tap the next kingdom on the map to continue your quest!',
-                'success',
-                5000
-              );
+            if (res.is_completed) {
+              if (this.pollInterval) clearInterval(this.pollInterval);
+              this.setState({ screen: 'completed', score: res.total_correct || this.state.score });
+              return;
             }
-            this.startLightweightPoller();
-            return;
-          }
 
-          const toStep = getStepRef(newMapId, newQIndex);
-          if (!toStep) {
+            if (!res.data) {
+              this.startLightweightPoller();
+              return;
+            }
+
+            const newMapId = res.data.map.id;
+            const newQIndex =
+              res.data.question?.order_index ||
+              res.data.map?.current_question_num ||
+              1;
+            const mergedHistory = mergeHistoryWithCompleted(this.state.history, res.data.completed_questions || []);
+            const pin = this.state.pin || 'default';
+            const enteredKingdomIds = hydrateEnteredKingdomIds(pin, mergedHistory, newMapId);
+            const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
+            const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
+
+            if (!completedStep) {
+              this.setState({
+                screen: 'world_map',
+                currentData: res,
+                score: res.data.session.score,
+                history: mergedHistory,
+                submitResult: null,
+                selectedAnswerId: null,
+                wrongAnswerIds: [],
+                currentFeedbackSprite: null,
+                mapPhase: 'kingdom_active',
+                pendingMapAction: null,
+                isTeacherPaused: isPaused,
+                roomStatus,
+                enteredKingdomIds,
+              });
+              this.startLightweightPoller();
+              return;
+            }
+
+            if (newMapId !== prevMapId) {
+              const transitionAction = buildKingdomTransitionAction(
+                prevMapId,
+                questionOrder,
+                newMapId
+              );
+              const filteredEntered = enteredKingdomIds.filter((id) => id < newMapId);
+
+              this.setState({
+                screen: 'world_map',
+                currentData: res,
+                score: res.data.session.score,
+                history: mergedHistory,
+                submitResult: null,
+                selectedAnswerId: null,
+                wrongAnswerIds: [],
+                currentFeedbackSprite: null,
+                isTeacherPaused: isPaused,
+                roomStatus,
+                mapPhase: transitionAction ? 'walking_to_question' : 'awaiting_kingdom_click',
+                pendingMapAction: transitionAction,
+                lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
+                enteredKingdomIds: filteredEntered,
+              });
+
+              if (!transitionAction) {
+                if (this.mapRenderer) {
+                  this.mapRenderer.centerOnKingdom(newMapId);
+                }
+                this.showToast(
+                  'New Kingdom Unlocked!',
+                  'Tap the next kingdom on the map to continue your quest!',
+                  'success',
+                  5000
+                );
+              }
+              this.startLightweightPoller();
+              return;
+            }
+
+            const toStep = getStepRef(newMapId, newQIndex);
+            if (!toStep) {
+              this.setState({
+                screen: 'question',
+                currentData: res,
+                score: res.data.session.score,
+                history: mergedHistory,
+                submitResult: null,
+                selectedAnswerId: null,
+                wrongAnswerIds: [],
+                currentFeedbackSprite: null,
+                mapPhase: 'kingdom_active',
+                isTeacherPaused: isPaused,
+                roomStatus,
+                enteredKingdomIds,
+              });
+              this.startLightweightPoller();
+              return;
+            }
+
+            if (completedStep && this.mapRenderer) {
+              this.mapRenderer.centerOnLocation(completedStep.x, completedStep.y);
+            }
+
             this.setState({
+              screen: 'world_map',
+              currentData: res,
+              score: res.data.session.score,
+              history: mergedHistory,
               submitResult: null,
               selectedAnswerId: null,
               wrongAnswerIds: [],
               currentFeedbackSprite: null,
-              screen: 'question',
-              mapPhase: 'kingdom_active',
+              mapPhase: 'walking_to_question',
+              lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
+              isTeacherPaused: isPaused,
+              roomStatus,
+              enteredKingdomIds,
+              pendingMapAction: {
+                type: 'walk_to_current',
+                fromStep: completedStep,
+                toStep,
+                path: computeWalkPath(completedStep, toStep),
+                bubbleText: `LEVEL ${globalLevelNumber(newMapId, newQIndex)}!`,
+                thenScreen: 'question',
+              },
             });
             this.startLightweightPoller();
-            return;
+          } catch (err: any) {
+            console.error('Error proceeding after praise:', err);
+            if (isSessionAuthError(err)) {
+              this.handleSessionResetByTeacher();
+            }
           }
-
-          this.setState({
-            submitResult: null,
-            selectedAnswerId: null,
-            wrongAnswerIds: [],
-            currentFeedbackSprite: null,
-            screen: 'world_map',
-            mapPhase: 'walking_to_question',
-            lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
-            pendingMapAction: {
-              type: 'walk_to_current',
-              fromStep: completedStep,
-              toStep,
-              path: computeWalkPath(completedStep, toStep),
-              bubbleText: `LEVEL ${globalLevelNumber(newMapId, newQIndex)}!`,
-              thenScreen: 'question',
-            },
-          });
-          this.startLightweightPoller();
         };
 
         if (customPraise?.audio_url) {
@@ -868,6 +1040,10 @@ class StudentArcadeGame {
           spriteImg.src = chosenSad;
           spriteImg.className = 'teacher-character-img sympathetic';
         }
+        if (mobileSpriteImg) {
+          mobileSpriteImg.src = chosenSad;
+          mobileSpriteImg.className = 'mobile-teacher-avatar-img sympathetic';
+        }
 
         // Highlight wrong answer card
         if (answerId) {
@@ -876,15 +1052,32 @@ class StudentArcadeGame {
           cardEl?.classList.add('wrong');
         }
 
-        // Update speech bubble directly on stage
+        // Update speech bubble directly on stage (both desktop & mobile)
         const bubbleText = document.querySelector('.teacher-speech-text');
         const bubbleContainer = document.querySelector('.teacher-speech-bubble');
+        const mobileBubbleText = document.getElementById('mobileTeacherSpeech');
+        const mobileBubbleContainer = document.querySelector('.mobile-teacher-bubble');
         if (bubbleText) bubbleText.textContent = `"${tryAgainMsg}"`;
         if (bubbleContainer) {
           bubbleContainer.className = 'teacher-speech-bubble bubble-wrong';
+          (bubbleContainer as HTMLElement).style.display = '';
+        }
+        if (mobileBubbleText) mobileBubbleText.textContent = `"${tryAgainMsg}"`;
+        if (mobileBubbleContainer) {
+          mobileBubbleContainer.className = 'mobile-teacher-bubble bubble-wrong';
+          const mobileStrip = document.getElementById('mobileTeacherStrip');
+          if (mobileStrip) mobileStrip.style.display = '';
         }
 
-        const wrongIds = answerId ? [...this.state.wrongAnswerIds, answerId] : [999999];
+        const pin = this.state.pin || 'default';
+        let wrongIds = answerId ? [...this.state.wrongAnswerIds, answerId] : [999999];
+        if (res.wrong_answer_ids) {
+          for (const wId of res.wrong_answer_ids) {
+            if (!wrongIds.includes(wId)) wrongIds.push(wId);
+          }
+        }
+        this.saveStoredAttempts(pin, updatedAttempts);
+        this.saveStoredWrongAnswers(pin, q.id, wrongIds);
 
         // Re-enable pointer events for remaining cards
         document.querySelectorAll('.answer-card').forEach((c) => {
@@ -937,6 +1130,11 @@ class StudentArcadeGame {
     ) {
       this.mapRenderer.destroy();
       this.mapRenderer = null;
+    }
+
+    if (this.state.screen !== 'question' && this.questionScreen) {
+      this.questionScreen.destroy();
+      this.questionScreen = null;
     }
 
     switch (this.state.screen) {
@@ -1116,7 +1314,8 @@ class StudentArcadeGame {
         return;
       }
 
-      this.setState({ viewingHistoryItem: null, screen: 'question' });
+      this.lastNarratedQuestionId = null;
+      this.setState({ viewingHistoryItem: null, screen: 'question', customMascotSpeech: null });
     });
   }
 
@@ -1164,11 +1363,13 @@ class StudentArcadeGame {
       this.openKingdomDialogue(kingdomId);
     } else {
       this.mapRenderer?.clearEntryFade();
+      this.lastNarratedQuestionId = null;
       this.setState({
         screen: 'question',
         mapPhase: 'kingdom_active',
         pendingMapAction: null,
         viewingHistoryItem: null,
+        customMascotSpeech: null,
       });
     }
   }
@@ -1186,11 +1387,13 @@ class StudentArcadeGame {
         if (this.state.screen !== 'world_map') return;
 
         if (action.thenScreen === 'question') {
+          this.lastNarratedQuestionId = null;
           this.setState({
             screen: 'question',
             mapPhase: 'kingdom_active',
             viewingHistoryItem: null,
             pendingMapAction: null,
+            customMascotSpeech: null,
           });
         } else if (action.thenScreen === 'dialogue' && action.thenDialogueKingdomId) {
           this.openKingdomDialogue(action.thenDialogueKingdomId);
@@ -1200,6 +1403,10 @@ class StudentArcadeGame {
             pendingMapAction: null,
           });
           this.syncMapRendererOptions();
+          const targetKingdomId = action.toStep?.mapId || this.state.currentData?.data?.map?.id || 1;
+          if (this.mapRenderer) {
+            this.mapRenderer.centerOnKingdom(targetKingdomId);
+          }
           this.showToast(
             'New Kingdom Unlocked!',
             'Tap the next kingdom on the map to continue your quest!',
@@ -1336,6 +1543,11 @@ class StudentArcadeGame {
         },
         onWorldMapClick: () => {
           soundManager.stopSpeech();
+          this.lastNarratedQuestionId = null;
+          if (this.questionScreen) {
+            this.questionScreen.destroy();
+            this.questionScreen = null;
+          }
           this.setState({ viewingHistoryItem: null, screen: 'world_map' });
         },
         onReplayClick: () => {
@@ -1352,6 +1564,7 @@ class StudentArcadeGame {
           this.lastNarratedQuestionId = questionId;
         }
       });
+      this.questionScreen.render();
     } else {
       this.questionScreen.updateProps({
         playerName: this.state.playerName,
@@ -1370,7 +1583,6 @@ class StudentArcadeGame {
         lastNarratedQuestionId: this.lastNarratedQuestionId
       });
     }
-    this.questionScreen.render();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1547,6 +1759,7 @@ class StudentArcadeGame {
     const seen = Array.from(new Set([...this.state.seenKingdomDialogues, kingdomId]));
 
     this.mapRenderer?.clearEntryFade();
+    this.lastNarratedQuestionId = null;
 
     this.setState({
       isDialogueOpen: false,
@@ -1555,6 +1768,7 @@ class StudentArcadeGame {
       mapPhase: 'kingdom_active',
       pendingMapAction: null,
       viewingHistoryItem: null,
+      customMascotSpeech: null,
     });
   }
 
@@ -1624,19 +1838,32 @@ class StudentArcadeGame {
       if (!this.pauseMenuModal) {
         this.pauseMenuModal = new PauseMenuModal({
           onClose: () => this.setState({ isPauseMenuOpen: false }),
-          onReturnToMap: () => this.setState({ isPauseMenuOpen: false, screen: 'world_map' }),
+          onReturnToMap: () => {
+            if (this.questionScreen) {
+              this.questionScreen.destroy();
+              this.questionScreen = null;
+            }
+            this.setState({ isPauseMenuOpen: false, screen: 'world_map' });
+          },
           onOpenSettings: () => this.setState({ isPauseMenuOpen: false, isSettingsOpen: true }),
-          onQuitToTitle: () => this.setState({
-            isPauseMenuOpen: false,
-            screen: 'title',
-            score: 0,
-            attempts: {},
-            history: [],
-            currentData: null,
-            submitResult: null,
-            wrongAnswerIds: [],
-            customMascotSpeech: null,
-          }),
+          onQuitToTitle: () => {
+            if (this.questionScreen) {
+              this.questionScreen.destroy();
+              this.questionScreen = null;
+            }
+            this.clearAllStoredAttempts(this.state.pin);
+            this.setState({
+              isPauseMenuOpen: false,
+              screen: 'title',
+              score: 0,
+              attempts: {},
+              history: [],
+              currentData: null,
+              submitResult: null,
+              wrongAnswerIds: [],
+              customMascotSpeech: null,
+            });
+          },
           onClearPollInterval: () => {
             if (this.pollInterval) clearInterval(this.pollInterval);
           }

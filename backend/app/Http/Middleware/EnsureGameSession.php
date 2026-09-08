@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\GameSession;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
 // Phase 5 — Game Session Token Middleware (architecture.md §7, rules-and-validation §4)
@@ -32,6 +33,9 @@ class EnsureGameSession
                 'message' => 'Invalid or expired student game session token.',
             ], 401);
         }
+
+        // Record heartbeat activity in cache for 20s (client polls every 2.5s)
+        Cache::put("session_active_{$session->id}", now()->timestamp, 20);
 
         $request->attributes->set('game_session', $session);
 

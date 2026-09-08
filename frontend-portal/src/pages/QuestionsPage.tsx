@@ -18,7 +18,7 @@ import {
   Type,
   Target,
   Check,
-  Video,
+  AlertCircle,
 } from 'lucide-react';
 
 // Teacher and Kingdom information for elementary school teachers & students
@@ -28,27 +28,7 @@ const TEACHER_GUIDES: Record<number, { teacher: string; kingdomName: string }> =
   3: { teacher: 'Principal Flores', kingdomName: 'Provincial Capitol' },
 };
 
-// Kingdom theme styling for clean default white/light theme
-const KINGDOM_COLORS: Record<number, { bg: string; text: string; border: string; activeTab: string }> = {
-  1: {
-    bg: 'bg-sky-50',
-    text: 'text-sky-700',
-    border: 'border-sky-200',
-    activeTab: 'bg-sky-500 text-white font-bold border-sky-500 shadow-sm shadow-sky-500/20',
-  },
-  2: {
-    bg: 'bg-purple-50',
-    text: 'text-purple-700',
-    border: 'border-purple-200',
-    activeTab: 'bg-purple-600 text-white font-bold border-purple-600 shadow-sm shadow-purple-600/20',
-  },
-  3: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-800',
-    border: 'border-amber-200',
-    activeTab: 'bg-amber-500 text-white font-bold border-amber-500 shadow-sm shadow-amber-500/20',
-  },
-};
+
 
 // Helper: Highlights the target vocabulary word inside the context sentence and underlines the context clue
 function renderHighlightedSentence(sentence: string, targetWord?: string, contextClue?: string) {
@@ -71,8 +51,8 @@ function renderHighlightedSentence(sentence: string, targetWord?: string, contex
           return (
             <span
               key={i}
-              className="text-amber-900 font-bold bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300"
-              title="Target Word (Yellow Highlight)"
+              className="text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded"
+              title="Target Word"
             >
               {part}
             </span>
@@ -82,8 +62,8 @@ function renderHighlightedSentence(sentence: string, targetWord?: string, contex
           return (
             <span
               key={i}
-              className="text-sky-900 font-bold underline decoration-sky-600 decoration-2 underline-offset-2 bg-sky-50 px-1 py-0.5 rounded"
-              title="Context Clue (Underlined)"
+              className="text-slate-900 font-semibold underline decoration-slate-400 decoration-1 underline-offset-2"
+              title="Context Clue"
             >
               {part}
             </span>
@@ -126,12 +106,13 @@ export const QuestionsPage: React.FC = () => {
   const [voiceVideoFile, setVoiceVideoFile] = useState<File | null>(null);
   const [voiceVideoUrl, setVoiceVideoUrl] = useState('');
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  const [voiceMediaType, setVoiceMediaType] = useState<'audio' | 'video' | 'none'>('none');
+  const [, setVoiceMediaType] = useState<'audio' | 'video' | 'none'>('none');
 
   // Live Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [currentlyPlayingModalUrl, setCurrentlyPlayingModalUrl] = useState<string | null>(null);
   const [playingListAudioId, setPlayingListAudioId] = useState<number | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -307,6 +288,7 @@ export const QuestionsPage: React.FC = () => {
     stopRecording();
     if (modalAudioRef.current) modalAudioRef.current.pause();
     setIsPlayingPreview(false);
+    setCurrentlyPlayingModalUrl(null);
     setShowModal(false);
     resetForm();
   };
@@ -332,9 +314,28 @@ export const QuestionsPage: React.FC = () => {
     if (imageFileInputRef.current) imageFileInputRef.current.value = '';
   };
 
+  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFormError(null);
+    // Auto-replace: Clear any attached video because only 1 voiceover is allowed!
+    handleClearVideo();
+    setVoiceAudioFile(file);
+    setVoiceAudioBlob(null);
+    setVoiceAudioUrl('');
+    if (audioPreviewUrl && audioPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(audioPreviewUrl);
+    }
+    setAudioPreviewUrl(URL.createObjectURL(file));
+    setVoiceMediaType('audio');
+  };
+
   const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setFormError(null);
+    // Auto-replace: Clear any attached audio because only 1 voiceover is allowed!
+    clearVoiceRecorder();
     setVoiceVideoFile(file);
     setVoiceVideoUrl('');
     if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
@@ -345,20 +346,29 @@ export const QuestionsPage: React.FC = () => {
   };
 
   const handleClearVideo = () => {
+    if (modalAudioRef.current) modalAudioRef.current.pause();
+    setIsPlayingPreview(false);
+    setCurrentlyPlayingModalUrl(null);
     setVoiceVideoFile(null);
     setVoiceVideoUrl('');
-    setVoiceMediaType('none');
     if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(videoPreviewUrl);
     }
     setVideoPreviewUrl(null);
     if (videoFileInputRef.current) videoFileInputRef.current.value = '';
+    if (!voiceAudioBlob && !voiceAudioFile && !voiceAudioUrl && !audioPreviewUrl) {
+      setVoiceMediaType('none');
+    } else {
+      setVoiceMediaType('audio');
+    }
   };
 
   // Voiceover Mic Handlers
   const startRecording = async () => {
     try {
       setFormError(null);
+      // Auto-replace: Clear any attached video because only 1 voiceover is allowed!
+      handleClearVideo();
       clearVoiceRecorder();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -374,6 +384,7 @@ export const QuestionsPage: React.FC = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setVoiceAudioBlob(blob);
         setAudioPreviewUrl(URL.createObjectURL(blob));
+        setVoiceMediaType('audio');
         stream.getTracks().forEach((track) => track.stop());
       };
 
@@ -396,6 +407,9 @@ export const QuestionsPage: React.FC = () => {
 
   const clearVoiceRecorder = () => {
     stopRecording();
+    if (modalAudioRef.current) modalAudioRef.current.pause();
+    setIsPlayingPreview(false);
+    setCurrentlyPlayingModalUrl(null);
     setVoiceAudioBlob(null);
     setVoiceAudioFile(null);
     setVoiceAudioUrl('');
@@ -403,26 +417,52 @@ export const QuestionsPage: React.FC = () => {
       URL.revokeObjectURL(audioPreviewUrl);
     }
     setAudioPreviewUrl(null);
-    if (modalAudioRef.current) modalAudioRef.current.pause();
-    setIsPlayingPreview(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!voiceVideoFile && !voiceVideoUrl && !videoPreviewUrl) {
+      setVoiceMediaType('none');
+    } else {
+      setVoiceMediaType('video');
+    }
   };
 
-  const toggleModalAudioPlayback = () => {
-    if (!audioPreviewUrl) return;
+  const toggleModalAudioPlayback = (targetUrl?: string | null) => {
+    const url = targetUrl || audioPreviewUrl || videoPreviewUrl;
+    if (!url) return;
+
     if (!modalAudioRef.current) {
-      modalAudioRef.current = new Audio(audioPreviewUrl);
-      modalAudioRef.current.onended = () => setIsPlayingPreview(false);
-      modalAudioRef.current.onpause = () => setIsPlayingPreview(false);
-      modalAudioRef.current.onplay = () => setIsPlayingPreview(true);
+      modalAudioRef.current = new Audio(url);
+      modalAudioRef.current.onended = () => {
+        setIsPlayingPreview(false);
+        setCurrentlyPlayingModalUrl(null);
+      };
+      modalAudioRef.current.onpause = () => {
+        setIsPlayingPreview(false);
+        setCurrentlyPlayingModalUrl(null);
+      };
+      modalAudioRef.current.onplay = () => {
+        setIsPlayingPreview(true);
+      };
     }
-    if (modalAudioRef.current.src !== audioPreviewUrl) {
-      modalAudioRef.current.src = audioPreviewUrl;
-    }
-    if (isPlayingPreview) {
+
+    if (modalAudioRef.current.src !== url) {
       modalAudioRef.current.pause();
+      modalAudioRef.current.src = url;
+      setIsPlayingPreview(false);
+    }
+
+    if (isPlayingPreview && currentlyPlayingModalUrl === url) {
+      modalAudioRef.current.pause();
+      setIsPlayingPreview(false);
+      setCurrentlyPlayingModalUrl(null);
     } else {
-      modalAudioRef.current.play().catch(() => {});
+      setCurrentlyPlayingModalUrl(url);
+      modalAudioRef.current.play().then(() => {
+        setIsPlayingPreview(true);
+      }).catch((err) => {
+        console.warn('Playback error:', err);
+        setIsPlayingPreview(false);
+        setCurrentlyPlayingModalUrl(null);
+      });
     }
   };
 
@@ -540,6 +580,22 @@ export const QuestionsPage: React.FC = () => {
       setSaving(true);
       setFormError(null);
 
+      const hasAudio = Boolean(voiceAudioBlob || voiceAudioFile || voiceAudioUrl.trim());
+      const hasVideo = Boolean(voiceVideoFile || voiceVideoUrl.trim());
+
+      if (hasAudio && hasVideo) {
+        setFormError('Only 1 voiceover is allowed per question (either audio or video). Please delete one of the voiceovers.');
+        showToast('Only 1 voiceover is allowed per question.', 'error');
+        setSaving(false);
+        return;
+      }
+
+      const determinedVoiceMediaType: 'audio' | 'video' | 'none' = hasVideo ? 'video' : hasAudio ? 'audio' : 'none';
+      const determinedVoiceAudioUrl = hasAudio ? voiceAudioUrl.trim() || null : null;
+      const determinedVoiceVideoUrl = hasVideo ? voiceVideoUrl.trim() || null : null;
+      const determinedVoiceAudioFile = hasAudio ? (voiceAudioBlob || voiceAudioFile || null) : null;
+      const determinedVoiceVideoFile = hasVideo ? (voiceVideoFile || null) : null;
+
       const targetAnswers =
         questionType === 'identification'
           ? [{ text: identificationAnswer.trim() || highlightedWord.trim(), is_correct: true }]
@@ -551,14 +607,14 @@ export const QuestionsPage: React.FC = () => {
         question_type: questionType,
         sentence: sentence.trim(),
         highlighted_word: highlightedWord.trim(),
-        context_clue: selectedMapId === 2 ? contextClue.trim() || undefined : undefined,
-        image_url: selectedMapId === 2 ? undefined : (imageUrl.trim() || undefined),
-        image_file: selectedMapId === 2 ? undefined : (imageFile || undefined),
-        voice_audio_file: voiceAudioBlob || voiceAudioFile || undefined,
-        voice_audio_url: voiceAudioUrl || undefined,
-        voice_video_file: voiceVideoFile || undefined,
-        voice_video_url: voiceVideoUrl || undefined,
-        voice_media_type: voiceMediaType || undefined,
+        context_clue: selectedMapId === 2 ? contextClue.trim() || null : null,
+        image_url: selectedMapId === 2 ? null : (imageUrl.trim() || null),
+        image_file: selectedMapId === 2 ? null : (imageFile || null),
+        voice_audio_file: determinedVoiceAudioFile,
+        voice_audio_url: determinedVoiceAudioUrl,
+        voice_video_file: determinedVoiceVideoFile,
+        voice_video_url: determinedVoiceVideoUrl,
+        voice_media_type: determinedVoiceMediaType,
         answers: targetAnswers,
       };
 
@@ -650,30 +706,29 @@ export const QuestionsPage: React.FC = () => {
 
       {/* Map / Kingdom Tabs with Teacher Labels */}
       <div className="space-y-2">
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-          Select Stage / Kingdom:
+        <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+          Stage / Kingdom
         </label>
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-1 custom-scrollbar">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
           {maps.map((m) => {
             const order = m.order_index;
             const guide = TEACHER_GUIDES[order];
-            const colors = KINGDOM_COLORS[order] ?? KINGDOM_COLORS[1];
             const isSelected = selectedMapId === m.id;
             return (
               <button
                 key={m.id}
                 onClick={() => setSelectedMapId(m.id)}
-                className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-2 border ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 flex items-center gap-2 ${
                   isSelected
-                    ? colors.activeTab
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50 shadow-xs'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:text-slate-900'
                 }`}
               >
-                <Crown className="w-3.5 h-3.5" />
+                <Crown className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-300' : 'text-slate-400'}`} />
                 <span>{guide ? `${guide.teacher} • ${m.title}` : m.title}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                    isSelected ? 'bg-black/20 text-white font-bold' : 'bg-slate-100 text-slate-500'
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    isSelected ? 'bg-emerald-700 text-white' : 'text-slate-400'
                   }`}
                 >
                   {isSelected ? questions.length : (m.question_count ?? 0)}
@@ -686,27 +741,28 @@ export const QuestionsPage: React.FC = () => {
 
       {/* Active Kingdom summary banner */}
       {activeMap && (
-        <div className="flex items-center justify-between text-xs text-slate-600 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center justify-between text-xs text-slate-500 bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Stage:</span>
-            <span className="text-slate-900 font-bold">{activeMap.title}</span>
-            <span className="text-slate-400">• Guide:</span>
-            <span className="text-emerald-700 font-bold">{activeTeacher?.teacher || 'Teacher Guide'}</span>
+            <span className="text-slate-400">Stage:</span>
+            <span className="text-slate-900 font-semibold">{activeMap.title}</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-400">Guide:</span>
+            <span className="text-emerald-700 font-medium">{activeTeacher?.teacher || 'Teacher Guide'}</span>
           </div>
-          <span className="text-slate-500 font-medium">
-            {questions.length} {questions.length === 1 ? 'Question' : 'Questions'} Total
+          <span className="font-mono text-slate-400">
+            {questions.length} questions
           </span>
         </div>
       )}
 
       {/* Questions List */}
       {loading ? (
-        <div className="p-12 text-center text-xs text-slate-500">Loading stage questions...</div>
+        <div className="p-12 text-center text-xs text-slate-400">Loading stage questions...</div>
       ) : questions.length === 0 ? (
-        <div className="surface-card p-12 text-center text-slate-500 rounded-2xl border border-slate-200 space-y-3 bg-white shadow-sm">
-          <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+        <div className="surface-card p-12 text-center text-slate-400 rounded-2xl border border-slate-200 space-y-3 bg-white shadow-xs">
+          <BookOpen className="w-8 h-8 text-slate-300 mx-auto" />
           <p className="text-sm font-semibold text-slate-800">No questions found in this kingdom</p>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
             Click "+ New Question" above to create the first vocabulary challenge for students in this stage.
           </p>
           <button onClick={openCreateModal} className="btn-primary text-xs py-2 px-4 cursor-pointer mt-2">
@@ -718,37 +774,17 @@ export const QuestionsPage: React.FC = () => {
           {questions.map((q, idx) => (
             <div
               key={q.id}
-              className="surface-card p-5 rounded-2xl border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all space-y-4 shadow-sm bg-white"
+              className="surface-card p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-colors space-y-4 shadow-xs bg-white"
             >
-              {/* Card Header Row: Question Number, Format Type, Target Word & Actions */}
+              {/* Card Header Row */}
               <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Index badge */}
-                  <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-800 font-mono text-xs flex items-center justify-center font-bold border border-slate-200 shadow-xs">
-                    #{idx + 1}
-                  </span>
-
-                  {/* Format badge with clear label */}
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                    {q.question_type === 'identification' ? (
-                      <>
-                        <Type className="w-3.5 h-3.5 text-purple-600" />
-                        <span>Format: Identification (Typing)</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Format: Multiple Choice</span>
-                      </>
-                    )}
-                  </span>
-
-                  {/* Target Word badge with clear label */}
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">
-                      Target Word:
-                    </span>
-                    <span className="text-emerald-900 font-bold">{q.highlighted_word}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-semibold text-slate-400">#{idx + 1}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-xs font-semibold text-slate-900">{q.highlighted_word}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {q.question_type === 'identification' ? 'Identification' : 'Multiple Choice'}
                   </span>
                 </div>
 
@@ -756,7 +792,7 @@ export const QuestionsPage: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => openEditModal(q)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="btn-secondary text-xs py-1.5 px-3"
                     title="Edit question details"
                   >
                     <span>Edit</span>
@@ -764,8 +800,9 @@ export const QuestionsPage: React.FC = () => {
 
                   <button
                     onClick={() => setDeleteTarget(q)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Delete question"
+                    aria-label="Delete question"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -775,17 +812,17 @@ export const QuestionsPage: React.FC = () => {
               {/* Card Middle: Sentence in Game + Visual Clue */}
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <BookOpen className="w-3 h-3 text-slate-400" />
-                    <span>Challenge Sentence (Context):</span>
+                  <div className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Challenge Sentence</span>
                   </div>
-                  <div className="text-sm md:text-base font-medium text-slate-900 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <div className="text-sm font-medium text-slate-800 leading-relaxed bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70">
                     "{renderHighlightedSentence(q.sentence, q.highlighted_word, q.context_clue || undefined)}"
                   </div>
                   {q.context_clue && (
-                    <div className="text-xs text-slate-600 font-medium bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1.5">
-                      <span className="text-slate-500 font-semibold">Context Clue:</span>
-                      <span className="text-slate-800 font-bold underline decoration-slate-400 decoration-2 underline-offset-2">{q.context_clue}</span>
+                    <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 mt-1">
+                      <span>Clue:</span>
+                      <span className="text-slate-800 font-semibold underline decoration-slate-300 decoration-1 underline-offset-2">{q.context_clue}</span>
                     </div>
                   )}
                 </div>
@@ -803,13 +840,13 @@ export const QuestionsPage: React.FC = () => {
                       <img
                         src={resolveMediaUrl(q.image_url)}
                         alt={q.highlighted_word}
-                        className="w-16 h-16 rounded-xl object-cover border border-slate-200 group-hover:border-emerald-500 transition-all shadow-xs"
+                        className="w-16 h-16 rounded-xl object-contain bg-slate-50 border border-slate-200 group-hover:border-slate-300 transition-colors shadow-xs"
                       />
-                      <span className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-[10px] font-bold text-white">
+                      <span className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-[10px] font-medium text-white">
                         View
                       </span>
                     </a>
-                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
+                    <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
                       <ImageIcon className="w-2.5 h-2.5" /> Clue Image
                     </span>
                   </div>
@@ -817,39 +854,29 @@ export const QuestionsPage: React.FC = () => {
               </div>
 
               {/* Card Bottom: Answers Section + Voiceover Playback */}
-              <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-slate-100">
                 <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {q.question_type === 'identification' ? 'Correct Answer to Type:' : 'Answer Choices (Definitions):'}
+                  <div className="text-[11px] font-medium text-slate-400">
+                    {q.question_type === 'identification' ? 'Correct Word' : 'Answer Choices'}
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
                     {q.question_type === 'identification' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mr-0.5">
-                          Correct:
-                        </span>
-                        <span>{q.answers?.[0]?.text || q.highlighted_word}</span>
-                      </span>
+                      <div className="inline-flex items-center gap-1.5 text-xs text-slate-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="font-semibold text-emerald-800">{q.answers?.[0]?.text || q.highlighted_word}</span>
+                      </div>
                     ) : (
                       q.answers?.map((ans, aIdx) => (
                         <span
                           key={aIdx}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
                             ans.is_correct
-                              ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-300 shadow-xs ring-1 ring-emerald-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200 font-medium'
+                              ? 'bg-emerald-50 text-emerald-800 font-medium'
+                              : 'text-slate-500'
                           }`}
                         >
-                          {ans.is_correct ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="text-[10px] uppercase font-bold text-emerald-800">Correct:</span>
-                            </>
-                          ) : (
-                            <span className="text-[10px] uppercase font-bold text-slate-500">Option:</span>
-                          )}
+                          {ans.is_correct && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
                           <span className="truncate max-w-[220px]">{ans.text}</span>
                         </span>
                       ))
@@ -858,26 +885,26 @@ export const QuestionsPage: React.FC = () => {
                 </div>
 
                 {/* Voiceover preview button if present */}
-                {q.voice_audio_url && (
+                {(q.voice_audio_url || q.voice_video_url) && (
                   <div className="shrink-0 flex items-center">
                     <button
-                      onClick={() => handleListAudioPlay(q.id, q.voice_audio_url!)}
-                      className={`px-3.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      onClick={() => handleListAudioPlay(q.id, (q.voice_audio_url || q.voice_video_url)!)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
                         playingListAudioId === q.id
-                          ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm font-bold'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
                       }`}
                       title="Play teacher question voiceover"
                     >
                       {playingListAudioId === q.id ? (
                         <>
                           <Pause className="w-3.5 h-3.5" />
-                          <span>Playing Voice...</span>
+                          <span>Playing</span>
                         </>
                       ) : (
                         <>
-                          <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Listen Voiceover</span>
+                          <Volume2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Voiceover</span>
                         </>
                       )}
                     </button>
@@ -978,9 +1005,9 @@ export const QuestionsPage: React.FC = () => {
               </div>
 
               {/* Section 2: Question Format */}
-              <div className="space-y-2.5 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Type className="w-3.5 h-3.5 text-sky-600" />
+              <div className="space-y-2 bg-slate-50/70 p-4 rounded-xl border border-slate-200/70">
+                <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Type className="w-3.5 h-3.5 text-slate-400" />
                   <span>2. Question Format</span>
                 </div>
 
@@ -988,56 +1015,64 @@ export const QuestionsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSwitchToMultipleChoice}
-                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
                       questionType === 'multiple_choice'
-                        ? 'bg-sky-50 border-sky-500 ring-2 ring-sky-200 text-slate-900 shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
                     <CheckCircle2
-                      className={`w-5 h-5 shrink-0 ${
-                        questionType === 'multiple_choice' ? 'text-sky-600' : 'text-slate-400'
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${
+                        questionType === 'multiple_choice' ? 'text-white' : 'text-slate-400'
                       }`}
                     />
                     <div>
-                      <div className="text-xs font-bold text-slate-900">Multiple Choice</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Students select from 4 definition choices</div>
+                      <div className={`text-xs font-semibold ${questionType === 'multiple_choice' ? 'text-white' : 'text-slate-900'}`}>
+                        Multiple Choice
+                      </div>
+                      <div className={`text-[11px] mt-0.5 ${questionType === 'multiple_choice' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        4 definition options
+                      </div>
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setQuestionType('identification')}
-                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
                       questionType === 'identification'
-                        ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-200 text-slate-900 shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
                     <Type
-                      className={`w-5 h-5 shrink-0 ${
-                        questionType === 'identification' ? 'text-purple-600' : 'text-slate-400'
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${
+                        questionType === 'identification' ? 'text-white' : 'text-slate-400'
                       }`}
                     />
                     <div>
-                      <div className="text-xs font-bold text-slate-900">Identification</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Students type the vocabulary word themselves</div>
+                      <div className={`text-xs font-semibold ${questionType === 'identification' ? 'text-white' : 'text-slate-900'}`}>
+                        Identification
+                      </div>
+                      <div className={`text-[11px] mt-0.5 ${questionType === 'identification' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        Type word directly
+                      </div>
                     </div>
                   </button>
                 </div>
               </div>
 
               {/* Section 3: Answer Setup */}
-              <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="space-y-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200/70">
+                <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-slate-400" />
                   <span>3. Correct Answer & Definitions</span>
                 </div>
 
                 {questionType === 'identification' ? (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Correct Target Answer (What the student must type) *
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Target Answer (What the student must type) *
                     </label>
                     <input
                       type="text"
@@ -1051,14 +1086,14 @@ export const QuestionsPage: React.FC = () => {
                 ) : (
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-600">
-                        Click the radio button to select which definition is <strong className="text-emerald-700">Correct</strong>:
+                      <span className="text-xs text-slate-500">
+                        Mark which definition is <strong className="text-emerald-700">Correct</strong>:
                       </span>
                       {answers.length < 4 && (
                         <button
                           type="button"
                           onClick={handleAddChoice}
-                          className="px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                          className="btn-secondary text-xs py-1 px-2.5"
                         >
                           <span>Add Choice</span>
                         </button>
@@ -1069,9 +1104,9 @@ export const QuestionsPage: React.FC = () => {
                       {answers.map((ans, idx) => (
                         <div
                           key={idx}
-                          className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+                          className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
                             ans.is_correct
-                              ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-200'
+                              ? 'bg-emerald-50/40 border-emerald-300/80'
                               : 'bg-white border-slate-200'
                           }`}
                         >
@@ -1079,22 +1114,22 @@ export const QuestionsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleCorrectAnswerSelect(idx)}
-                            className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
                               ans.is_correct
-                                ? 'bg-emerald-500 border-emerald-500 text-white font-bold shadow-xs'
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
                                 : 'border-slate-300 hover:border-slate-400 text-transparent'
                             }`}
                             title={ans.is_correct ? 'Correct answer' : 'Click to set as correct answer'}
                           >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <Check className="w-3 h-3 stroke-[2.5]" />
                           </button>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                              <span className="text-[10px] font-semibold text-slate-500">
                                 Choice {String.fromCharCode(65 + idx)}{' '}
                                 {ans.is_correct && (
-                                  <span className="text-emerald-700 font-bold ml-1">• Correct Answer</span>
+                                  <span className="text-emerald-700 font-medium ml-1">• Correct Answer</span>
                                 )}
                               </span>
                             </div>
@@ -1188,9 +1223,24 @@ export const QuestionsPage: React.FC = () => {
 
                 {/* Teacher Voiceover */}
                 <div className="space-y-2 pt-2 border-t border-slate-200">
-                  <label className="block text-xs font-semibold text-slate-700">Teacher Voiceover (Spoken Question Clue)</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-700">Teacher Voiceover (Spoken Question Clue)</label>
+                    <span className="text-[11px] text-slate-500 font-medium">Only 1 voiceover allowed (Audio only)</span>
+                  </div>
 
-                  {/* Upload Options - All Visible */}
+                  {/* Multiple voiceovers warning banner if both exist from legacy data */}
+                  {audioPreviewUrl && videoPreviewUrl && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>
+                          <strong>Multiple voiceovers detected!</strong> Only 1 voiceover is allowed per question. Please click the trash icon on the voiceover you wish to remove before saving.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload Options - Visible only when NO audio AND NO video are attached */}
                   {!isRecording && !audioPreviewUrl && !videoPreviewUrl && (
                     <div className="space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1200,8 +1250,8 @@ export const QuestionsPage: React.FC = () => {
                           className="py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
                         >
                           <Mic className="w-4 h-4 text-emerald-600" />
-                          <span>Record</span>
-                          <span className="text-[10px] text-emerald-600 font-normal">Live audio</span>
+                          <span>Record Audio</span>
+                          <span className="text-[10px] text-emerald-600 font-normal">Live mic recording</span>
                         </button>
 
                         <label className="py-2.5 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs">
@@ -1209,19 +1259,12 @@ export const QuestionsPage: React.FC = () => {
                             ref={fileInputRef}
                             type="file"
                             accept="audio/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setVoiceAudioFile(file);
-                                setAudioPreviewUrl(URL.createObjectURL(file));
-                                setVoiceMediaType('audio');
-                              }
-                            }}
+                            onChange={handleAudioFileChange}
                             className="hidden"
                           />
                           <Upload className="w-4 h-4 text-slate-500" />
                           <span>Upload Audio</span>
-                          <span className="text-[10px] text-slate-500 font-normal">MP3, WAV</span>
+                          <span className="text-[10px] text-slate-500 font-normal">MP3, WAV, WebM</span>
                         </label>
 
                         <label className="py-2.5 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs">
@@ -1232,11 +1275,14 @@ export const QuestionsPage: React.FC = () => {
                             onChange={handleVideoFileChange}
                             className="hidden"
                           />
-                          <Video className="w-4 h-4 text-slate-500" />
+                          <Volume2 className="w-4 h-4 text-slate-500" />
                           <span>Upload Video</span>
-                          <span className="text-[10px] text-slate-500 font-normal">MP4, WebM</span>
+                          <span className="text-[10px] text-slate-500 font-normal">MP4, WebM (Audio track)</span>
                         </label>
                       </div>
+                      <p className="text-[11px] text-slate-400 italic">
+                        Attach at most 1 voiceover (live mic, audio file, or video clue). Only audio is played during questions.
+                      </p>
                     </div>
                   )}
 
@@ -1257,27 +1303,46 @@ export const QuestionsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Audio Preview Bar */}
+                  {/* Audio Voiceover Preview Bar */}
                   {audioPreviewUrl && !isRecording && (
                     <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-xs">
-                      <div className="flex items-center gap-2.5 text-xs text-slate-800">
-                        <FileAudio className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="truncate max-w-[200px] font-medium">Audio recording ready</span>
+                      <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+                          <FileAudio className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-slate-900 text-xs">
+                            {voiceAudioFile ? voiceAudioFile.name : voiceAudioBlob ? 'Live mic recording ready' : 'Spoken Audio Clue ready'}
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
+                            <span>Audio Voiceover</span>
+                            {voiceAudioFile && <span>• {(voiceAudioFile.size / 1024).toFixed(1)} KB</span>}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
-                          onClick={toggleModalAudioPlayback}
-                          className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                          onClick={() => toggleModalAudioPlayback(audioPreviewUrl)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                         >
-                          {isPlayingPreview ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
-                          <span>{isPlayingPreview ? 'Pause' : 'Test'}</span>
+                          {isPlayingPreview && currentlyPlayingModalUrl === audioPreviewUrl ? (
+                            <>
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>Pause</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-white" />
+                              <span>Test Audio</span>
+                            </>
+                          )}
                         </button>
                         <button
                           type="button"
                           onClick={clearVoiceRecorder}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Remove audio"
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete audio voiceover"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1285,31 +1350,51 @@ export const QuestionsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Video Preview Bar */}
+                  {/* Video Voiceover Preview Bar (Audio only, with Test Audio button!) */}
                   {videoPreviewUrl && (
                     <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-14 w-14 rounded-lg bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
-                          <Video className="w-6 h-6 text-slate-400" />
+                      <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Volume2 className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-900 truncate">
-                            {voiceVideoFile ? voiceVideoFile.name : 'Video URL linked'}
+                          <div className="truncate font-semibold text-slate-900 text-xs">
+                            {voiceVideoFile ? voiceVideoFile.name : 'MP4 Video Voiceover ready'}
                           </div>
-                          <div className="text-[11px] text-emerald-700 font-medium">
-                            {voiceVideoFile ? `${(voiceVideoFile.size / 1024).toFixed(1)} KB` : 'Video URL linked'}
+                          <div className="text-[10px] text-indigo-700 font-medium flex items-center gap-1">
+                            <span>MP4 Sound Clue (Audio Only)</span>
+                            {voiceVideoFile && <span>• {(voiceVideoFile.size / 1024).toFixed(1)} KB</span>}
                           </div>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={handleClearVideo}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
-                        title="Remove video"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleModalAudioPlayback(videoPreviewUrl)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                        >
+                          {isPlayingPreview && currentlyPlayingModalUrl === videoPreviewUrl ? (
+                            <>
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>Pause</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-white" />
+                              <span>Test Audio</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearVideo}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete video voiceover"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

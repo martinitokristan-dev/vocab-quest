@@ -101,11 +101,20 @@ class QuestionController extends Controller
             $voiceVideoUrl = $upload['url'];
         }
 
-        $voiceMediaType = $validated['voice_media_type'] ?? 'none';
+        // Strict 1-voiceover validation: cannot have both audio and video
+        if (! empty($voiceAudioUrl) && ! empty($voiceVideoUrl)) {
+            throw ValidationException::withMessages([
+                'voiceover' => ['Only 1 voiceover is allowed per question (either audio or video).'],
+            ]);
+        }
+
+        $voiceMediaType = 'none';
         if ($voiceVideoUrl) {
             $voiceMediaType = 'video';
+            $voiceAudioUrl = null;
         } elseif ($voiceAudioUrl) {
             $voiceMediaType = 'audio';
+            $voiceVideoUrl = null;
         }
 
         // rules-and-validation §3: highlighted_word must exist inside sentence
@@ -209,7 +218,9 @@ class QuestionController extends Controller
             'answers.*.is_correct'       => ['required', 'boolean'],
         ]);
 
-        $imageUrl = $validated['image_url'] ?? $question->image_url;
+        $imageUrl = array_key_exists('image_url', $validated)
+            ? ($validated['image_url'] ?: null)
+            : $question->image_url;
         $imagePublicId = $validated['image_cloudinary_public_id'] ?? $question->image_cloudinary_public_id;
         $imageFile = $request->file('image') ?? $request->file('image_file');
         if ($imageFile) {
@@ -217,28 +228,49 @@ class QuestionController extends Controller
             $imageUrl = $upload['url'];
             $imagePublicId = $upload['public_id'];
         }
+        if (empty($imageUrl)) {
+            $imagePublicId = null;
+        }
 
-        $voiceAudioUrl = array_key_exists('voice_audio_url', $validated) ? $validated['voice_audio_url'] : $question->voice_audio_url;
+        $voiceAudioUrl = array_key_exists('voice_audio_url', $validated)
+            ? ($validated['voice_audio_url'] ?: null)
+            : $question->voice_audio_url;
         $audioFile = $request->file('voice_audio') ?? $request->file('voice_audio_file');
         if ($audioFile) {
             $upload = $this->cloudinaryService->uploadFile($audioFile, 'questions/audio', 'video');
             $voiceAudioUrl = $upload['url'];
+            // Auto-replace: clear video if new audio uploaded
+            $voiceVideoUrl = null;
         }
 
-        $voiceVideoUrl = array_key_exists('voice_video_url', $validated) ? $validated['voice_video_url'] : $question->voice_video_url;
+        $voiceVideoUrl = array_key_exists('voice_video_url', $validated)
+            ? ($validated['voice_video_url'] ?: null)
+            : (isset($voiceVideoUrl) ? $voiceVideoUrl : $question->voice_video_url);
         $videoFile = $request->file('voice_video') ?? $request->file('voice_video_file');
         if ($videoFile) {
             $upload = $this->cloudinaryService->uploadFile($videoFile, 'questions/video', 'video');
             $voiceVideoUrl = $upload['url'];
+            // Auto-replace: clear audio if new video uploaded
+            $voiceAudioUrl = null;
         }
 
-        $voiceMediaType = $validated['voice_media_type'] ?? $question->voice_media_type;
+        // Strict 1-voiceover validation: if client attempts to keep or send both
+        if (! empty($voiceAudioUrl) && ! empty($voiceVideoUrl)) {
+            throw ValidationException::withMessages([
+                'voiceover' => ['Only 1 voiceover is allowed per question (either audio or video). Please delete one.'],
+            ]);
+        }
+
         if ($voiceVideoUrl) {
             $voiceMediaType = 'video';
+            $voiceAudioUrl = null;
         } elseif ($voiceAudioUrl) {
             $voiceMediaType = 'audio';
-        } elseif (! $voiceAudioUrl && ! $voiceVideoUrl) {
+            $voiceVideoUrl = null;
+        } else {
             $voiceMediaType = 'none';
+            $voiceAudioUrl = null;
+            $voiceVideoUrl = null;
         }
 
         $sentence = $validated['sentence'] ?? $question->sentence;

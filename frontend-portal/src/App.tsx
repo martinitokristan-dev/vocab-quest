@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Menu, Sparkles } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/Sidebar';
@@ -15,11 +16,34 @@ import { RoomControlPage } from './pages/RoomControlPage';
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const activeTab = location.pathname.split('/')[1] || 'maps';
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
-    <div className="h-screen w-full flex overflow-hidden bg-slate-50">
-      <Sidebar activeTab={activeTab} />
-      <main className="flex-1 h-full overflow-y-auto w-full bg-slate-50 p-6 md:p-8 custom-scrollbar">
+    <div className="h-screen w-full flex flex-col md:flex-row overflow-hidden bg-slate-50">
+      {/* Mobile Top App Bar (visible only on mobile screens < md) */}
+      <header className="md:hidden flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200 shrink-0 z-30">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-1.5 -ml-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 active:bg-slate-200 cursor-pointer transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <span className="font-bold text-xs text-slate-900">Vocab Quest</span>
+          </div>
+        </div>
+        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+          Teacher Portal
+        </span>
+      </header>
+
+      <Sidebar activeTab={activeTab} isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      <main className="flex-1 h-full overflow-y-auto w-full bg-slate-50 p-4 sm:p-6 md:p-8 custom-scrollbar">
         {children}
       </main>
     </div>

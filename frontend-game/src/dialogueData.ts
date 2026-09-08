@@ -39,7 +39,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
       {
         speaker: 'Teacher Faith',
         titleBadge: 'WELCOME TO EPCES KINGDOM — EASY ROUND!',
-        text: 'Welcome to EPCES Kingdom, the Easy Round! In level 1 to 5, you will see a picture that represents the box word. Some context clues will also be highlighted to help you understand its meaning. Look at the picture, read the sentence carefully, use the highlighted clues, and choose the correct answer from the choices.',
+        text: 'Welcome to EPCES Kingdom, the Easy Round! In level 1 to 5, you will see a picture that represents the box word. Look at the picture, read the sentence carefully, and choose the correct answer from the choices.',
         characterImage: '/assets/guide/F2.png',
         buttonText: 'NEXT ▶',
       },
@@ -59,7 +59,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
       {
         speaker: 'Teacher Gevina',
         titleBadge: 'BAYAN NG PROSPERIDAD — AVERAGE ROUND!',
-        text: 'Welcome to Bayan ng Prosperidad Municipal Kingdom, the Average Round! This time, in level 6-10 there will be no picture to guide you, but the context clues will still be highlighted. Read the sentence carefully, look for the clues, and use them to figure out the meaning of the box word. Then, choose the best answer from the choices.',
+        text: 'Welcome to Bayan ng Prosperidad Municipal Kingdom, the Average Round! This time, in level 6-10 there will be no picture to guide you, but the context clues - a hint will be underlined. Read the sentence carefully, look for the clues, and use them to figure out the meaning of the box word. Then, choose the best answer from the choices.',
         characterImage: '/assets/guide/G2.png',
         buttonText: 'NEXT ▶',
       },

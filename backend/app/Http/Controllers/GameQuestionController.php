@@ -108,6 +108,10 @@ class GameQuestionController extends Controller
             'stars'       => $sa->stars ?? 3,
         ]);
 
+        $currentAttempt = StudentAnswer::where('game_session_id', $session->id)
+            ->where('question_id', $nextQuestion->id)
+            ->first();
+
         return response()->json([
             'data' => [
                 'session'      => [
@@ -123,6 +127,11 @@ class GameQuestionController extends Controller
                 ],
                 'question'            => new StudentQuestionResource($nextQuestion),
                 'completed_questions' => $completedQuestions,
+                'current_attempt'     => ($currentAttempt && !$currentAttempt->is_correct) ? [
+                    'attempts'         => (int) $currentAttempt->attempts,
+                    'wrong_answer_ids' => $currentAttempt->wrong_answer_ids ?? ($currentAttempt->answer_id ? [$currentAttempt->answer_id] : []),
+                    'typed_answer'     => $currentAttempt->typed_answer,
+                ] : null,
                 'is_paused'           => $isPaused,
                 'room_status'         => $roomStatus,
             ],
@@ -206,19 +215,30 @@ class GameQuestionController extends Controller
         $starsAwarded = $isCorrect ? ($validated['stars'] ?? 1) : 0;
         $attemptsCount = $validated['attempts'] ?? 1;
 
-        // Record or update student answer attempt with stars and attempts
+        // Find existing attempt if any to accumulate wrong_answer_ids
+        $existingAttempt = StudentAnswer::where('game_session_id', $session->id)
+            ->where('question_id', $question->id)
+            ->first();
+
+        $wrongAnswerIds = $existingAttempt?->wrong_answer_ids ?? [];
+        if (!$isCorrect && $answerId && !in_array($answerId, $wrongAnswerIds)) {
+            $wrongAnswerIds[] = (int) $answerId;
+        }
+
+        // Record or update student answer attempt with stars, attempts, and wrong_answer_ids
         StudentAnswer::updateOrCreate(
             [
                 'game_session_id' => $session->id,
                 'question_id'     => $question->id,
             ],
             [
-                'map_id'       => $question->map_id,
-                'answer_id'    => $answerId,
-                'typed_answer' => $typedAnswer,
-                'is_correct'   => $isCorrect,
-                'stars'        => $starsAwarded,
-                'attempts'     => $attemptsCount,
+                'map_id'           => $question->map_id,
+                'answer_id'        => $answerId,
+                'typed_answer'     => $typedAnswer,
+                'is_correct'       => $isCorrect,
+                'stars'            => $starsAwarded,
+                'attempts'         => $attemptsCount,
+                'wrong_answer_ids' => $wrongAnswerIds,
             ]
         );
 
@@ -229,9 +249,11 @@ class GameQuestionController extends Controller
         $session->update(['score' => $totalSessionStars]);
 
         return response()->json([
-            'is_correct' => $isCorrect,
-            'score'      => $totalSessionStars,
-            'message'    => $isCorrect ? 'Correct answer!' : 'Incorrect answer. Try again!',
+            'is_correct'       => $isCorrect,
+            'score'            => $totalSessionStars,
+            'attempts'         => $attemptsCount,
+            'wrong_answer_ids' => $wrongAnswerIds,
+            'message'          => $isCorrect ? 'Correct answer!' : 'Incorrect answer. Try again!',
         ]);
     }
 }

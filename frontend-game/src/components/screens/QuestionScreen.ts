@@ -1,6 +1,10 @@
 import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
 
+function getVoiceoverUrl(q: any): string | null {
+  return q?.voice_audio_url || q?.voice_video_url || q?.audio_url || null;
+}
+
 interface QuestionScreenProps {
   playerName: string;
   avatarSlug: string;
@@ -92,19 +96,23 @@ export class QuestionScreen {
       );
     }
 
-    let teacherSpeech = customMascotSpeech;
-    if (!teacherSpeech) {
-      if (isReview) {
-        teacherSpeech = `Great job! You mastered this question challenge!`;
-      } else if (submitResult) {
-        teacherSpeech = submitResult.is_correct
-          ? 'Great job! Moving to the next challenge!'
-          : 'Oops! Give it another try!';
-      } else if (isGevina) {
-        teacherSpeech = `Read carefully and use the underlined clue to find the meaning of "${currentWord}"!`;
-      } else {
-        teacherSpeech = `Listen carefully and select the best meaning of "${currentWord}"!`;
-      }
+    const studentName = this.props.playerName?.trim() || 'Hero Student';
+    const hasVoiceover = Boolean(getVoiceoverUrl(question));
+    const willAutoNarrate = !isReview && !submitResult && this.props.lastNarratedQuestionId !== question.id && hasVoiceover;
+
+    let teacherSpeech = '';
+    if (isReview) {
+      teacherSpeech = `Great job! You mastered this question challenge!`;
+    } else if (submitResult) {
+      teacherSpeech = customMascotSpeech || (submitResult.is_correct
+        ? 'Great job! Moving to the next challenge!'
+        : 'Oops! Give it another try!');
+    } else if (wrongAnswerIds.length > 0) {
+      teacherSpeech = customMascotSpeech || 'Oops! Give it another try!';
+    } else if (willAutoNarrate || soundManager.isNarrating()) {
+      teacherSpeech = `Listen carefully, ${studentName}...`;
+    } else {
+      teacherSpeech = `Take your time, ${studentName}! Choose wisely.`;
     }
 
     const baseIdleSprite = isYellow 
@@ -123,7 +131,7 @@ export class QuestionScreen {
         ? (currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
         : (currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
       initialTeacherAnimClass = 'celebrating';
-    } else if (wrongAnswerIds.length > 0 && !submitResult && !submitting && currentFeedbackSprite) {
+    } else if (wrongAnswerIds.length > 0 && !submitResult && !submitting) {
       initialTeacherSprite = isYellow
         ? (currentFeedbackSprite || `/assets/guide/teacher_yellow_sad.png`)
         : isGevina
@@ -194,6 +202,22 @@ export class QuestionScreen {
               </div>
             ` : ''}
 
+            <!-- Mobile Teacher Mascot Strip (visible on mobile <= 860px) -->
+            <div class="mobile-teacher-strip" id="mobileTeacherStrip">
+              <div class="mobile-teacher-avatar-box">
+                <img
+                  id="mobileTeacherAvatar"
+                  src="${initialTeacherSprite}"
+                  alt="${teacherName}"
+                  class="mobile-teacher-avatar-img ${initialTeacherAnimClass}"
+                />
+              </div>
+              <div class="mobile-teacher-bubble ${submitResult?.is_correct ? 'bubble-correct' : wrongAnswerIds.length > 0 ? 'bubble-wrong' : ''}">
+                <div class="mobile-teacher-author">${teacherName}</div>
+                <div class="mobile-teacher-speech-text" id="mobileTeacherSpeech">"${teacherSpeech}"</div>
+              </div>
+            </div>
+
             <div class="question-arena-header">
               <button id="readQuestionBtn" class="hud-btn question-replay-btn" title="Replay voice narration">
                 <span id="readQuestionIcon">${Icons.rotateCcw(18)}</span>
@@ -201,15 +225,7 @@ export class QuestionScreen {
               </button>
             </div>
 
-            ${question.voice_video_url ? `
-              <div style="margin-bottom: 8px; border-radius: 16px; overflow: hidden; max-height: 220px; border: 2px solid #0284C7; background: #020617; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
-                <div style="padding: 8px 14px; background: rgba(2, 132, 199, 0.2); font-family: var(--font-primary); font-size: 14px; font-weight: 700; color: #38BDF8; display: flex; align-items: center; gap: 8px;">
-                  <span>${Icons.video(18)}</span>
-                  <span>TEACHER VIDEO VOICEOVER PROMPT</span>
-                </div>
-                <video src="${question.voice_video_url}" controls playsinline style="width: 100%; max-height: 190px; object-fit: contain; background: #000;"></video>
-              </div>
-            ` : ''}
+
 
             <!-- Centered Question Visual Clue Image (Hidden in Kingdom 2) -->
             ${(!isGevina && question.image_url) ? `
@@ -285,7 +301,9 @@ export class QuestionScreen {
           <!-- Right Side Teacher Character Guide Stage -->
           <div class="question-teacher-stage" id="questionTeacherStage">
             <!-- Teacher Speech Bubble -->
-            <div class="teacher-speech-bubble ${submitResult?.is_correct ? 'bubble-correct' : wrongAnswerIds.length > 0 ? 'bubble-wrong' : ''}">
+            <div
+              class="teacher-speech-bubble ${submitResult?.is_correct ? 'bubble-correct' : wrongAnswerIds.length > 0 ? 'bubble-wrong' : ''}"
+            >
               <div class="teacher-speech-header">
                 <span class="teacher-speech-dot"></span>
                 <span class="teacher-speech-author">${teacherName}</span>
@@ -311,20 +329,13 @@ export class QuestionScreen {
       </div>
     `;
 
-    requestAnimationFrame(() => this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting));
+    this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting);
   }
-
-  private eventListenersAttached = false;
 
   /**
    * Attach event listeners
    */
   private attachEventListeners(question: any, isReview: boolean, isIdentification: boolean, submitResult: any, wrongAnswerIds: number[], submitting: boolean): void {
-    // Only attach event listeners once to prevent accumulation
-    if (this.eventListenersAttached) {
-      return;
-    }
-    this.eventListenersAttached = true;
     document.getElementById('questionAvatarBox')?.addEventListener('click', () => {
       soundManager.playClick();
       if (this.props.avatarSlug) {
@@ -349,17 +360,40 @@ export class QuestionScreen {
     const readText = document.getElementById('readQuestionText');
 
     this.updateReadButton = (isSpeaking: boolean) => {
+      const studentName = this.props.playerName?.trim() || 'Hero Student';
+      const desktopBubble = document.querySelector('.teacher-speech-text');
+      const mobileBubble = document.getElementById('mobileTeacherSpeech');
+
       if (readIcon && readText && readBtn) {
         if (isSpeaking) {
           readIcon.innerHTML = Icons.stop(18);
           readText.textContent = 'STOP';
           readBtn.style.background = '#DC2626';
           readBtn.style.borderColor = '#EF4444';
+
+          const listenText = `"Listen carefully, ${studentName}..."`;
+          if (desktopBubble) desktopBubble.textContent = listenText;
+          if (mobileBubble) mobileBubble.textContent = listenText;
         } else {
           readIcon.innerHTML = Icons.rotateCcw(18);
           readText.textContent = 'REPLAY';
-          readBtn.style.background = '#0284C7';
-          readBtn.style.borderColor = '#38BDF8';
+          readBtn.style.background = '#059669';
+          readBtn.style.borderColor = '#047857';
+
+          let currentSpeech = `Take your time, ${studentName}! Choose wisely.`;
+          if (isReview) {
+            currentSpeech = 'Great job! You mastered this question challenge!';
+          } else if (submitResult) {
+            currentSpeech = this.props.customMascotSpeech || (submitResult.is_correct
+              ? 'Great job! Moving to the next challenge!'
+              : 'Oops! Give it another try!');
+          } else if (wrongAnswerIds.length > 0) {
+            currentSpeech = this.props.customMascotSpeech || 'Oops! Give it another try!';
+          }
+
+          const idleText = `"${currentSpeech}"`;
+          if (desktopBubble) desktopBubble.textContent = idleText;
+          if (mobileBubble) mobileBubble.textContent = idleText;
         }
       }
     };
@@ -370,7 +404,7 @@ export class QuestionScreen {
         soundManager.stopSpeech();
         this.updateReadButton(false);
       } else {
-        const voiceUrl = question.voice_audio_url || question.audio_url;
+        const voiceUrl = getVoiceoverUrl(question);
         if (voiceUrl) {
           soundManager.playCustomVoiceRecording(
             voiceUrl,
@@ -384,19 +418,13 @@ export class QuestionScreen {
     });
 
     if (isIdentification && !isReview) {
-      setTimeout(() => {
-        const inputEl = document.getElementById('identificationTextInput') as HTMLInputElement | null;
-        const submitBtn = document.getElementById('identificationSubmitBtn');
+      const inputEl = document.getElementById('identificationTextInput') as HTMLInputElement | null;
+      const submitBtn = document.getElementById('identificationSubmitBtn');
 
-        if (!inputEl || !submitBtn) {
-          console.error('Identification input elements not found:', { inputEl, submitBtn });
-          return;
-        }
-
+      if (inputEl && submitBtn) {
         const submitTyped = () => {
           if (!inputEl) return;
           const textVal = inputEl.value.trim();
-          console.log('Submitting identification answer:', textVal);
           soundManager.stopSpeech();
           this.props.onAnswerSelect(null, textVal);
         };
@@ -414,8 +442,10 @@ export class QuestionScreen {
           }
         });
 
-        inputEl.focus();
-      }, 150);
+        setTimeout(() => {
+          inputEl.focus();
+        }, 100);
+      }
     } else if (!isReview) {
       document.querySelectorAll('.answer-card').forEach((card) => {
         const answerId = Number(card.getAttribute('data-answer-id'));
@@ -448,7 +478,7 @@ export class QuestionScreen {
       });
     }
 
-    // Auto-play teacher's recorded voiceover ONLY on active new question with a 1.5s preparation delay
+    // Auto-play teacher's recorded voiceover on entering active question with a 1.0s preparation delay
     if (!isReview && !submitResult && this.props.lastNarratedQuestionId !== question.id) {
       this.props.onQuestionNarrated(question.id);
       if (this.narrationTimeout) {
@@ -456,7 +486,7 @@ export class QuestionScreen {
       }
       this.narrationTimeout = window.setTimeout(() => {
         this.narrationTimeout = null;
-        const voiceUrl = question.voice_audio_url || question.audio_url;
+        const voiceUrl = getVoiceoverUrl(question);
         if (voiceUrl) {
           soundManager.playCustomVoiceRecording(
             voiceUrl,
@@ -464,7 +494,7 @@ export class QuestionScreen {
             () => this.updateReadButton(false)
           );
         }
-      }, 1500);
+      }, 1000);
     }
   }
 
@@ -472,14 +502,7 @@ export class QuestionScreen {
    * Update props and re-render
    */
   updateProps(newProps: Partial<QuestionScreenProps>): void {
-    const oldQuestionId = this.props.question?.id;
     this.props = { ...this.props, ...newProps };
-    const newQuestionId = this.props.question?.id;
-    
-    // Reset event listeners flag if question changes
-    if (oldQuestionId !== newQuestionId) {
-      this.eventListenersAttached = false;
-    }
     this.render();
   }
 
@@ -491,7 +514,5 @@ export class QuestionScreen {
       clearTimeout(this.narrationTimeout);
       this.narrationTimeout = null;
     }
-    this.eventListenersAttached = false;
-    // Event listeners are automatically cleaned up when innerHTML is replaced
   }
 }

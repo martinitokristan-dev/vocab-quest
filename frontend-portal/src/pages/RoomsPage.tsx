@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type RoomData } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { Copy, Check, X, Users, Trash2, Loader2 } from 'lucide-react';
+import { Copy, Check, X, Trash2, Loader2 } from 'lucide-react';
 
 const CAPACITY_PRESETS = [20, 30, 40, 50];
 
@@ -133,9 +133,9 @@ export const RoomsPage: React.FC = () => {
       {/* Rooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {rooms.length === 0 ? (
-          <div className="col-span-full surface-card p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+          <div className="col-span-full surface-card p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80">
             <p className="text-sm font-semibold text-slate-800">No rooms created yet</p>
-            <p className="text-xs text-slate-500 mt-1">Create a game room to generate a 6-digit PIN for your students</p>
+            <p className="text-xs text-slate-400 mt-1">Create a game room to generate a 6-digit PIN for your students</p>
           </div>
         ) : (
           rooms.map((room) => {
@@ -147,62 +147,67 @@ export const RoomsPage: React.FC = () => {
             return (
               <div
                 key={room.id}
-                className="surface-card p-5 rounded-2xl border border-slate-200 flex flex-col justify-between gap-4 hover:border-slate-300 hover:shadow-md transition-all bg-white shadow-xs text-slate-900"
+                className="surface-card p-5 rounded-2xl border border-slate-200/80 hover:border-slate-300 flex flex-col justify-between gap-4 transition-colors bg-white shadow-xs text-slate-900"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span
-                      className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                        room.status === 'waiting'
-                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                          : room.status === 'in_progress'
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {room.status.replace('_', ' ')}
-                    </span>
+                    {room.status === 'waiting' ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>Waiting</span>
+                      </span>
+                    ) : room.status === 'in_progress' ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>In Progress</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        <span>Closed</span>
+                      </span>
+                    )}
 
                     {/* Pupil Limit Indicator */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      <Users className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="font-bold">{pupilCount}</span>
-                      <span className="text-slate-500 font-mono">/ {maxCap} Pupils</span>
-                    </div>
+                    <span className="text-xs font-mono text-slate-400">
+                      <span className="font-semibold text-slate-700">{pupilCount}</span> / {maxCap} pupils
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900 truncate">{room.name || `Room #${room.pin}`}</h3>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 truncate">{room.name || `Room #${room.pin}`}</h3>
                   </div>
 
-                  {/* Big PIN Code Box */}
+                  {/* Sleek PIN Code Box */}
                   <div
                     onClick={() => handleCopyPin(room.pin)}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors group"
+                    className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors group"
                     title="Click to copy PIN"
                   >
                     <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Room PIN</div>
-                      <div className="text-xl font-mono font-bold text-emerald-700 tracking-widest">{room.pin}</div>
+                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Room PIN</div>
+                      <div className="text-xl font-mono font-bold text-slate-900 tracking-widest group-hover:text-emerald-600 transition-colors">
+                        {room.pin}
+                      </div>
                     </div>
-                    <div className="text-slate-400 group-hover:text-emerald-600">
+                    <div className="text-slate-400 group-hover:text-slate-700 transition-colors">
                       {copiedPin === room.pin ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                     </div>
                   </div>
 
                   {/* Pupil Capacity Progress Bar */}
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] text-slate-500">
+                    <div className="flex justify-between text-[11px] text-slate-400 font-medium">
                       <span>Room Capacity</span>
-                      <span className="font-mono text-slate-700 font-semibold">{capacityPercent}%</span>
+                      <span className="font-mono text-slate-600">{capacityPercent}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all duration-300 ${
+                        className={`h-full rounded-full transition-all duration-300 ${
                           capacityPercent >= 90
                             ? 'bg-rose-500'
                             : capacityPercent >= 60
-                            ? 'bg-amber-500'
+                            ? 'bg-amber-400'
                             : 'bg-emerald-500'
                         }`}
                         style={{ width: `${capacityPercent}%` }}
@@ -211,42 +216,22 @@ export const RoomsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-                  {isClosed ? (
-                    <>
-                      <button
-                        onClick={() => navigate(`/rooms/${room.id}`)}
-                        className="flex-1 btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <span>Results</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteRoom(e, room)}
-                        className="flex-none btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5 cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-slate-200"
-                        title="Delete room"
-                      >
-                        <span>Delete</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => navigate(`/rooms/${room.id}`)}
-                        className="flex-1 btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <span>Monitor</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteRoom(e, room)}
-                        className="flex-none btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5 cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-slate-200"
-                        title="Delete room"
-                      >
-                        <span>Delete</span>
-                      </button>
-                    </>
-                  )}
+                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                  <button
+                    onClick={() => navigate(`/rooms/${room.id}`)}
+                    className="flex-1 inline-flex items-center justify-center py-2 px-3 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <span>{isClosed ? 'View Results' : 'Monitor Room'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteRoom(e, room)}
+                    className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Delete room"
+                    aria-label="Delete room"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -257,12 +242,12 @@ export const RoomsPage: React.FC = () => {
       {/* Create Room Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="surface-card w-full max-w-sm p-5 rounded-2xl border border-slate-200 space-y-4 bg-white text-slate-900 shadow-2xl">
+          <div className="surface-card w-full max-w-sm p-5 rounded-2xl border border-slate-200 space-y-4 bg-white text-slate-900 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h3 className="text-sm font-bold text-slate-900">Create Game Room</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Create Game Room</h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -276,7 +261,7 @@ export const RoomsPage: React.FC = () => {
 
             <form onSubmit={handleCreateRoom} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Room Name (e.g. Section Mango)</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Room Name (e.g. Section Mango)</label>
                 <input
                   type="text"
                   placeholder="e.g. Section Mango"
@@ -287,8 +272,8 @@ export const RoomsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Pupil Limit / Max Capacity (Pupils allowed to join)
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Pupil Limit / Max Capacity
                 </label>
                 <input
                   type="number"
@@ -306,9 +291,9 @@ export const RoomsPage: React.FC = () => {
                       key={cap}
                       type="button"
                       onClick={() => setMaxStudents(cap)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                         maxStudents === cap
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold'
+                          ? 'bg-emerald-600 text-white font-semibold'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -326,7 +311,7 @@ export const RoomsPage: React.FC = () => {
                 >
                   Cancel
                 </button>
-                <button type="submit" disabled={creating} className="btn-primary text-xs py-1.5 px-4 font-bold shadow-xs">
+                <button type="submit" disabled={creating} className="btn-primary text-xs py-1.5 px-4 font-semibold shadow-xs">
                   {creating ? 'Generating PIN...' : 'Generate PIN'}
                 </button>
               </div>
@@ -342,15 +327,20 @@ export const RoomsPage: React.FC = () => {
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="surface-card w-full max-w-sm p-5 rounded-2xl border border-slate-200 space-y-4 bg-white text-slate-900 shadow-2xl"
+            className="surface-card w-full max-w-sm p-5 rounded-2xl border border-slate-200 space-y-4 bg-white text-slate-900 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2.5">
-              <Trash2 className="w-4 h-4 text-rose-600" />
-              <h3 className="text-sm font-bold text-slate-900">Delete Room</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-sm font-semibold text-slate-900">Delete Room</h3>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="text-xs text-slate-600">
-              Are you sure you want to delete <strong>Room #{deleteTarget.pin}</strong>? This action cannot be undone.
+            <div className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-slate-900">Room #{deleteTarget.pin}</strong>? This action cannot be undone.
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
@@ -364,7 +354,7 @@ export const RoomsPage: React.FC = () => {
                 type="button"
                 onClick={confirmDelete}
                 disabled={deleting}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-60"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-60"
               >
                 {deleting ? (
                   <>
@@ -372,10 +362,7 @@ export const RoomsPage: React.FC = () => {
                     <span>Deleting...</span>
                   </>
                 ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Room</span>
-                  </>
+                  <span>Delete Room</span>
                 )}
               </button>
             </div>

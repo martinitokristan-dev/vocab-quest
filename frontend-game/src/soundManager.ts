@@ -18,7 +18,7 @@ class SoundManager {
     muted: false,
   };
 
-  private currentVoiceAudio: HTMLAudioElement | null = null;
+  private currentVoiceAudio: HTMLMediaElement | null = null;
   private bgmGain: GainNode | null = null;
   private isSpeechActive: boolean = false;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
@@ -249,6 +249,61 @@ class SoundManager {
     } catch (e) {}
   }
 
+  // 4b. Realistic metallic padlock unlock: mechanical latch snap + spring ring + golden chime
+  public playPadlockUnlock() {
+    try {
+      this.initContext();
+      if (!this.ctx || this.settings.muted) return;
+      const vol = this.getEffectiveSfxVolume();
+      if (vol <= 0) return;
+
+      const t0 = this.ctx.currentTime;
+
+      // 1. Crisp mechanical latch click (dual rapid transient snap)
+      const snapOsc = this.ctx.createOscillator();
+      const snapGain = this.ctx.createGain();
+      snapOsc.type = 'sawtooth';
+      snapOsc.frequency.setValueAtTime(1600, t0);
+      snapOsc.frequency.exponentialRampToValueAtTime(450, t0 + 0.045);
+      snapGain.gain.setValueAtTime(vol * 0.5, t0);
+      snapGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.045);
+      snapOsc.connect(snapGain);
+      snapGain.connect(this.ctx.destination);
+      snapOsc.start(t0);
+      snapOsc.stop(t0 + 0.045);
+
+      // 2. Metallic spring ring (resonant shackle release ping)
+      const springOsc = this.ctx.createOscillator();
+      const springGain = this.ctx.createGain();
+      springOsc.type = 'triangle';
+      springOsc.frequency.setValueAtTime(980, t0 + 0.03);
+      springOsc.frequency.exponentialRampToValueAtTime(840, t0 + 0.22);
+      springGain.gain.setValueAtTime(vol * 0.4, t0 + 0.03);
+      springGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+      springOsc.connect(springGain);
+      springGain.connect(this.ctx.destination);
+      springOsc.start(t0 + 0.03);
+      springOsc.stop(t0 + 0.22);
+
+      // 3. Bright golden chime / celebratory jingle (C6 -> E6 -> G6)
+      const notes = [1046.5, 1318.5, 1567.98];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const chimeOsc = this.ctx.createOscillator();
+        const chimeGain = this.ctx.createGain();
+        const startT = t0 + 0.08 + idx * 0.06;
+        chimeOsc.type = 'sine';
+        chimeOsc.frequency.setValueAtTime(freq, startT);
+        chimeGain.gain.setValueAtTime(vol * 0.32, startT);
+        chimeGain.gain.exponentialRampToValueAtTime(0.001, startT + 0.35);
+        chimeOsc.connect(chimeGain);
+        chimeGain.connect(this.ctx.destination);
+        chimeOsc.start(startT);
+        chimeOsc.stop(startT + 0.35);
+      });
+    } catch (e) {}
+  }
+
   // 4c. Sequential star pop chime
   public playStar(starIndex: number) {
     try {
@@ -315,6 +370,7 @@ class SoundManager {
   }
 
   // 8. Play Question Narration Voice Recording (Triggers Teacher Mouth-Sync)
+  // Supports all audio and video formats (mp3, wav, mp4, webm) playing ONLY audio with zero visual display
   public playCustomVoiceRecording(
     url: string,
     onStart?: () => void,
@@ -329,9 +385,14 @@ class SoundManager {
     }
 
     try {
-      const audio = new Audio(url);
-      audio.volume = this.getEffectiveSfxVolume();
-      this.currentVoiceAudio = audio;
+      // Use standard HTMLAudioElement for all audio formats and MP4/WebM video tracks.
+      // Audio elements decode the audio track directly without invoking video decoder pipelines
+      // or being blocked by strict browser unmuted-video autoplay restrictions.
+      const media = new Audio();
+      media.preload = 'auto';
+      media.src = url;
+      media.volume = this.getEffectiveSfxVolume();
+      this.currentVoiceAudio = media;
 
       let hasFinished = false;
       const handleEnd = () => {
@@ -342,18 +403,18 @@ class SoundManager {
         if (onEnd) onEnd();
       };
 
-      audio.onplay = () => {
+      media.onplay = () => {
         this.notifySpeakingState(true);
         if (onStart) onStart();
       };
 
-      audio.onended = handleEnd;
-      audio.onerror = (e) => {
+      media.onended = handleEnd;
+      media.onerror = (e) => {
         console.warn('Voice recording audio failed to load/play:', e);
         handleEnd();
       };
 
-      audio.play().catch((err) => {
+      media.play().catch((err) => {
         if (err.name !== 'AbortError') {
           console.warn('Voice playback prevented or failed:', err);
         }
@@ -377,7 +438,9 @@ class SoundManager {
     }
 
     try {
-      const audio = new Audio(url);
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = url;
       audio.volume = this.getEffectiveSfxVolume();
       this.currentVoiceAudio = audio;
 
@@ -405,7 +468,11 @@ class SoundManager {
   // 9. Stop All Active Voice Audio
   public stopSpeech() {
     if (this.currentVoiceAudio) {
-      this.currentVoiceAudio.pause();
+      try {
+        this.currentVoiceAudio.pause();
+        this.currentVoiceAudio.removeAttribute('src');
+        this.currentVoiceAudio.load();
+      } catch (e) {}
       this.currentVoiceAudio = null;
     }
     this.notifySpeakingState(false);

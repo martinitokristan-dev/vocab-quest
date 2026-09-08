@@ -29,47 +29,24 @@ const TEACHER_GUIDES: Record<number, { teacher: string; kingdomName: string }> =
   3: { teacher: 'Principal Flores', kingdomName: 'Provincial Capitol' },
 };
 
-// Kingdom theme styling for clean white/light theme
-const KINGDOM_COLORS: Record<number, { bg: string; text: string; border: string; activeBtn: string }> = {
-  1: {
-    bg: 'bg-sky-50',
-    text: 'text-sky-700',
-    border: 'border-sky-200',
-    activeBtn: 'bg-sky-500 text-white font-bold border-sky-500 shadow-sm shadow-sky-500/20',
-  },
-  2: {
-    bg: 'bg-purple-50',
-    text: 'text-purple-700',
-    border: 'border-purple-200',
-    activeBtn: 'bg-purple-600 text-white font-bold border-purple-600 shadow-sm shadow-purple-600/20',
-  },
-  3: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-800',
-    border: 'border-amber-200',
-    activeBtn: 'bg-amber-500 text-white font-bold border-amber-500 shadow-sm shadow-amber-500/20',
-  },
-};
+
 
 function KingdomBadge({ mapId, maps }: { mapId: number | null; maps: MapOption[] }) {
   if (mapId == null) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-        <Globe className="w-3 h-3 text-slate-500" />
-        All Kingdoms
+      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium">
+        <Globe className="w-3 h-3 text-slate-400" />
+        <span>All Kingdoms</span>
       </span>
     );
   }
   const map = maps.find((m) => m.id === mapId);
   const order = map?.order_index ?? 1;
   const guide = TEACHER_GUIDES[order];
-  const colors = KINGDOM_COLORS[order] ?? KINGDOM_COLORS[1];
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${colors.bg} ${colors.text} border ${colors.border}`}
-    >
-      <Crown className="w-3 h-3" />
-      {guide ? `${guide.teacher} • ${map ? map.title : guide.kingdomName}` : map ? map.title : `Kingdom ${mapId}`}
+    <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+      <Crown className="w-3 h-3 text-slate-400" />
+      <span>{guide ? `${guide.teacher} • ${map ? map.title : guide.kingdomName}` : map ? map.title : `Kingdom ${mapId}`}</span>
     </span>
   );
 }
@@ -366,16 +343,16 @@ export const AudioReviewPage: React.FC = () => {
       </div>
 
       {/* Recording Studio Card */}
-      <div className="surface-card p-6 rounded-2xl border border-slate-200 space-y-6 shadow-sm bg-white text-slate-900">
+      <div className="surface-card p-6 rounded-2xl border border-slate-200/80 space-y-6 shadow-xs bg-white text-slate-900">
         <form onSubmit={handleSaveFeedbackAudio} className="space-y-6">
           {/* Step 1: Feedback Type */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
                 1
               </span>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                When should this audio play?
+              <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                Trigger Event
               </label>
             </div>
 
@@ -387,31 +364,27 @@ export const AudioReviewPage: React.FC = () => {
                   setSelectedType('praise');
                   clearRecorder();
                 }}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
                   selectedType === 'praise'
-                    ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'
+                    ? 'bg-emerald-50/40 border-emerald-500/80 text-slate-900'
+                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50/50'
                 }`}
               >
                 <div
-                  className={`p-2.5 rounded-lg shrink-0 ${
+                  className={`p-2 rounded-lg shrink-0 ${
                     selectedType === 'praise'
-                      ? 'bg-emerald-500 text-white font-bold shadow-xs'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 text-slate-400'
                   }`}
                 >
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <div
-                    className={`text-sm font-bold ${
-                      selectedType === 'praise' ? 'text-slate-900' : 'text-slate-700'
-                    }`}
-                  >
+                  <div className="text-sm font-semibold text-slate-900">
                     Correct Answer
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                    Plays when the student chooses the right answer (Praise & Cheer)
+                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                    Plays when student chooses the right answer (Praise & Cheer)
                   </div>
                 </div>
               </button>
@@ -423,31 +396,27 @@ export const AudioReviewPage: React.FC = () => {
                   setSelectedType('cheer_up');
                   clearRecorder();
                 }}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
                   selectedType === 'cheer_up'
-                    ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50'
+                    ? 'bg-amber-50/40 border-amber-500/80 text-slate-900'
+                    : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50/50'
                 }`}
               >
                 <div
-                  className={`p-2.5 rounded-lg shrink-0 ${
+                  className={`p-2 rounded-lg shrink-0 ${
                     selectedType === 'cheer_up'
-                      ? 'bg-amber-500 text-white font-bold shadow-xs'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-100 text-slate-400'
                   }`}
                 >
-                  <XCircle className="w-5 h-5" />
+                  <XCircle className="w-4 h-4" />
                 </div>
                 <div>
-                  <div
-                    className={`text-sm font-bold ${
-                      selectedType === 'cheer_up' ? 'text-slate-900' : 'text-slate-700'
-                    }`}
-                  >
+                  <div className="text-sm font-semibold text-slate-900">
                     Incorrect / Try Again
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                    Gentle encouragement to motivate students to try again (Cheer Up)
+                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                    Gentle encouragement to motivate students to try again
                   </div>
                 </div>
               </button>
@@ -455,13 +424,13 @@ export const AudioReviewPage: React.FC = () => {
           </div>
 
           {/* Step 2: Kingdom / Teacher Assignment */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
                 2
               </span>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Which teacher or kingdom will say this?
+              <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                Teacher / Kingdom
               </label>
             </div>
 
@@ -471,7 +440,7 @@ export const AudioReviewPage: React.FC = () => {
                 const value = e.target.value;
                 setSelectedMapId(value === 'universal' ? null : Number(value));
               }}
-              className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all"
+              className="w-full px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:border-slate-400 transition-colors"
             >
               <option value="universal">All Kingdoms & Teachers (Universal)</option>
               {maps.map((map) => {
@@ -484,26 +453,20 @@ export const AudioReviewPage: React.FC = () => {
                 );
               })}
             </select>
-
-            {/* Active Kingdom selection badge */}
-            <div className="text-xs text-slate-600 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
-              <span className="text-slate-500">Will play during:</span>
-              <KingdomBadge mapId={selectedMapId} maps={maps} />
-            </div>
           </div>
 
           {/* Step 3: Message Script */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
                   3
                 </span>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  What does the teacher say?
+                <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                  Teacher Spoken Line
                 </label>
               </div>
-              <span className="text-[11px] text-slate-500">Appears as subtitles on student screen</span>
+              <span className="text-[11px] text-slate-400">Subtitle on student screen</span>
             </div>
 
             <input
@@ -516,34 +479,34 @@ export const AudioReviewPage: React.FC = () => {
               }
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
-              className="minimal-input text-sm py-2.5 px-3.5"
+              className="minimal-input text-xs py-2.5 px-3.5"
             />
           </div>
 
           {/* Step 4: Record or Upload Audio */}
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
                 4
               </span>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Teacher Voice Audio
+              <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                Voice Audio Recording
               </label>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
               {!isRecording && !audioPreviewUrl && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={startRecording}
-                    className="py-3 px-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
+                    className="py-2.5 px-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
                   >
                     <Mic className="w-4 h-4 text-emerald-600" />
                     <span>Record with Microphone</span>
                   </button>
 
-                  <label className="py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs">
+                  <label className="py-2.5 px-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -551,41 +514,40 @@ export const AudioReviewPage: React.FC = () => {
                       onChange={handleFileUpload}
                       className="hidden"
                     />
-                    <span>Upload Audio File (Any Format)</span>
+                    <span>Upload Audio File</span>
                   </label>
                 </div>
               )}
 
               {/* Active Recording State */}
               {isRecording && (
-                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 text-rose-700 text-xs font-bold">
-                    <div className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
-                    <span>Recording voice: {formatSeconds(recordingSeconds)}</span>
+                <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-rose-700 text-xs font-medium">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                    <span>Recording: {formatSeconds(recordingSeconds)}</span>
                   </div>
                   <button
                     type="button"
                     onClick={stopRecording}
-                    className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                    className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Square className="w-3.5 h-3.5 fill-white" />
-                    <span>Finish Recording</span>
+                    <span>Finish</span>
                   </button>
                 </div>
               )}
 
               {/* Audio Preview State */}
               {audioPreviewUrl && !isRecording && (
-                <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-xs">
+                <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-2.5 text-xs text-slate-800 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                       <FileAudio className="w-4 h-4" />
                     </div>
                     <div className="truncate">
-                      <p className="font-bold text-slate-900 truncate">
+                      <p className="font-medium text-slate-900 truncate">
                         {audioFile ? audioFile.name : 'Voice recording ready'}
                       </p>
-                      <p className="text-[11px] text-emerald-700 font-semibold">Ready to save</p>
                     </div>
                   </div>
 
@@ -593,7 +555,7 @@ export const AudioReviewPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={toggleStudioAudioPlayback}
-                      className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                     >
                       {isPlayingStudioPreview ? (
                         <Pause className="w-3.5 h-3.5" />
@@ -606,7 +568,7 @@ export const AudioReviewPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={startRecording}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                       title="Re-record"
                     >
                       <RotateCcw className="w-4 h-4" />
@@ -615,7 +577,7 @@ export const AudioReviewPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={clearRecorder}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                       title="Discard"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -634,23 +596,23 @@ export const AudioReviewPage: React.FC = () => {
           )}
 
           {/* Form Footer Action */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-            <div className="text-xs text-slate-500">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <div className="text-xs text-slate-400">
               {!phrase.trim() || (!audioBlob && !audioFile) ? (
-                <span>💡 Type what the teacher says and record or upload audio to save.</span>
+                <span>Type spoken line and record/upload audio to save.</span>
               ) : (
-                <span className="text-emerald-700 font-semibold">✓ Ready to save feedback audio!</span>
+                <span className="text-emerald-600 font-medium">Ready to save feedback audio</span>
               )}
             </div>
             <button
               type="submit"
               disabled={saving || isRecording || !phrase.trim() || (!audioBlob && !audioFile)}
-              className="btn-primary text-xs font-bold py-2.5 px-5 shadow-sm cursor-pointer"
+              className="btn-primary text-xs font-semibold py-2 px-4 shadow-xs cursor-pointer"
             >
               {saving ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving Voice Feedback...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving...</span>
                 </>
               ) : (
                 <span>Save Voice Feedback</span>
@@ -663,54 +625,52 @@ export const AudioReviewPage: React.FC = () => {
       {/* Feedback Audio Library */}
       <div className="space-y-4 pt-2">
         <div>
-          <h3 className="text-base font-bold text-slate-900 tracking-tight">Saved Voice Feedbacks</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage voice feedback messages currently available to students during gameplay.
+          <h3 className="text-sm font-semibold text-slate-900 tracking-tight">Saved Voice Feedbacks</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Voice feedback messages currently available to students during gameplay
           </p>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="space-y-2.5 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
-          {/* Category Filter */}
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
+          {/* Category Segmented Control */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/60">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all ${
                 activeTab === 'all'
-                  ? 'bg-slate-800 text-white border border-slate-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-white text-emerald-800 font-semibold shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              All Messages ({audios.length})
+              All ({audios.length})
             </button>
             <button
               onClick={() => setActiveTab('praise')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all ${
                 activeTab === 'praise'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Correct Answers ({filteredPraiseList.length})
+              Correct ({filteredPraiseList.length})
             </button>
             <button
               onClick={() => setActiveTab('cheer_up')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all ${
                 activeTab === 'cheer_up'
-                  ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-white text-amber-700 font-semibold shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Try Again Clips ({filteredCheerUpList.length})
+              Try Again ({filteredCheerUpList.length})
             </button>
           </div>
 
           {/* Kingdom Filter */}
           {maps.length > 0 && (
-            <div className="pt-2 border-t border-slate-100">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                Filter Kingdom:
-              </label>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-medium text-slate-400">Kingdom:</label>
               <select
                 value={filterMapId === 'all' ? 'all' : filterMapId === null ? 'universal' : filterMapId}
                 onChange={(e) => {
@@ -723,10 +683,10 @@ export const AudioReviewPage: React.FC = () => {
                     setFilterMapId(Number(value));
                   }
                 }}
-                className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none transition-colors"
               >
                 <option value="all">All Kingdoms</option>
-                <option value="universal">Universal (All Kingdoms)</option>
+                <option value="universal">Universal</option>
                 {maps.map((map) => {
                   const order = map.order_index;
                   const guide = TEACHER_GUIDES[order];
@@ -743,9 +703,9 @@ export const AudioReviewPage: React.FC = () => {
 
         {/* Audio Cards */}
         {loading ? (
-          <div className="p-8 text-center text-xs text-slate-500">Loading audio library...</div>
+          <div className="p-8 text-center text-xs text-slate-400">Loading audio library...</div>
         ) : displayedAudios.length === 0 ? (
-          <div className="surface-card p-8 text-center text-slate-500 text-xs bg-white rounded-xl border border-slate-200">
+          <div className="surface-card p-8 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-200/80">
             No feedback audio recordings found for this selection.
           </div>
         ) : (
@@ -753,31 +713,24 @@ export const AudioReviewPage: React.FC = () => {
             {displayedAudios.map((item) => (
               <div
                 key={item.id}
-                className="surface-card p-4 rounded-xl border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 bg-white shadow-xs"
+                className="surface-card p-4 rounded-xl border border-slate-200/80 hover:border-slate-300 transition-colors flex flex-col justify-between gap-3 bg-white shadow-xs"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Feedback type badge */}
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          item.type === 'praise'
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}
-                      >
-                        {item.type === 'praise' ? (
-                          <>
-                            <CheckCircle2 className="w-2.5 h-2.5" />
-                            Correct
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-2.5 h-2.5" />
-                            Try Again
-                          </>
-                        )}
-                      </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {item.type === 'praise' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Correct</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                          <XCircle className="w-3 h-3" />
+                          <span>Try Again</span>
+                        </span>
+                      )}
+
+                      <span className="text-slate-300">•</span>
 
                       {/* Kingdom indicator badge */}
                       <KingdomBadge mapId={item.map_id} maps={maps} />
@@ -785,8 +738,8 @@ export const AudioReviewPage: React.FC = () => {
 
                     {/* Active in game indicator */}
                     <span
-                      className={`text-[10px] font-semibold flex items-center gap-1 ${
-                        item.is_active ? 'text-emerald-700' : 'text-slate-400'
+                      className={`text-[11px] font-medium flex items-center gap-1.5 ${
+                        item.is_active ? 'text-emerald-600' : 'text-slate-400'
                       }`}
                     >
                       <span
@@ -798,26 +751,26 @@ export const AudioReviewPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <p className="text-sm font-bold text-slate-900 leading-snug">"{item.phrase}"</p>
+                  <p className="text-xs font-medium text-slate-800 leading-relaxed">"{item.phrase}"</p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
                   <button
                     onClick={() => handlePlayListItem(item.id, item.audio_url)}
-                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors ${
                       playingAudioId === item.id
-                        ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm font-bold'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
                     {playingAudioId === item.id ? (
                       <>
                         <Pause className="w-3.5 h-3.5" />
-                        <span>Playing...</span>
+                        <span>Playing</span>
                       </>
                     ) : (
                       <>
-                        <Play className="w-3.5 h-3.5 text-emerald-600" />
+                        <Play className="w-3.5 h-3.5 text-slate-500" />
                         <span>Listen</span>
                       </>
                     )}
@@ -826,8 +779,9 @@ export const AudioReviewPage: React.FC = () => {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleToggleActive(item.id)}
-                      className="cursor-pointer p-1.5 text-slate-400 hover:text-slate-700 rounded-md transition-colors"
+                      className="cursor-pointer p-1 text-slate-400 hover:text-slate-700 rounded-lg transition-colors"
                       title={item.is_active ? 'Click to mute' : 'Click to activate'}
+                      aria-label="Toggle active"
                     >
                       {item.is_active ? (
                         <ToggleRight className="w-5 h-5 text-emerald-600" />
@@ -838,8 +792,9 @@ export const AudioReviewPage: React.FC = () => {
 
                     <button
                       onClick={() => setDeleteTarget(item)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                       title="Delete voice clip"
+                      aria-label="Delete voice clip"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

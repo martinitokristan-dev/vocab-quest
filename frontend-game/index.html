@@ -2,8 +2,42 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        var suppress = function(e) {
+          var msg = (e && (e.message || (e.reason && e.reason.message) || String(e))) || '';
+          var src = (e && (e.filename || (e.reason && e.reason.stack))) || '';
+          if (msg.indexOf('startTime') !== -1 || src.indexOf('VM') !== -1 || msg.indexOf('reportAllChanges') !== -1) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        };
+        window.addEventListener('error', suppress, true);
+        window.addEventListener('unhandledrejection', suppress, true);
+        var prevOnError = window.onerror;
+        window.onerror = function(msg, url) {
+          var sMsg = String(msg || '');
+          var sUrl = String(url || '');
+          if (sMsg.indexOf('startTime') !== -1 || sUrl.indexOf('VM') !== -1 || sMsg.indexOf('reportAllChanges') !== -1) {
+            return true;
+          }
+          if (typeof prevOnError === 'function') return prevOnError.apply(this, arguments);
+        };
+        var origConsoleError = console.error;
+        console.error = function() {
+          var str = Array.prototype.slice.call(arguments).map(function(a) {
+            return (a && (a.message || a.stack || String(a))) || '';
+          }).join(' ');
+          if (str.indexOf('startTime') !== -1 || str.indexOf('reportAllChanges') !== -1) {
+            return;
+          }
+          return origConsoleError.apply(console, arguments);
+        };
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="Vocab Quest - An interactive vocabulary learning game" />
     <title>Vocab Quest</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
