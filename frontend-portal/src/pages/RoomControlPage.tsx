@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type RoomResultsData } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { broadcastSync } from '../utils/realtimeSync';
 import {
   ArrowLeft,
   Play,
@@ -134,6 +135,7 @@ export const RoomControlPage: React.FC = () => {
       } : null));
       // Silent background refresh to get updated data
       silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to start session', 'error');
     } finally {
@@ -153,6 +155,7 @@ export const RoomControlPage: React.FC = () => {
       } : null));
       // Silent background refresh to get updated data
       silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to pause session', 'error');
     } finally {
@@ -172,6 +175,7 @@ export const RoomControlPage: React.FC = () => {
       } : null));
       // Silent background refresh to get updated data
       silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to resume session', 'error');
     } finally {
@@ -192,6 +196,7 @@ export const RoomControlPage: React.FC = () => {
       } : null));
       // Silent background refresh to get updated data
       silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to end session', 'error');
     } finally {
@@ -208,6 +213,7 @@ export const RoomControlPage: React.FC = () => {
       // Invalidate cache and refresh to get updated data
       api.invalidateCache(`/rooms/${roomId}/results`);
       silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to reset room', 'error');
     } finally {

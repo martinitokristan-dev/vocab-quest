@@ -305,16 +305,16 @@ class ApiClient {
     return this.request<User>('/auth/me');
   }
 
-  // â”€â”€ Maps API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  async getMaps() {
-    return this.request<{ data: MapData[] }>('/maps');
+  // ── Maps API ──────────────────────────────────────────────────────────────
+  async getMaps(skipCache = false) {
+    return this.request<{ data: MapData[] }>('/maps', {}, skipCache);
   }
 
   async createMap(payload: { title: string; order_index: number; background_url?: string; background_image?: File | null }) {
     if (payload.background_image) {
       const formData = new FormData();
-      formData.append('title', payload.title);
-      formData.append('order_index', String(payload.order_index));
+      if (payload.title) formData.append('title', payload.title);
+      if (payload.order_index !== undefined) formData.append('order_index', String(payload.order_index));
       formData.append('background_image', payload.background_image);
       if (payload.background_url) formData.append('background_url', payload.background_url);
 
@@ -332,8 +332,8 @@ class ApiClient {
     });
   }
 
-  async getMap(id: number) {
-    return this.request<{ data: MapData }>(`/maps/${id}`);
+  async getMap(id: number, skipCache = false) {
+    return this.request<{ data: MapData }>(`/maps/${id}`, {}, skipCache);
   }
 
   async updateMap(id: number, payload: Partial<MapData> & { background_image?: File | null }) {

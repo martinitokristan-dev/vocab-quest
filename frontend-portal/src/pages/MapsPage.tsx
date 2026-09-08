@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, type MapData } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { broadcastSync, subscribeSync } from '../utils/realtimeSync';
 import { Layers, X, Compass } from 'lucide-react';
 
 const STAGE_DIFFICULTIES: Record<number, { label: string; color: string; border: string; bg: string }> = {
@@ -37,7 +38,7 @@ export const MapsPage: React.FC = () => {
 
   const silentRefreshMaps = async () => {
     try {
-      const res = await api.getMaps();
+      const res = await api.getMaps(true);
       setMaps(res.data);
     } catch (err: any) {
       console.error('Failed to silently refresh maps:', err);
@@ -46,6 +47,12 @@ export const MapsPage: React.FC = () => {
 
   useEffect(() => {
     fetchMaps();
+    const unsub = subscribeSync((msg) => {
+      if (msg.type === 'MAP_CHANGED') {
+        silentRefreshMaps();
+      }
+    });
+    return () => unsub();
   }, []);
 
   const openCreateModal = (seq = 1) => {
@@ -74,8 +81,8 @@ export const MapsPage: React.FC = () => {
         showToast('New stage created successfully!', 'success');
       }
       setShowModal(false);
-      // Silent background refresh to get updated data
       silentRefreshMaps();
+      broadcastSync({ type: 'MAP_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to save stage', 'error');
     } finally {
@@ -92,8 +99,8 @@ export const MapsPage: React.FC = () => {
       setMaps((prev) =>
         prev.map((m) => (m.id === mapId ? { ...m, published: true } : m))
       );
-      // Silent background refresh to get updated data
       silentRefreshMaps();
+      broadcastSync({ type: 'MAP_CHANGED' });
     } catch (err: any) {
       showToast(err.message || 'Failed to publish stage', 'error');
     } finally {

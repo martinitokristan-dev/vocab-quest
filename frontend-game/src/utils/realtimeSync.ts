@@ -4,7 +4,9 @@ export const SYNC_CHANNEL_NAME = 'vocab_quest_sync';
 
 export type SyncMessage =
   | { type: 'FEEDBACK_AUDIO_CHANGED' }
-  | { type: 'QUESTION_CHANGED'; mapId?: number };
+  | { type: 'QUESTION_CHANGED'; mapId?: number }
+  | { type: 'MAP_CHANGED' }
+  | { type: 'ROOM_STATUS_CHANGED' };
 
 let sharedBroadcastChannel: BroadcastChannel | null = null;
 

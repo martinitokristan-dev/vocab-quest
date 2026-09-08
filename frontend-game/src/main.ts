@@ -135,8 +135,17 @@ class StudentArcadeGame {
     this.unsubscribeSync = subscribeSync(async (msg) => {
       if (msg.type === 'FEEDBACK_AUDIO_CHANGED') {
         await this.loadFeedbackAudios();
-      } else if (msg.type === 'QUESTION_CHANGED') {
-        if (this.state.screen === 'world_map' || this.state.screen === 'question') {
+      } else if (
+        msg.type === 'QUESTION_CHANGED' ||
+        msg.type === 'MAP_CHANGED' ||
+        msg.type === 'ROOM_STATUS_CHANGED'
+      ) {
+        this.lastNarratedQuestionId = null;
+        if (
+          this.state.screen === 'world_map' ||
+          this.state.screen === 'question' ||
+          this.state.screen === 'join'
+        ) {
           await this.fetchCurrentQuestion();
         }
       }

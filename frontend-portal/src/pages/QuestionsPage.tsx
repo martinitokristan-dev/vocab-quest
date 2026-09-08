@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api, resolveMediaUrl, type MapData, type QuestionData } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { broadcastSync } from '../utils/realtimeSync';
+import { broadcastSync, subscribeSync } from '../utils/realtimeSync';
 import {
   Trash2,
   CheckCircle2,
@@ -80,6 +80,8 @@ export const QuestionsPage: React.FC = () => {
   const { showToast } = useToast();
   const [maps, setMaps] = useState<MapData[]>([]);
   const [selectedMapId, setSelectedMapId] = useState<number | null>(null);
+  const selectedMapIdRef = useRef<number | null>(null);
+  selectedMapIdRef.current = selectedMapId;
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -139,7 +141,18 @@ export const QuestionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchMaps();
+    const unsub = subscribeSync((msg) => {
+      if (msg.type === 'QUESTION_CHANGED') {
+        if (selectedMapIdRef.current && (!msg.mapId || msg.mapId === selectedMapIdRef.current)) {
+          silentRefreshQuestions(selectedMapIdRef.current);
+        }
+        silentRefreshMaps();
+      } else if (msg.type === 'MAP_CHANGED') {
+        silentRefreshMaps();
+      }
+    });
     return () => {
+      unsub();
       stopRecording();
       if (modalAudioRef.current) modalAudioRef.current.pause();
       if (listAudioRef.current) listAudioRef.current.pause();
@@ -191,7 +204,7 @@ export const QuestionsPage: React.FC = () => {
 
   const silentRefreshMaps = async () => {
     try {
-      const res = await api.getMaps();
+      const res = await api.getMaps(true);
       const sorted = [...res.data].sort((a, b) => a.order_index - b.order_index);
       setMaps(sorted);
     } catch (err) {
