@@ -72,3 +72,23 @@ test('game feedback audios endpoint returns active feedback clips', function () 
         ->assertJsonCount(1, 'praise')
         ->assertJsonPath('praise.0.phrase', 'Super star!');
 });
+
+test('teacher can update feedback audio phrase and type', function () {
+    $teacher = User::factory()->create();
+    $audio = FeedbackAudio::create([
+        'type'      => 'praise',
+        'phrase'    => 'Greate Job!',
+        'audio_url' => 'https://res.cloudinary.com/test/praise.mp4',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($teacher)
+        ->putJson("/api/feedback-audios/{$audio->id}", [
+            'type'   => 'praise',
+            'phrase' => 'Great Job!',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.phrase', 'Great Job!');
+
+    expect($audio->fresh()->phrase)->toBe('Great Job!');
+});

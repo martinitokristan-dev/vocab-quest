@@ -76,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Teacher Praise & Cheer-Up Voiceover Studio
     Route::get('/feedback-audios', [FeedbackAudioController::class, 'index']);
     Route::post('/feedback-audios', [FeedbackAudioController::class, 'store']);
+    Route::put('/feedback-audios/{id}', [FeedbackAudioController::class, 'update']);
+    Route::post('/feedback-audios/{id}', [FeedbackAudioController::class, 'update']);
     Route::post('/feedback-audios/{id}/toggle', [FeedbackAudioController::class, 'toggle']);
     Route::delete('/feedback-audios/{id}', [FeedbackAudioController::class, 'destroy']);
 });

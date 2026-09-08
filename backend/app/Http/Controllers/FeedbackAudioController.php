@@ -94,6 +94,49 @@ class FeedbackAudioController extends Controller
         ], 201);
     }
 
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $audio = FeedbackAudio::findOrFail($id);
+
+        $validated = $request->validate([
+            'type'             => ['sometimes', 'required', 'in:praise,cheer_up'],
+            'phrase'           => ['sometimes', 'required', 'string', 'max:255'],
+            'audio_file'       => ['nullable', 'file', 'max:102400'],
+            'voice_audio_file' => ['nullable', 'file', 'max:102400'],
+            'voice_video_file' => ['nullable', 'file', 'max:102400'],
+            'audio_url'        => ['nullable', 'string', 'max:1000'],
+            'map_id'           => ['nullable'],
+        ]);
+
+        if (isset($validated['type'])) {
+            $audio->type = $validated['type'];
+        }
+        if (isset($validated['phrase'])) {
+            $audio->phrase = $validated['phrase'];
+        }
+        if (array_key_exists('map_id', $validated)) {
+            $audio->map_id = (!empty($validated['map_id']) && $validated['map_id'] !== 'null') ? (int) $validated['map_id'] : null;
+        }
+
+        $file = $request->file('audio_file') 
+            ?? $request->file('voice_audio_file') 
+            ?? $request->file('voice_video_file');
+        if ($file) {
+            $upload = $this->cloudinaryService->uploadFile($file, 'feedback_audios', 'video');
+            $audio->audio_url = $upload['url'];
+        } elseif (!empty($validated['audio_url'])) {
+            $audio->audio_url = $validated['audio_url'];
+        }
+
+        $audio->save();
+        $audio->load('map:id,title,order_index');
+
+        return response()->json([
+            'message' => 'Feedback voiceover updated successfully!',
+            'data'    => $audio,
+        ]);
+    }
+
     public function toggle(int $id): JsonResponse
     {
         $audio = FeedbackAudio::findOrFail($id);
