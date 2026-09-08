@@ -224,7 +224,12 @@ class ApiClient {
         localStorage.removeItem('teacher_token');
         window.dispatchEvent(new Event('auth:unauthorized'));
       }
-      const errorMessage = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : `Request failed with status ${response.status}`);
+      const errorMessage =
+        (data.errors && typeof data.errors === 'object'
+          ? Object.values(data.errors).flat().join(', ')
+          : null) ||
+        data.message ||
+        `Request failed with status ${response.status}`;
       const error: any = new Error(errorMessage);
       error.status = response.status;
       error.data = data;
@@ -649,14 +654,11 @@ class ApiClient {
     if (payload.audio_file) {
       const formData = new FormData();
       formData.append('type', payload.type);
+      formData.append('phrase', payload.phrase);
       const fileName = payload.audio_file instanceof File
         ? payload.audio_file.name
         : 'feedback_voice.webm';
       formData.append('audio_file', payload.audio_file, fileName);
-      formData.append('voice_audio_file', payload.audio_file, fileName);
-      if (fileName.toLowerCase().endsWith('.mp4') || (payload.audio_file instanceof File && payload.audio_file.type.startsWith('video/'))) {
-        formData.append('voice_video_file', payload.audio_file, fileName);
-      }
       if (payload.map_id != null) {
         formData.append('map_id', String(payload.map_id));
       }
