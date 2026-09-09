@@ -1781,6 +1781,16 @@ class StudentArcadeGame {
     soundManager.stopSpeech();
     const pin = this.state.pin || 'default';
 
+    // Directly remove the DOM overlay element to ensure game is immediately clickable
+    const existingOverlay = document.getElementById('dialogueOverlayContainer');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
     if (this.state.dialogueType === 'global') {
       markGlobalIntroSeen(pin);
       this.setState({
@@ -1788,6 +1798,7 @@ class StudentArcadeGame {
         hasSeenGlobalIntro: true,
         mapPhase: 'awaiting_kingdom_click',
       });
+      this.syncMapRendererOptions();
       return;
     }
 
@@ -1816,6 +1827,27 @@ class StudentArcadeGame {
   }
 
   private renderDialogueOverlay() {
+    if (!this.state.isDialogueOpen) {
+      soundManager.stopSpeech();
+      const existingOverlay = document.getElementById('dialogueOverlayContainer');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      if (this.dialogueOverlay) {
+        this.dialogueOverlay.destroy();
+        this.dialogueOverlay = null;
+      }
+      return;
+    }
+
+    const kd = this.getActiveDialogue();
+    const slide = kd.slides[this.state.dialogueSlideIndex] || kd.slides[0];
+    if (slide?.audioUrl) {
+      soundManager.playDialogueAudio(slide.audioUrl);
+    } else {
+      soundManager.stopSpeech();
+    }
+
     if (!this.dialogueOverlay) {
       this.dialogueOverlay = new DialogueOverlay({
         isOpen: this.state.isDialogueOpen,
