@@ -447,11 +447,41 @@ export class QuestionScreen {
         }, 100);
       }
     } else if (!isReview) {
+      const clearAllSelected = () => {
+        document.querySelectorAll('.answer-card').forEach((c) => {
+          c.classList.remove('selected-active');
+        });
+      };
+
+      let hasSubmitted = false;
+
       document.querySelectorAll('.answer-card').forEach((card) => {
         const answerId = Number(card.getAttribute('data-answer-id'));
+        let isPressing = false;
+
+        // Prevent native context menu on long-press (which cancels tap gestures on mobile/tablet)
+        card.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+        });
+
+        const submitChoice = () => {
+          if (hasSubmitted || submitting || submitResult || wrongAnswerIds.includes(answerId)) return;
+          hasSubmitted = true;
+          clearAllSelected();
+          card.classList.add('selected-active');
+          if (this.narrationTimeout) {
+            clearTimeout(this.narrationTimeout);
+            this.narrationTimeout = null;
+          }
+          soundManager.stopSpeech();
+          this.props.onTeacherAnimationClear();
+          this.props.onAnswerSelect(answerId);
+        };
 
         card.addEventListener('pointerdown', () => {
-          if (answerId && !submitting && !submitResult && !wrongAnswerIds.includes(answerId)) {
+          if (answerId && !hasSubmitted && !submitting && !submitResult && !wrongAnswerIds.includes(answerId)) {
+            isPressing = true;
+            clearAllSelected();
             card.classList.add('selected-active');
             if (this.narrationTimeout) {
               clearTimeout(this.narrationTimeout);
@@ -463,17 +493,29 @@ export class QuestionScreen {
           }
         });
 
-        card.addEventListener('click', () => {
-          if (answerId && !submitting && !submitResult && !wrongAnswerIds.includes(answerId)) {
-            card.classList.add('selected-active');
-            if (this.narrationTimeout) {
-              clearTimeout(this.narrationTimeout);
-              this.narrationTimeout = null;
-            }
-            soundManager.stopSpeech();
-            this.props.onTeacherAnimationClear();
-            this.props.onAnswerSelect(answerId);
+        card.addEventListener('pointerup', () => {
+          if (isPressing) {
+            isPressing = false;
+            submitChoice();
           }
+        });
+
+        card.addEventListener('pointercancel', () => {
+          isPressing = false;
+          if (!hasSubmitted) {
+            card.classList.remove('selected-active');
+          }
+        });
+
+        card.addEventListener('pointerleave', () => {
+          isPressing = false;
+          if (!hasSubmitted) {
+            card.classList.remove('selected-active');
+          }
+        });
+
+        card.addEventListener('click', () => {
+          submitChoice();
         });
       });
     }
