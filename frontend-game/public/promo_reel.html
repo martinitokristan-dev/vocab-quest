@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vocab Quest — Step-by-Step Educational System Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #F8FAFC;
+      color: #0F172A;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Ambient Teacher Portal Emerald Glows */
+    .ambient-glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .glow-1 {
+      width: 600px;
+      height: 600px;
+      top: -150px;
+      left: -100px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.14), rgba(5, 150, 105, 0.05), transparent 70%);
+    }
+    .glow-2 {
+      width: 650px;
+      height: 650px;
+      bottom: -150px;
+      right: -100px;
+      background: radial-gradient(circle, rgba(52, 211, 153, 0.16), rgba(16, 185, 129, 0.05), transparent 70%);
+    }
+
+    /* Subtle background grid pattern */
+    .bg-pattern {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(#CBD5E1 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+
+
+    /* Viewport & Camera */
+    #viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #camera {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s ease;
+    }
+
+    /* Scene Container */
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease-in-out;
+      padding: 60px 40px 86px;
+    }
+
+    .scene.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .scene-content {
+      width: 100%;
+      max-width: 1040px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Typography & Badges */
+    .panel-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 14px;
+      border-radius: 9999px;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #065F46;
+      box-shadow: 0 3px 8px rgba(16, 185, 129, 0.06);
+      margin-bottom: 6px;
+    }
+
+    .panel-badge-blue {
+      background: #F0F9FF;
+      border-color: #BAE6FD;
+      color: #0369A1;
+    }
+
+    .panel-badge-gold {
+      background: #FEF3C7;
+      border-color: #FDE68A;
+      color: #92400E;
+    }
+
+    .panel-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1.18;
+      letter-spacing: -0.025em;
+      color: #0F172A;
+      margin: 4px 0 8px;
+      text-align: center;
+    }
+
+    .panel-title-green {
+      color: #059669;
+    }
+
+    .panel-sub {
+      font-size: 15px;
+      color: #475569;
+      max-width: 680px;
+      text-align: center;
+      line-height: 1.55;
+    }
+
+    /* REALISTIC UI MOCKUP CARDS */
+    .portal-window {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 18px;
+      box-shadow: 0 15px 35px -10px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(16, 185, 129, 0.05);
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .portal-header {
+      background: #F8FAFC;
+      border-bottom: 1px solid #E2E8F0;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .dot-red { background: #EF4444; }
+    .dot-yellow { background: #F59E0B; }
+    .dot-green { background: #10B981; }
+
+    .showcase-two-col {
+      display: grid;
+      grid-template-columns: 1.18fr 1fr;
+      gap: 36px;
+      align-items: center;
+      width: 100%;
+      max-width: 980px;
+    }
+
+    /* FORM ELEMENTS */
+    .mock-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .mock-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #0F172A;
+      background: #FFFFFF;
+    }
+
+    /* REAL GAME SCENIC CONTAINER (NEVER BLACK BACKGROUND!) */
+    .real-game-stage-frame {
+      background-size: cover;
+      background-position: center;
+      border: 3px solid #0284C7;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 15px 35px -8px rgba(2, 132, 199, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      position: relative;
+    }
+
+    /* REAL GAME HUD (WHITE CANDY STYLE) */
+    .game-hud-bar {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 2px solid #E2E8F0;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #0F172A;
+    }
+
+    /* AUTHENTIC CANDY HUD COMPONENTS */
+    .candy-player-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #FFFFFF;
+      padding: 3px 12px 3px 4px;
+      border-radius: 999px;
+      border: 2px solid #0284C7;
+      box-shadow: 0 2.5px 0 #0369A1, 0 6px 14px rgba(0, 0, 0, 0.12);
+      user-select: none;
+    }
+
+    .candy-avatar-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #FFFBEB 0%, #FEF3C7 45%, #FDE68A 100%);
+      border: 1.8px solid #F59E0B;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .candy-avatar-img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
+
+    .candy-player-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .candy-player-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #0F172A;
+      line-height: 1.1;
+    }
+
+    .candy-star-row {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .candy-star-icon-wrap {
+      width: 15px;
+      height: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .candy-star-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 1.5px 3px rgba(245, 158, 11, 0.6));
+    }
+
+    .candy-star-count-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+      color: #D97706;
+      line-height: 1;
+    }
+
+    .candy-star-count-label {
+      font-size: 9px;
+      font-weight: 800;
+      color: #64748B;
+      letter-spacing: 0.4px;
+      line-height: 1;
+    }
+
+    .candy-zone-pill {
+      background: #FFFFFF;
+      border: 2px solid #0284C7;
+      border-bottom: 3.5px solid #0369A1;
+      box-shadow: 0 2.5px 6px rgba(2, 132, 199, 0.15);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #0369A1;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .candy-menu-btn {
+      background: #FDE047;
+      border: 2px solid #F59E0B;
+      border-bottom: 3.5px solid #D97706;
+      border-radius: 999px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #78350F;
+      font-size: 11px;
+      font-weight: 800;
+      box-shadow: 0 2.5px 6px rgba(217, 119, 6, 0.2);
+    }
+
+    /* AUTHENTIC STAR BURST PANEL & SEQUENTIAL ANIMATIONS */
+    .star-burst-panel {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      border: 3.5px solid #FBBF24;
+      border-radius: 20px;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 0 6px rgba(251, 191, 36, 0.25);
+      position: relative;
+    }
+
+    .star-burst-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 22px;
+      font-weight: 900;
+      color: #FBBF24;
+      text-shadow: 2px 2px 0 #000000, -1.5px -1.5px 0 #000000, 1.5px -1.5px 0 #000000, -1.5px 1.5px 0 #000000;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+    }
+
+    .star-burst-slots {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .star-slot-wrap {
+      width: 62px;
+      height: 62px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .star-slot-halo {
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.6) 0%, transparent 70%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .star-burst-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+    }
+
+    @keyframes starPopIn {
+      0% {
+        transform: scale(0) rotate(-45deg);
+        opacity: 0;
+      }
+      60% {
+        transform: scale(1.35) rotate(12deg);
+        opacity: 1;
+      }
+      80% {
+        transform: scale(0.92) rotate(-4deg);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+      }
+    }
+
+    @keyframes haloPulse {
+      0% { transform: scale(0.5); opacity: 0; }
+      50% { transform: scale(1.3); opacity: 0.9; }
+      100% { transform: scale(1); opacity: 0.45; }
+    }
+
+    @keyframes starShimmerGlow {
+      0%, 100% {
+        transform: scale(1) translateY(0);
+        filter: drop-shadow(0 4px 8px rgba(245, 158, 11, 0.5));
+      }
+      50% {
+        transform: scale(1.08) translateY(-3px);
+        filter: drop-shadow(0 8px 18px rgba(251, 191, 36, 0.85));
+      }
+    }
+
+    #scene-8.active .star-burst-slot-1 .star-burst-svg {
+      animation: starPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both, starShimmerGlow 2.4s ease-in-out 1.6s infinite alternate;
+    }
+    #scene-8.active .star-burst-slot-1 .star-slot-halo {
+      animation: haloPulse 0.6s ease-out 0.25s forwards;
+    }
+
+    #scene-8.active .star-burst-slot-2 .star-burst-svg {
+      animation: starPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.65s both, starShimmerGlow 2.4s ease-in-out 1.8s infinite alternate;
+    }
+    #scene-8.active .star-burst-slot-2 .star-slot-halo {
+      animation: haloPulse 0.6s ease-out 0.65s forwards;
+    }
+
+    #scene-8.active .star-burst-slot-3 .star-burst-svg {
+      animation: starPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1.05s both, starShimmerGlow 2.4s ease-in-out 2.0s infinite alternate;
+    }
+    #scene-8.active .star-burst-slot-3 .star-slot-halo {
+      animation: haloPulse 0.6s ease-out 1.05s forwards;
+    }
+
+    /* REAL QUESTION ARENA CARD (PURE WHITE WITH BLUE ACCENT) */
+    .real-arena-card {
+      background: #FFFFFF;
+      border: 3px solid #0284C7;
+      border-radius: 16px;
+      padding: 14px 18px;
+      box-shadow: 0 6px 0 #0369A1, 0 12px 25px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* REAL QUESTION VISUAL CLUE IMAGE (AUTHENTIC TO STAGE 1) */
+    .real-visual-clue-card {
+      width: 100%;
+      height: 140px;
+      background: #F8FAFC;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+
+    .real-visual-clue-img {
+      max-height: 100%;
+      max-width: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .real-sentence-box {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: #0F172A;
+    }
+
+    .highlighted-word {
+      color: #92400E;
+      background: #FEF3C7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      font-weight: 700;
+    }
+
+    .underlined-clue {
+      text-decoration: underline;
+      text-decoration-color: #0284C7;
+      text-underline-offset: 3px;
+      font-weight: 600;
+    }
+
+    /* REAL ANSWER CARDS */
+    .real-answers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .real-answer-card {
+      background: #FFFFFF;
+      border: 2px solid #E2E8F0;
+      border-bottom: 3.5px solid #CBD5E1;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #1E293B;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .real-answer-card.correct {
+      background: #DCFCE7;
+      border-color: #22C55E;
+      border-bottom-color: #16A34A;
+      color: #15803D;
+    }
+
+    .answer-letter-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #475569;
+    }
+
+    /* TEACHER TALKING SECTION (ZERO CONTAINER SHIFT) */
+    .teacher-audio-flex {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 32px;
+      align-items: center;
+      width: 100%;
+      max-width: 940px;
+    }
+    .teacher-portrait-box {
+      width: 240px;
+      height: 420px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .teacher-portrait-box img {
+      height: 420px;
+      width: auto;
+      max-width: 240px;
+      object-fit: contain;
+      filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.1));
+    }
+    .speech-dialogue-card {
+      background: #FFFFFF;
+      color: #0F172A;
+      padding: 24px 28px;
+      border-radius: 20px;
+      border: 1px solid #A7F3D0;
+      box-shadow: 0 15px 35px -10px rgba(16, 185, 129, 0.15), 0 0 0 1px #E2E8F0;
+      position: relative;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      contain: layout;
+    }
+    .speech-dialogue-card::before {
+      content: '';
+      position: absolute;
+      left: -12px;
+      top: 38px;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+      border-right: 12px solid #A7F3D0;
+    }
+    .audio-wave-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .wave-bar {
+      width: 4px;
+      background: #10B981;
+      border-radius: 4px;
+      animation: wavePulse 0.8s infinite ease-in-out;
+    }
+    @keyframes wavePulse {
+      0%, 100% { height: 8px; }
+      50% { height: 24px; }
+    }
+
+    /* CONTROLS OVERLAY AT BOTTOM */
+    .controls-overlay {
+      position: fixed;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(16px);
+      border: 1px solid #E2E8F0;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(16, 185, 129, 0.08);
+      transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+      will-change: transform, opacity;
+    }
+    .controls-overlay.hidden-down {
+      transform: translateY(calc(100% + 28px));
+      opacity: 0;
+      pointer-events: none;
+    }
+    .control-btn {
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      color: #1E293B;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .control-btn:hover {
+      background: #E2E8F0;
+      transform: translateY(-1px);
+    }
+
+    .step-counter {
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748B;
+      min-width: 80px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="bg-pattern"></div>
+
+  <!-- Viewport -->
+  <div id="viewport">
+    <div id="camera">
+
+      <!-- SLIDE 1: SYSTEM OVERVIEW -->
+      <div id="scene-1" class="scene active">
+        <div class="scene-content" style="text-align:center;">
+          <div style="margin-bottom: 12px;">
+            <img src="/assets/vocab_logo.png" alt="Vocab Quest" style="width:260px; filter: drop-shadow(0 12px 20px rgba(16,185,129,0.15));" onerror="this.src='/assets/vocab-map.png'">
+          </div>
+          <div class="panel-badge">Step-by-Step System Presentation</div>
+          <h1 class="panel-title">A DepEd-Aligned <span class="panel-title-green">Vocabulary Adventure</span></h1>
+          <p class="panel-sub">Follow the complete classroom journey: from teacher curriculum setup and personalized voice recording, to live student gameplay, visual picture clue challenges, and star rewards.</p>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: STEP 1 — TEACHER CREATES QUESTIONS (ACTUAL QUESTION STUDIO UI) -->
+      <div id="scene-2" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="portal-window">
+              <div class="portal-header">
+                <div class="window-dots"><div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div></div>
+                <div style="font-size:12px; font-weight:700; color:#334155;">Teacher Portal — Create Question Modal</div>
+                <span style="font-size:10px; font-weight:700; color:#059669; background:#ECFDF5; padding:2px 8px; border-radius:9999px;">Step 1 Active</span>
+              </div>
+              <div style="padding: 16px 18px; display:flex; flex-direction:column; gap:9px; background:#FFF;">
+                <div>
+                  <span class="mock-label">1. Kingdom Assignment</span>
+                  <div style="background:#F8FAFC; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; color:#0F172A; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Kingdom 1 • EPCES Elementary (Teacher Faith)</span>
+                    <span style="font-size:10px; font-weight:700; color:#059669; background:#ECFDF5; padding:2px 6px; border-radius:4px;">Easy Round</span>
+                  </div>
+                </div>
+                <div>
+                  <span class="mock-label">Target Vocabulary Word *</span>
+                  <input type="text" class="mock-input" style="font-weight:700; color:#059669;" value="exhausted" readonly>
+                </div>
+                <div>
+                  <span class="mock-label">Challenge Sentence (Context) *</span>
+                  <div style="background:#F8FAFC; border:1px solid #CBD5E1; padding:7px 12px; border-radius:6px; font-size:12px; line-height:1.4;">
+                    "The student felt <span class="highlighted-word">exhausted</span> after studying all night."
+                  </div>
+                </div>
+                <!-- Visual Context Image Clue Section (Kingdom 1 Authentic) -->
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    <span class="mock-label" style="margin-bottom:0;">Visual Context Image (Photo Clue) *</span>
+                    <span style="font-size:9.5px; font-weight:700; color:#059669;">Kingdom 1 Picture Clue</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px;">
+                    <img src="/assets/exhausted_clue.jpg" alt="Visual Clue Thumbnail" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #86EFAC;">
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:11px; font-weight:700; color:#065F46; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">exhausted_student_study.jpg</div>
+                      <div style="font-size:10px; color:#059669;">Attached Image Preview • 128.4 KB</div>
+                    </div>
+                    <span style="font-size:10px; font-weight:700; color:#059669; background:#DCFCE7; padding:2px 6px; border-radius:4px;">Attached</span>
+                  </div>
+                </div>
+                <!-- Choices (Multiple Choice) -->
+                <div>
+                  <span class="mock-label">Correct Answer & Multiple-Choice Options</span>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px;">
+                    <div style="padding:5px 8px; background:#F0FDF4; border:1.5px solid #10B981; border-radius:6px; font-weight:700; color:#065F46;">
+                      ● A. Very tired (Correct)
+                    </div>
+                    <div style="padding:5px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; color:#64748B;">
+                      ○ B. Full of energy
+                    </div>
+                    <div style="padding:5px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; color:#64748B;">
+                      ○ C. Very happy
+                    </div>
+                    <div style="padding:5px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; color:#64748B;">
+                      ○ D. Very scared
+                    </div>
+                  </div>
+                </div>
+                <button style="background:#059669; color:#FFF; border:none; padding:7px; border-radius:8px; font-size:12px; font-weight:700; margin-top:2px;">
+                  Save Question to Kingdom
+                </button>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge">Step 1 • Teacher Curriculum Setup</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Creating Visual Clue Questions</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                For <strong>Kingdom 1 (EPCES Elementary • Easy Round)</strong>, educators create reading sentences with a yellow highlighted target word and attach a visual picture clue. There are strictly <strong>no underlines</strong> in Kingdom 1—young learners use the photo clue to deduce the target vocabulary's definition.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: STEP 2 — TEACHER RECORDS FEEDBACK AUDIO (ACTUAL AUDIO STUDIO UI) -->
+      <div id="scene-3" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="portal-window">
+              <div class="portal-header">
+                <div class="window-dots"><div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div></div>
+                <div style="font-size:12px; font-weight:700; color:#334155;">Teacher Portal — Feedback Voiceover Studio</div>
+                <span style="font-size:10px; font-weight:700; color:#059669; background:#ECFDF5; padding:2px 8px; border-radius:9999px;">Step 2 Active</span>
+              </div>
+              <div style="padding: 18px; display:flex; flex-direction:column; gap:12px; background:#FFF;">
+                <div>
+                  <span class="mock-label">Feedback Category</span>
+                  <div style="display:flex; gap:8px;">
+                    <div style="padding:6px 14px; background:#ECFDF5; border:1px solid #10B981; border-radius:8px; font-size:11px; font-weight:700; color:#065F46;">
+                      Praise (Correct Answers)
+                    </div>
+                    <div style="padding:6px 14px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; font-size:11px; color:#64748B;">
+                      Cheer-Up (Second Try)
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <span class="mock-label">Spoken Praise Phrase</span>
+                  <input type="text" class="mock-input" value="Brilliant reading! You found the right meaning!" readonly>
+                </div>
+                <div style="border:1px solid #BBF7D0; background:#F0FDF4; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="width:8px; height:8px; border-radius:50%; background:#10B981;"></div>
+                    <span style="font-size:12px; font-weight:700; color:#065F46;">Audio Recorded (0:03s)</span>
+                  </div>
+                  <button style="background:#FFF; border:1px solid #CBD5E1; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; color:#334155;">
+                    Test Playback
+                  </button>
+                </div>
+                <button style="background:#059669; color:#FFF; border:none; padding:8px; border-radius:8px; font-size:12px; font-weight:700;">
+                  Save Feedback Voiceover
+                </button>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge">Step 2 • Voice Feedback Recording</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Recording Teacher Praise</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                Teachers record their own voices directly inside the browser. When students answer correctly, hearing their actual teacher praise them creates an emotional connection and reinforces learning confidence.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: STEP 3 — TEACHER CREATES ROOM & PIN (ACTUAL ROOMS UI) -->
+      <div id="scene-4" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="portal-window">
+              <div class="portal-header">
+                <div class="window-dots"><div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div></div>
+                <div style="font-size:12px; font-weight:700; color:#334155;">Teacher Portal — Room Controls</div>
+                <span style="font-size:10px; font-weight:700; color:#059669; background:#ECFDF5; padding:2px 8px; border-radius:9999px;">Step 3 Active</span>
+              </div>
+              <div style="padding: 20px; display:flex; flex-direction:column; gap:14px; background:#FFF;">
+                <div>
+                  <span class="mock-label">Classroom Session Name</span>
+                  <div style="font-size:14px; font-weight:800; color:#0F172A;">Grade 5 - St. Francis Elementary Quest</div>
+                </div>
+                <div style="border:1.5px dashed #0284C7; background:#F0F9FF; border-radius:14px; padding:16px; text-align:center;">
+                  <span style="font-size:11px; font-weight:800; color:#0369A1; text-transform:uppercase;">Classroom Access Code</span>
+                  <div style="font-family:monospace; font-size:28px; font-weight:900; color:#0C4A6E; letter-spacing:0.12em; margin-top:4px;">
+                    849-215
+                  </div>
+                  <span style="font-size:11px; color:#0284C7; font-weight:600;">Share this PIN with students to join</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#64748B;">
+                  <span>Connected Students: <strong>24 Active</strong></span>
+                  <span style="color:#059669; font-weight:700;">● Session In Progress</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge">Step 3 • Live Session Launch</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Launching the Game Room</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                The educator creates the session room and displays the unique <strong>6-digit Room PIN</strong>. The teacher retains full control to start, pause, or review classroom results.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: STEP 4 — STUDENTS JOIN THE GAME (REAL VOXEL CARD OVER SCENIC BG) -->
+      <div id="scene-5" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="real-game-stage-frame" style="background-image:url('/assets/title_bg.jpg'); padding:18px;">
+              <div style="background:rgba(255,255,255,0.96); border:3px solid #0284C7; border-radius:18px; padding:18px; box-shadow:0 8px 0 #0369A1, 0 15px 30px rgba(0,0,0,0.15);">
+                <div style="text-align:center; margin-bottom:12px;">
+                  <div style="font-size:10px; font-weight:800; color:#0284C7; letter-spacing:0.08em;">PROSPERIDAD DISTRICT • EPCES</div>
+                  <h3 style="font-size:17px; font-weight:800; color:#0F172A; margin-top:2px;">JOIN CLASSROOM QUEST</h3>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div>
+                    <span style="font-size:10px; font-weight:700; color:#64748B; text-transform:uppercase;">Room PIN</span>
+                    <div style="background:#F0F9FF; border:1.5px solid #0284C7; color:#0369A1; font-family:monospace; font-size:18px; font-weight:800; padding:6px 12px; border-radius:8px; text-align:center; letter-spacing:0.1em;">
+                      849-215
+                    </div>
+                  </div>
+                  <div>
+                    <span style="font-size:10px; font-weight:700; color:#64748B; text-transform:uppercase;">Student Name</span>
+                    <div style="background:#F8FAFC; border:1px solid #CBD5E1; color:#0F172A; font-size:13px; font-weight:700; padding:6px 12px; border-radius:8px;">
+                      Gabriel
+                    </div>
+                  </div>
+                  <div>
+                    <span style="font-size:10px; font-weight:700; color:#64748B; text-transform:uppercase;">Choose Avatar</span>
+                    <div style="display:flex; gap:8px; justify-content:center; margin-top:4px;">
+                      <div style="padding:6px; background:#BAE6FD; border:1.5px solid #0284C7; border-radius:8px; text-align:center; width:65px;">
+                        <img src="/assets/scholar_boy.png" alt="Boy" style="height:40px; object-fit:contain;" onerror="this.src='/assets/mascot_boy.png'">
+                        <div style="font-size:9px; font-weight:800; color:#0C4A6E;">School Boy</div>
+                      </div>
+                      <div style="padding:6px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; text-align:center; width:65px; opacity:0.7;">
+                        <img src="/assets/scholar_girl.png" alt="Girl" style="height:40px; object-fit:contain;" onerror="this.src='/assets/mascot_girl.png'">
+                        <div style="font-size:9px; font-weight:700; color:#64748B;">School Girl</div>
+                      </div>
+                    </div>
+                  </div>
+                  <button style="background:#059669; color:#FFF; border:none; padding:9px; border-radius:10px; font-size:12px; font-weight:800; letter-spacing:0.04em; cursor:pointer; margin-top:4px; box-shadow:0 4px 10px rgba(5,150,105,0.25);">
+                    ENTER QUEST ▶
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge panel-badge-blue">Step 4 • Student Arcade Join</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Frictionless Student Access</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                Young learners enter the 6-digit room PIN, type their name, and pick their school adventurer avatar. No password logins required—maximizing instructional time in the classroom.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: STEP 5 — WORLD MAP & TEACHER GUIDANCE (ACTUAL DIALOGUE SCREEN) -->
+      <div id="scene-6" class="scene">
+        <div class="scene-content">
+          <div class="teacher-audio-flex">
+            <div class="teacher-portrait-box">
+              <img id="talking-teacher-img" src="/assets/guide/F1.png" alt="Teacher Faith">
+            </div>
+            <div>
+              <div class="panel-badge panel-badge-blue">Step 5 • Spoken Teacher Guidance</div>
+              <div class="speech-dialogue-card" style="margin-top: 10px;">
+                <div>
+                  <div style="font-size:12px; font-weight:800; color:#059669; text-transform:uppercase; margin-bottom:6px;">Teacher Faith • EPCES Elementary Guide</div>
+                  <div style="font-size:15.5px; font-weight:600; line-height:1.5; color:#1E293B;">
+                    "Welcome to EPCES Kingdom, the Easy Round! In level 1 to 5, you will see a picture that represents the box word. Look at the picture, read the sentence carefully, and choose the correct answer from the choices."
+                  </div>
+                </div>
+                <div class="audio-wave-strip">
+                  <div class="wave-bar" style="animation-delay: 0.1s"></div>
+                  <div class="wave-bar" style="animation-delay: 0.3s"></div>
+                  <div class="wave-bar" style="animation-delay: 0.2s"></div>
+                  <div class="wave-bar" style="animation-delay: 0.4s"></div>
+                  <div class="wave-bar" style="animation-delay: 0.15s"></div>
+                  <span style="font-size: 11px; font-weight: 700; color: #059669; margin-left: 8px;">VERBAL GUIDANCE ACTIVE</span>
+                </div>
+              </div>
+              <p class="panel-sub" style="text-align:left; margin-top: 12px; font-size: 14px;">
+                Gabriel arrives on the EPCES Kingdom Map. Teacher Faith verbally explains the Easy Round gameplay: observe the visual clue that represents the box word, read the sentence carefully, and choose the correct answer.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 7: STEP 6 — ACTUAL GAME QUESTION SCREEN (SCENIC EPCES BG, REAL HUD, NO HEARTS) -->
+      <div id="scene-7" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="real-game-stage-frame" style="background-image:url('/assets/kingdom_epces.jpg'); padding:14px;">
+              <!-- REAL TOP GAME HUD (AUTHENTIC CANDY STYLE) -->
+              <div class="game-hud-bar" style="border-radius:12px; margin-bottom:10px;">
+                <!-- Left: Gabriel Player Card -->
+                <div class="candy-player-card">
+                  <div class="candy-avatar-circle">
+                    <img src="/assets/scholar_boy.png" class="candy-avatar-img" alt="Gabriel Avatar" onerror="this.src='/assets/mascot_boy.png'">
+                  </div>
+                  <div class="candy-player-info">
+                    <div class="candy-player-name">Gabriel</div>
+                    <div class="candy-star-row">
+                      <div class="candy-star-icon-wrap">
+                        <svg class="candy-star-svg" viewBox="0 0 36 36">
+                          <defs>
+                            <linearGradient id="quizStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stop-color="#FFF566" />
+                              <stop offset="35%" stop-color="#FFD000" />
+                              <stop offset="75%" stop-color="#FF9900" />
+                              <stop offset="100%" stop-color="#E67300" />
+                            </linearGradient>
+                          </defs>
+                          <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
+                            fill="url(#quizStarGrad)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
+                          <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
+                        </svg>
+                      </div>
+                      <span class="candy-star-count-num">3</span>
+                      <span class="candy-star-count-label">STARS</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Center: Stage Pill -->
+                <div class="candy-zone-pill" style="padding:4px 12px; font-size:11px; font-weight:800; color:#0369A1;">
+                  KINGDOM 1 • LEVEL 1
+                </div>
+
+                <!-- Right: Navigation Buttons -->
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <div class="candy-zone-pill" style="padding:4px 10px; font-size:10.5px; font-weight:800; display:flex; align-items:center; gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+                    <span>2D MAP</span>
+                  </div>
+                  <div class="candy-menu-btn" style="padding:4px 10px; font-size:10.5px; font-weight:800; display:flex; align-items:center; gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <span>MENU</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- REAL QUESTION ARENA CARD -->
+              <div class="real-arena-card">
+                <!-- REPLAY BUTTON -->
+                <div style="display:flex; justify-content:flex-end;">
+                  <span style="background:#059669; color:#FFF; font-size:10px; font-weight:800; padding:3px 8px; border-radius:6px; letter-spacing:0.04em;">↺ REPLAY</span>
+                </div>
+
+                <!-- VISUAL PICTURE CLUE CARD (STAGE 1 AUTHENTIC) -->
+                <div class="real-visual-clue-card">
+                  <img src="/assets/exhausted_clue.jpg" alt="Visual Clue: Exhausted student resting head on books" class="real-visual-clue-img">
+                </div>
+
+                <!-- SENTENCE BOX (NO UNDERLINE!) -->
+                <div class="real-sentence-box">
+                  "The student felt <span class="highlighted-word">exhausted</span> after studying all night."
+                </div>
+
+                <!-- ANSWERS GRID -->
+                <div class="real-answers-grid">
+                  <div class="real-answer-card correct">
+                    <span class="answer-letter-badge" style="background:#BBF7D0; color:#15803D;">A</span>
+                    <span>Very tired</span>
+                  </div>
+                  <div class="real-answer-card">
+                    <span class="answer-letter-badge">B</span>
+                    <span>Full of energy</span>
+                  </div>
+                  <div class="real-answer-card">
+                    <span class="answer-letter-badge">C</span>
+                    <span>Very happy</span>
+                  </div>
+                  <div class="real-answer-card">
+                    <span class="answer-letter-badge">D</span>
+                    <span>Very scared</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge panel-badge-blue">Step 6 • Visual Picture Clue Gameplay</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Solving the Kingdom 1 Challenge</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                In <strong>Kingdom 1 (EPCES Kingdom • Easy Round)</strong>, learners observe the visual picture clue that illustrates the yellow box word. There are strictly <strong>no underlines</strong> in Kingdom 1—students connect the visual image of the tired student with <strong>"exhausted"</strong> to choose <strong>"Very tired"</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 8: STEP 7 — REAL SEQUENTIAL STAR BURST ANIMATION & TEACHER VOICE PRAISE -->
+      <div id="scene-8" class="scene">
+        <div class="scene-content">
+          <div class="showcase-two-col">
+            <div class="real-game-stage-frame" style="background-image:url('/assets/kingdom_epces.jpg'); padding:14px;">
+              <!-- REAL TOP GAME HUD (NO HEARTS) -->
+              <div class="game-hud-bar" style="border-radius:12px; margin-bottom:10px;">
+                <!-- Left: Gabriel Player Card -->
+                <div class="candy-player-card">
+                  <div class="candy-avatar-circle">
+                    <img src="/assets/scholar_boy.png" class="candy-avatar-img" alt="Gabriel Avatar" onerror="this.src='/assets/mascot_boy.png'">
+                  </div>
+                  <div class="candy-player-info">
+                    <div class="candy-player-name">Gabriel</div>
+                    <div class="candy-star-row">
+                      <div class="candy-star-icon-wrap">
+                        <svg class="candy-star-svg" viewBox="0 0 36 36">
+                          <defs>
+                            <linearGradient id="quizStarGrad8" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stop-color="#FFF566" />
+                              <stop offset="35%" stop-color="#FFD000" />
+                              <stop offset="75%" stop-color="#FF9900" />
+                              <stop offset="100%" stop-color="#E67300" />
+                            </linearGradient>
+                          </defs>
+                          <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z"
+                            fill="url(#quizStarGrad8)" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" />
+                          <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.75)" />
+                        </svg>
+                      </div>
+                      <span class="candy-star-count-num">3</span>
+                      <span class="candy-star-count-label">STARS</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Center: Completion Pill -->
+                <div class="candy-zone-pill" style="padding:4px 12px; font-size:11px; font-weight:800; color:#059669; border-color:#10B981;">
+                  KINGDOM 1 • LEVEL 1 COMPLETED
+                </div>
+
+                <!-- Right: Stars Earned Badge -->
+                <div style="display:flex; align-items:center; gap:5px; background:#DCFCE7; border:1.5px solid #22C55E; padding:4px 10px; border-radius:9999px; font-weight:800; color:#15803D; font-size:11px;">
+                  <svg width="13" height="13" viewBox="0 0 36 36">
+                    <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z" fill="#EAB308" />
+                  </svg>
+                  <span>3 / 3 STARS EARNED</span>
+                </div>
+              </div>
+
+              <!-- REAL SEQUENTIAL STAR BURST OVERLAY PANEL -->
+              <div class="star-burst-panel" style="padding:18px 20px; text-align:center;">
+                <div class="star-burst-title">LEVEL 1 COMPLETE!</div>
+
+                <!-- 3 POPPING ANIMATED GOLDEN STARS -->
+                <div class="star-burst-slots">
+                  <div class="star-slot-wrap star-burst-slot-1">
+                    <div class="star-slot-halo"></div>
+                    <svg class="star-burst-svg" viewBox="0 0 36 36">
+                      <defs>
+                        <linearGradient id="burstStarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#FFF566" />
+                          <stop offset="35%" stop-color="#FFD000" />
+                          <stop offset="75%" stop-color="#FF9900" />
+                          <stop offset="100%" stop-color="#E67300" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z" fill="url(#burstStarGrad)" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round" />
+                      <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.85)" />
+                    </svg>
+                  </div>
+                  <div class="star-slot-wrap star-burst-slot-2">
+                    <div class="star-slot-halo"></div>
+                    <svg class="star-burst-svg" viewBox="0 0 36 36">
+                      <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z" fill="url(#burstStarGrad)" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round" />
+                      <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.85)" />
+                    </svg>
+                  </div>
+                  <div class="star-slot-wrap star-burst-slot-3">
+                    <div class="star-slot-halo"></div>
+                    <svg class="star-burst-svg" viewBox="0 0 36 36">
+                      <path d="M 18,2 L 22.5,12.5 L 34,14 L 25.5,22 L 28,33.5 L 18,27.5 L 8,33.5 L 10.5,22 L 2,14 L 13.5,12.5 Z" fill="url(#burstStarGrad)" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round" />
+                      <ellipse cx="18" cy="11" rx="4.5" ry="2.2" fill="rgba(255,255,255,0.85)" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div style="font-family:'Outfit', sans-serif; font-size:15px; font-weight:800; color:#FDE047; text-shadow:0 2px 4px rgba(0,0,0,0.5); letter-spacing:0.06em; margin-bottom:2px;">
+                  3 / 3 STARS EARNED!
+                </div>
+                <div style="font-size:11.5px; font-weight:600; color:#94A3B8; margin-bottom:12px;">
+                  Target Word Mastered: <strong style="color:#FFF;">Exhausted = Very tired</strong>
+                </div>
+
+                <!-- TEACHER PRAISE SPEECH BOX -->
+                <div style="background:rgba(15, 23, 42, 0.85); border:1.5px solid #10B981; border-radius:12px; padding:8px 12px; text-align:left; display:flex; align-items:center; gap:10px; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                  <img src="/assets/guide/teacher_blue_correct_1.png" alt="Teacher Faith Celebration Pose" style="height:48px; object-fit:contain;" onerror="this.src='/assets/guide/F8.png'">
+                  <div>
+                    <div style="font-size:9.5px; font-weight:800; color:#34D399; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; gap:5px;">
+                      <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10B981;"></span>
+                      Teacher Faith's Recorded Voice Plays:
+                    </div>
+                    <div style="font-size:12px; font-weight:700; color:#FFFFFF; margin-top:2px;">
+                      "Brilliant reading! You found the right meaning!"
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel-badge panel-badge-gold">Step 7 • Star Rewards & Feedback</div>
+              <h2 class="panel-title" style="text-align:left; font-size:34px;">Earning Stars & Audio Praise</h2>
+              <p class="panel-sub" style="text-align:left; font-size:14px; margin-top:8px;">
+                Correct answers reward up to <strong>3 Golden Stars (strictly 3 Stars maximum, never generic RPG EXP)</strong> based on student mastery, and trigger immediate playback of the teacher's authentic voice praise recording!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 9: OUTRO 1 — REAL-TIME SYNCHRONIZATION -->
+      <div id="scene-9" class="scene">
+        <div class="scene-content">
+          <div style="display:grid; grid-template-columns:1fr 60px 1fr; align-items:center; gap:20px; width:100%; max-width:920px;">
+            <div class="portal-window" style="padding:22px; text-align:center;">
+              <div style="font-size:11px; font-weight:800; color:#059669; text-transform:uppercase;">Teacher Portal</div>
+              <div style="font-size:16px; font-weight:800; color:#0F172A; margin-top:4px;">Questions & Clues Updated</div>
+              <div style="font-size:11px; color:#64748B; margin-top:6px;">Instant Broadcast Channel</div>
+            </div>
+            <div style="display:flex; justify-content:center;">
+              <div style="width:46px; height:46px; border-radius:50%; background:#ECFDF5; border:2px solid #10B981; color:#059669; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800;">⇄</div>
+            </div>
+            <div class="portal-window" style="padding:22px; text-align:center;">
+              <div style="font-size:11px; font-weight:800; color:#059669; text-transform:uppercase;">Student Game Client</div>
+              <div style="font-size:16px; font-weight:800; color:#0F172A; margin-top:4px;">Live In Classroom Session</div>
+              <div style="font-size:11px; color:#059669; font-weight:700; margin-top:6px;">Zero Reload (No F5 Required)</div>
+            </div>
+          </div>
+          <div style="margin-top:28px; text-align:center;">
+            <div class="panel-badge">Technical Innovation</div>
+            <h2 class="panel-title" style="font-size:36px;">Seamless Cross-Platform Sync</h2>
+            <p class="panel-sub">Any updates made by the educator in the portal immediately update active game screens with zero background RAM polling and zero page reloads.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 10: OUTRO 2 — DEPED ALIGNMENT & THE THREE TEACHERS -->
+      <div id="scene-10" class="scene">
+        <div class="scene-content" style="text-align:center;">
+          <div class="panel-badge">Pedagogical Framework</div>
+          <h2 class="panel-title" style="font-size:38px;">Guided by Dedicated <span class="panel-title-green">Teacher Mentors</span></h2>
+          <p class="panel-sub" style="margin-bottom:14px;">Aligned with DepEd English elementary competencies across three progressive learning kingdoms.</p>
+
+          <div style="display:flex; align-items:flex-end; justify-content:center; gap:36px;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <img src="/assets/guide/F1.png" alt="Teacher Faith" style="height:310px; object-fit:contain;">
+              <div style="margin-top:8px; padding:6px 20px; border-radius:9999px; font-size:12px; font-weight:800; background:#FFF; border:1.5px solid #BAE6FD; color:#0284C7; text-align:center; line-height:1.35;">
+                <div>Teacher Faith</div>
+                <div style="font-size:10.5px; color:#64748B; font-weight:700;">Kingdom 1</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <img src="/assets/guide/G1.png" alt="Teacher Gevina" style="height:310px; object-fit:contain;">
+              <div style="margin-top:8px; padding:6px 20px; border-radius:9999px; font-size:12px; font-weight:800; background:#FFF; border:1.5px solid #C7D2FE; color:#4F46E5; text-align:center; line-height:1.35;">
+                <div>Teacher Gevina</div>
+                <div style="font-size:10.5px; color:#64748B; font-weight:700;">Kingdom 2</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <img src="/assets/guide/teacher_yellow_pose1.png" alt="Teacher Yanna" style="height:310px; object-fit:contain;">
+              <div style="margin-top:8px; padding:6px 20px; border-radius:9999px; font-size:12px; font-weight:800; background:#FFF; border:1.5px solid #FDE68A; color:#D97706; text-align:center; line-height:1.35;">
+                <div>Teacher Yanna</div>
+                <div style="font-size:10.5px; color:#64748B; font-weight:700;">Kingdom 3</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom Timeline & Presentation Controls -->
+  <div class="controls-overlay">
+    <button id="prev-btn" class="control-btn" onclick="prevScene()">◀ Previous</button>
+    <button id="play-pause-btn" class="control-btn" onclick="togglePlay()">
+      <span id="play-icon">▶</span>
+      <span id="play-text">Autoplay</span>
+    </button>
+    <button id="next-btn" class="control-btn" onclick="nextScene()">Next ▶</button>
+
+    <div class="step-counter" id="step-counter-display">Slide 1 of 10</div>
+  </div>
+
+  <script>
+    const scenes = document.querySelectorAll('.scene');
+    const playBtn = document.getElementById('play-pause-btn');
+    const playIcon = document.getElementById('play-icon');
+    const playText = document.getElementById('play-text');
+    const counterDisplay = document.getElementById('step-counter-display');
+    const controlsOverlay = document.querySelector('.controls-overlay');
+
+    const TOTAL_SCENES = 10;
+    let currentScene = 1;
+    let isPlaying = false;
+    let playInterval = null;
+    let controlsHideTimeout = null;
+
+    function hideControls() {
+      if (isPlaying && controlsOverlay) {
+        controlsOverlay.classList.add('hidden-down');
+      }
+    }
+
+    function showControls() {
+      if (!controlsOverlay) return;
+      controlsOverlay.classList.remove('hidden-down');
+      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+      if (isPlaying) {
+        controlsHideTimeout = setTimeout(hideControls, 2400);
+      }
+    }
+
+    // Auto-reveal controls on mouse movement or screen tap during autoplay
+    window.addEventListener('mousemove', (e) => {
+      if (isPlaying) showControls();
+    });
+
+    window.addEventListener('touchstart', (e) => {
+      if (isPlaying) showControls();
+    }, { passive: true });
+
+    // Cancel auto-hide if mouse is hovering over controls
+    if (controlsOverlay) {
+      controlsOverlay.addEventListener('mouseenter', () => {
+        if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+      });
+      controlsOverlay.addEventListener('mouseleave', () => {
+        if (isPlaying) {
+          controlsHideTimeout = setTimeout(hideControls, 1600);
+        }
+      });
+    }
+
+    function goToScene(index) {
+      currentScene = index;
+
+      scenes.forEach((s, idx) => {
+        s.classList.toggle('active', idx + 1 === index);
+      });
+
+      counterDisplay.textContent = `Slide ${index} of ${TOTAL_SCENES}`;
+    }
+
+    function nextScene() {
+      let next = currentScene + 1;
+      if (next > TOTAL_SCENES) {
+        if (isPlaying) togglePlay();
+        next = 1;
+      }
+      goToScene(next);
+    }
+
+    function prevScene() {
+      let prev = currentScene - 1;
+      if (prev < 1) prev = TOTAL_SCENES;
+      goToScene(prev);
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        clearInterval(playInterval);
+        isPlaying = false;
+        playIcon.textContent = '▶';
+        playText.textContent = 'Autoplay';
+        if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+        if (controlsOverlay) controlsOverlay.classList.remove('hidden-down');
+      } else {
+        isPlaying = true;
+        playIcon.textContent = '⏸';
+        playText.textContent = 'Pause';
+        playInterval = setInterval(nextScene, 4800);
+        // Smooth move-down animation after clicking autoplay
+        if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+        controlsHideTimeout = setTimeout(hideControls, 400);
+      }
+    }
+
+    // Keyboard Arrow Controls
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        nextScene();
+      } else if (e.key === 'ArrowLeft') {
+        prevScene();
+      }
+    });
+
+    // Check for autoplay in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('autoplay') === '1' || urlParams.get('play') === 'true') {
+      setTimeout(togglePlay, 600);
+    }
+  </script>
+</body>
+</html>

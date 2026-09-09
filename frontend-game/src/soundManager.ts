@@ -23,6 +23,8 @@ class SoundManager {
   private isSpeechActive: boolean = false;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
   private wasPlayingBeforePause: boolean = false;
+  private hasUserInteracted: boolean = false;
+  private pendingAudioOnGesture: (() => void) | null = null;
 
   public onSpeakingStateChange(cb: (isSpeaking: boolean) => void) {
     this.speakingListeners.push(cb);
@@ -40,19 +42,25 @@ class SoundManager {
   constructor() {
     this.loadSettings();
 
-    // Auto-resume AudioContext on first user interaction
+    // Auto-resume AudioContext and pending voiceovers on first user gesture
     if (typeof window !== 'undefined') {
-      const unlockAudio = () => {
-        if (this.ctx && this.ctx.state === 'suspended') {
-          this.ctx.resume().catch(() => {});
-        }
-        window.removeEventListener('pointerdown', unlockAudio);
-        window.removeEventListener('keydown', unlockAudio);
-        window.removeEventListener('touchstart', unlockAudio);
-      };
-      window.addEventListener('pointerdown', unlockAudio, { passive: true });
-      window.addEventListener('keydown', unlockAudio, { passive: true });
-      window.addEventListener('touchstart', unlockAudio, { passive: true });
+      const handleUserGesture = () => this.resumeOnUserGesture();
+      window.addEventListener('pointerdown', handleUserGesture, { passive: true });
+      window.addEventListener('keydown', handleUserGesture, { passive: true });
+      window.addEventListener('touchstart', handleUserGesture, { passive: true });
+      window.addEventListener('click', handleUserGesture, { passive: true });
+    }
+  }
+
+  public resumeOnUserGesture() {
+    this.hasUserInteracted = true;
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    if (this.pendingAudioOnGesture) {
+      const fn = this.pendingAudioOnGesture;
+      this.pendingAudioOnGesture = null;
+      try { fn(); } catch (e) {}
     }
   }
 
@@ -63,7 +71,8 @@ class SoundManager {
         this.ctx = new AudioContextClass();
       }
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
+    // Only attempt resume after user gesture to prevent browser warning spam
+    if (this.ctx && this.ctx.state === 'suspended' && this.hasUserInteracted) {
       this.ctx.resume().catch(() => {});
     }
   }
@@ -465,8 +474,63 @@ class SoundManager {
     }
   }
 
+  // 8.2 Play Dialogue / Guide Audio (Intro & Kingdom Welcoming Instructions)
+  public playDialogueAudio(url: string, onEnd?: () => void) {
+    if (typeof window === 'undefined') return;
+    this.stopSpeech();
+
+    if (this.settings.muted || !url) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    try {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = url;
+      audio.volume = this.getEffectiveSfxVolume();
+      this.currentVoiceAudio = audio;
+
+      audio.onended = () => {
+        if (this.currentVoiceAudio === audio) {
+          this.currentVoiceAudio = null;
+        }
+        if (onEnd) onEnd();
+      };
+      audio.onerror = (e) => {
+        console.warn('Dialogue audio failed to load/play:', e);
+        if (this.currentVoiceAudio === audio) {
+          this.currentVoiceAudio = null;
+        }
+        if (onEnd) onEnd();
+      };
+      audio.play().catch((err) => {
+        if (err.name === 'NotAllowedError') {
+          // Autoplay blocked: play automatically upon the user's first touch/click/key
+          this.pendingAudioOnGesture = () => {
+            if (this.currentVoiceAudio === audio) {
+              audio.play().catch(() => {});
+            }
+          };
+          return;
+        }
+        if (err.name !== 'AbortError') {
+          console.warn('Dialogue audio playback failed:', err);
+        }
+        if (this.currentVoiceAudio === audio) {
+          this.currentVoiceAudio = null;
+        }
+        if (onEnd) onEnd();
+      });
+    } catch (err) {
+      console.warn('Failed to play dialogue audio:', err);
+      if (onEnd) onEnd();
+    }
+  }
+
   // 9. Stop All Active Voice Audio
   public stopSpeech() {
+    this.pendingAudioOnGesture = null;
     if (this.currentVoiceAudio) {
       try {
         this.currentVoiceAudio.pause();

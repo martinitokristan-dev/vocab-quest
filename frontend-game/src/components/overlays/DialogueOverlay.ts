@@ -1,12 +1,5 @@
-import { KINGDOM_DIALOGUES, GLOBAL_INTRO_DIALOGUE } from '../../dialogueData';
-
-interface DialogueSlide {
-  speaker: string;
-  titleBadge: string;
-  text: string;
-  buttonText?: string;
-  characterImage?: string;
-}
+import { KINGDOM_DIALOGUES, GLOBAL_INTRO_DIALOGUE, type DialogueSlide } from '../../dialogueData';
+import { soundManager } from '../../soundManager';
 
 interface DialogueData {
   slides: DialogueSlide[];
@@ -77,6 +70,7 @@ export class DialogueOverlay {
 
     // If overlay is already in the DOM, update in-place without tearing down backdrop (prevents screen blinking!)
     if (existing) {
+      this.container = existing;
       this.updateInPlace(existing, slide, formattedText, dotsHtml, prevBtnHtml, isFinalSlide);
       return;
     }
@@ -101,7 +95,10 @@ export class DialogueOverlay {
               <span class="dialogue-speaker-name">${slide.speaker}</span>
             </div>
             <div class="dialogue-badge-sub">${slide.titleBadge}</div>
-            <button id="dialogueSkipBtn" class="dialogue-skip-btn">Skip ❯❯</button>
+            <div class="dialogue-header-actions" style="display:flex; align-items:center; gap:8px;">
+              ${slide.audioUrl ? `<button id="dialogueAudioBtn" class="dialogue-audio-btn" title="Listen to Voiceover">🔊 Listen</button>` : ''}
+              <button id="dialogueSkipBtn" class="dialogue-skip-btn">Skip ❯❯</button>
+            </div>
           </div>
 
           <div class="dialogue-body">
@@ -141,6 +138,7 @@ export class DialogueOverlay {
     prevBtnHtml: string,
     isFinalSlide: boolean
   ): void {
+    this.container = existing;
     const speakerEl = existing.querySelector('.dialogue-speaker-name');
     if (speakerEl) speakerEl.textContent = slide.speaker;
 
@@ -152,6 +150,26 @@ export class DialogueOverlay {
 
     const dotsContainer = existing.querySelector('.dialogue-step-dots');
     if (dotsContainer) dotsContainer.innerHTML = dotsHtml;
+
+    const headerActions = existing.querySelector('.dialogue-header-actions');
+    if (headerActions) {
+      headerActions.innerHTML = `
+        ${slide.audioUrl ? `<button id="dialogueAudioBtn" class="dialogue-audio-btn" title="Listen to Voiceover">🔊 Listen</button>` : ''}
+        <button id="dialogueSkipBtn" class="dialogue-skip-btn">Skip ❯❯</button>
+      `;
+      headerActions.querySelector('#dialogueSkipBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        soundManager.resumeOnUserGesture();
+        this.props.onClose();
+      });
+      headerActions.querySelector('#dialogueAudioBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        soundManager.resumeOnUserGesture();
+        if (slide.audioUrl) {
+          soundManager.playDialogueAudio(slide.audioUrl);
+        }
+      });
+    }
 
     const actionBtn = existing.querySelector('#dialogueActionBtn span');
     if (actionBtn) actionBtn.textContent = slide.buttonText || (isFinalSlide ? 'START QUEST ⚔️' : 'NEXT ▶');
@@ -166,10 +184,12 @@ export class DialogueOverlay {
       `;
       existing.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
         e.stopPropagation();
+        soundManager.resumeOnUserGesture();
         this.props.onPrevSlide();
       });
       existing.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
         e.stopPropagation();
+        soundManager.resumeOnUserGesture();
         this.props.onNextSlide();
       });
     }
@@ -184,22 +204,36 @@ export class DialogueOverlay {
    * Attach event listeners
    */
   private attachEventListeners(overlay: HTMLElement): void {
+    overlay.querySelector('#dialogueAudioBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundManager.resumeOnUserGesture();
+      const kd = this.getActiveDialogue();
+      const slide = kd.slides[this.props.dialogueSlideIndex] || kd.slides[0];
+      if (slide?.audioUrl) {
+        soundManager.playDialogueAudio(slide.audioUrl);
+      }
+    });
+
     overlay.querySelector('#dialoguePrevBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      soundManager.resumeOnUserGesture();
       this.props.onPrevSlide();
     });
 
     overlay.querySelector('#dialogueActionBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      soundManager.resumeOnUserGesture();
       this.props.onNextSlide();
     });
 
     overlay.querySelector('#dialogueSkipBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      soundManager.resumeOnUserGesture();
       this.props.onClose();
     });
 
     overlay.addEventListener('click', (e) => {
+      soundManager.resumeOnUserGesture();
       if (e.target === overlay) {
         this.props.onNextSlide();
       }
@@ -210,9 +244,10 @@ export class DialogueOverlay {
    * Remove the overlay from the DOM
    */
   destroy(): void {
-    if (this.container) {
-      this.container.remove();
-      this.container = null;
+    const el = this.container || document.getElementById('dialogueOverlayContainer');
+    if (el) {
+      el.remove();
     }
+    this.container = null;
   }
 }

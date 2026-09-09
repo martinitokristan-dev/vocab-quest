@@ -2406,6 +2406,29 @@ button.candy-zone-pill:active,
   border-color: #94A3B8;
 }
 
+.dialogue-audio-btn {
+  background: #ECFDF5;
+  border: 1.5px solid #10B981;
+  color: #065F46;
+  font-family: var(--font-primary, 'Fredoka', sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 5px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dialogue-audio-btn:hover {
+  background: #D1FAE5;
+  border-color: #059669;
+  color: #047857;
+  transform: translateY(-1px);
+}
+
 /* Speech Text Body */
 .dialogue-body {
   flex: 1;
