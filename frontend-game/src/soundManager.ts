@@ -453,20 +453,30 @@ class SoundManager {
       audio.volume = this.getEffectiveSfxVolume();
       this.currentVoiceAudio = audio;
 
-      audio.onended = () => {
+      // Single exit path — prevents double-firing onEnd regardless of how audio ends.
+      let hasEnded = false;
+      const triggerEnd = () => {
+        if (hasEnded) return;
+        hasEnded = true;
+        clearTimeout(hangGuard);
         this.currentVoiceAudio = null;
         if (onEnd) onEnd();
       };
-      audio.onerror = () => {
-        this.currentVoiceAudio = null;
-        if (onEnd) onEnd();
-      };
+
+      // 🛡️ Hang-guard: if audio neither ends nor errors within 7s (network hang,
+      // stuck mobile media pipeline), force-cancel and unblock the game flow.
+      const hangGuard = setTimeout(() => {
+        try { audio.pause(); audio.src = ''; } catch (_) {}
+        triggerEnd();
+      }, 7000);
+
+      audio.onended = triggerEnd;
+      audio.onerror = triggerEnd;
       audio.play().catch((err) => {
         if (err.name !== 'AbortError') {
           console.warn('Feedback audio playback failed:', err);
         }
-        this.currentVoiceAudio = null;
-        if (onEnd) onEnd();
+        triggerEnd();
       });
     } catch (err) {
       console.warn('Failed to play feedback audio:', err);
