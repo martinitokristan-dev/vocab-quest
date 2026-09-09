@@ -148,7 +148,7 @@ export class QuestionScreen {
 
     this.container.innerHTML = `
       <!-- Top-Left Player Profile & Star HUD (Fixed Top Left) -->
-      <div class="candy-hud-top-left animate-fade-in">
+      <div class="candy-hud-top-left">
         <div class="candy-player-card candy-hud-interactive" id="questionAvatarBox" title="Tap to hear character voice">
           <div class="candy-avatar-circle">
             <img src="${this.props.avatarImage || '/assets/mascot_girl.png'}" class="candy-avatar-img" />
@@ -179,7 +179,7 @@ export class QuestionScreen {
       </div>
 
       <!-- Top-Right Controls HUD (Fixed Top Right) -->
-      <div class="candy-hud-top-right animate-fade-in">
+      <div class="candy-hud-top-right">
         <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" title="Back to 2D Map">
           <span>${Icons.map(16)}</span>
           <span>2D MAP</span>
