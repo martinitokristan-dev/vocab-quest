@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map, HelpCircle, Volume2, Monitor, LogOut, Sparkles, X } from 'lucide-react';
+import { Map, HelpCircle, Volume2, Monitor, LogOut, Sparkles, X, Crop } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, isOpen = false, onC
     { id: 'questions', label: 'Questions', icon: HelpCircle },
     { id: 'audio', label: 'Audio Feedback', icon: Volume2 },
     { id: 'rooms', label: 'Game Rooms', icon: Monitor },
+    { id: 'resizer', label: 'Image Resizer', icon: Crop },
   ];
 
   const handleNavClick = (id: string) => {
