@@ -874,18 +874,27 @@ class StudentArcadeGame {
         const completedStep = getStepRef(activeMapId, questionOrder);
         const globalLevel = globalLevelNumber(activeMapId, questionOrder);
 
+        // 🚀 PERF FIX: Fire the next-question fetch immediately — it resolves while the
+        // praise audio plays. By the time audio finishes + 600ms settle + star animation
+        // (~1.85s), the API response should already be ready, so proceedAfterPraise
+        // transitions to the map instantly with zero extra wait.
+        const nextQuestionPromise = gameApi.getCurrentQuestion();
+
         const proceedAfterPraise = async () => {
           if (hasAdvanced) return;
           hasAdvanced = true;
 
           soundManager.stopSpeech();
 
-          await showStarBurstOverlay(starsEarned, globalLevel);
-
           const prevMapId = activeMapId;
 
           try {
-            const res = await gameApi.getCurrentQuestion();
+            // Run star animation AND resolve the pre-fetched question data in parallel.
+            // Stars play for ~1.85s; the API was already fetching during audio playback.
+            const [, res] = await Promise.all([
+              showStarBurstOverlay(starsEarned, globalLevel),
+              nextQuestionPromise,
+            ]);
 
             if (res.is_completed) {
               if (this.pollInterval) clearInterval(this.pollInterval);
@@ -1016,7 +1025,6 @@ class StudentArcadeGame {
                 thenScreen: 'question',
               },
             });
-            this.loadFeedbackAudios();
             this.startLightweightPoller();
           } catch (err: any) {
             console.error('Error proceeding after praise:', err);
@@ -1027,7 +1035,7 @@ class StudentArcadeGame {
         };
 
         if (customPraise?.audio_url) {
-          const fallbackTimer = setTimeout(proceedAfterPraise, 30000);
+          const fallbackTimer = setTimeout(proceedAfterPraise, 8000); // reduced from 30s — audio hang safety net only
           soundManager.playFeedbackAudio(customPraise.audio_url, () => {
             clearTimeout(fallbackTimer);
             setTimeout(proceedAfterPraise, 600);

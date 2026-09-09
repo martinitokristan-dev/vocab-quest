@@ -248,6 +248,25 @@ class GameQuestionController extends Controller
             ->sum('stars');
         $session->update(['score' => $totalSessionStars]);
 
+        // Pre-advance map if this was the last question in the current kingdom.
+        // This eliminates the recursive show() → AdvanceMapProgressionAction → show()
+        // chain that caused 5–30s backend delays at kingdom boundaries.
+        // The next getCurrentQuestion() call will find the session already on the new
+        // map and return in a single non-recursive query.
+        if ($isCorrect) {
+            $answeredIds = StudentAnswer::where('game_session_id', $session->id)
+                ->where('is_correct', true)
+                ->pluck('question_id');
+
+            $remaining = Question::where('map_id', $session->current_map_id)
+                ->whereNotIn('id', $answeredIds)
+                ->count();
+
+            if ($remaining === 0) {
+                app(AdvanceMapProgressionAction::class)->execute($session);
+            }
+        }
+
         return response()->json([
             'is_correct'       => $isCorrect,
             'score'            => $totalSessionStars,
