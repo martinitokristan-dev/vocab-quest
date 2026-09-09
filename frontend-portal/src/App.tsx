@@ -11,6 +11,7 @@ import { QuestionsPage } from './pages/QuestionsPage';
 import { AudioReviewPage } from './pages/AudioReviewPage';
 import { RoomsPage } from './pages/RoomsPage';
 import { RoomControlPage } from './pages/RoomControlPage';
+import { ImageResizerPage } from './pages/ImageResizerPage';
 
 // Layout wrapper — shows sidebar + main content for authenticated pages
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -87,6 +88,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/audio"      element={<ProtectedRoute><AppLayout><AudioReviewPage /></AppLayout></ProtectedRoute>} />
     <Route path="/rooms"      element={<ProtectedRoute><AppLayout><RoomsPage /></AppLayout></ProtectedRoute>} />
     <Route path="/rooms/:id"  element={<ProtectedRoute><AppLayout><RoomControlPage /></AppLayout></ProtectedRoute>} />
+    <Route path="/resizer"    element={<ProtectedRoute><AppLayout><ImageResizerPage /></AppLayout></ProtectedRoute>} />
 
     {/* Default redirect */}
     <Route path="*" element={<Navigate to="/maps" replace />} />
