@@ -47,6 +47,15 @@ window.addEventListener('error', (event) => {
   }
 }, true);
 
+// Also catch the same error as an unhandled rejection (some browsers surface it that way)
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String(event.reason?.message || event.reason || '');
+  if (msg.includes('startTime') || msg.includes('reportAllChanges')) {
+    event.preventDefault();
+  }
+});
+
+
 class StudentArcadeGame {
   private appEl: HTMLElement;
   private bgLayerEl: HTMLElement;

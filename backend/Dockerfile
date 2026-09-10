@@ -64,6 +64,9 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/start.sh /start.sh
 RUN chmod +x /start.sh
 
+# PHP-FPM pool: keep 2 pre-warmed workers to eliminate first-hit cold-start latency
+COPY docker/php-fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
+
 EXPOSE 8080 10000 80
 
 CMD ["/start.sh"]
