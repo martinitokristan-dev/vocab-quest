@@ -126,14 +126,14 @@ export class QuestionScreen {
 
     if (submitResult?.is_correct) {
       initialTeacherSprite = isYellow
-        ? (currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
+        ? (currentFeedbackSprite || `/assets/guide/teacher_yellow_correct_1.png`)
         : isGevina
         ? (currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
         : (currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
       initialTeacherAnimClass = 'celebrating';
     } else if (wrongAnswerIds.length > 0 && !submitResult && !submitting) {
       initialTeacherSprite = isYellow
-        ? (currentFeedbackSprite || `/assets/guide/teacher_yellow_sad.png`)
+        ? (currentFeedbackSprite || `/assets/guide/teacher_yellow_incorrect_1.png`)
         : isGevina
         ? (currentFeedbackSprite || `/assets/guide/teacher_gevina_incorrect_1.png`)
         : (currentFeedbackSprite || `/assets/guide/teacher_blue_incorrect_1.png`);
@@ -180,10 +180,6 @@ export class QuestionScreen {
 
       <!-- Top-Right Controls HUD (Fixed Top Right) -->
       <div class="candy-hud-top-right">
-        <button id="worldMapNavBtn" class="candy-zone-pill candy-hud-interactive" title="Back to 2D Map">
-          <span>${Icons.map(16)}</span>
-          <span>2D MAP</span>
-        </button>
         <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive" title="Pause Game Menu">
           <span>${Icons.pause(16)}</span>
           <span>MENU</span>
@@ -347,12 +343,6 @@ export class QuestionScreen {
       soundManager.playClick();
       soundManager.stopSpeech();
       this.props.onPauseClick();
-    });
-
-    document.getElementById('worldMapNavBtn')?.addEventListener('click', () => {
-      soundManager.playClick();
-      soundManager.stopSpeech();
-      this.props.onWorldMapClick();
     });
 
     const readBtn = document.getElementById('readQuestionBtn');

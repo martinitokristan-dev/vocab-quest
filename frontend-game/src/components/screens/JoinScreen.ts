@@ -6,8 +6,8 @@ const AVATARS = [
   { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
   { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
   { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'morena-girl', label: 'Morena Girl', image: '/assets/morena_girl.png' },
-  { slug: 'moreno-boy', label: 'Moreno Boy', image: '/assets/moreno_boy.png' },
+  { slug: 'sporty-girl', label: 'Sporty Girl', image: '/assets/sporty_girl.png' },
+  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/explorer_boy.png' },
 ];
 
 interface JoinScreenProps {
@@ -24,12 +24,12 @@ interface JoinScreenProps {
 }
 
 /**
- * JoinScreen component - Renders the student join screen with avatar selection
+ * JoinScreen component - Handles room PIN and student profile selection
  * Pure extraction from main.ts renderJoinScreen method
  */
 export class JoinScreen {
-  private container: HTMLElement;
   private props: JoinScreenProps;
+  private container: HTMLElement;
 
   constructor(container: HTMLElement, props: JoinScreenProps) {
     this.container = container;
@@ -40,10 +40,13 @@ export class JoinScreen {
    * Render the join screen
    */
   render(): void {
+    let activeSlug = this.props.avatarSlug;
+    if (activeSlug === 'moreno-boy') activeSlug = 'explorer-boy';
+    if (activeSlug === 'morena-girl') activeSlug = 'sporty-girl';
     const avatarsHtml = AVATARS.map(
       (a) => `
-        <div class="student-avatar-card ${this.props.avatarSlug === a.slug ? 'selected' : ''}" data-slug="${a.slug}">
-          ${this.props.avatarSlug === a.slug ? `<div class="student-avatar-check">${Icons.check(14)}</div>` : ''}
+        <div class="student-avatar-card ${activeSlug === a.slug ? 'selected' : ''}" data-slug="${a.slug}">
+          ${activeSlug === a.slug ? `<div class="student-avatar-check">${Icons.check(14)}</div>` : ''}
           <img src="${a.image}" alt="${a.label}" class="student-avatar-img" />
           <span class="student-avatar-label">${a.label}</span>
         </div>
