@@ -63,8 +63,8 @@ export class SettingsModal {
 
           <div class="settings-toggle-row">
             <div>
-              <span class="minecraft-label" style="font-family: var(--font-primary); font-weight: 700; color: #F87171; display: block; font-size: 16px;">Mute All Audio</span>
-              <span style="font-size: 13px; color: #94A3B8;">Silence sound effects and vocabulary narration</span>
+              <span class="minecraft-label" style="font-family: var(--font-primary); font-weight: 700; color: #DC2626; display: block; font-size: 16px;">Mute All Audio</span>
+              <span style="font-size: 13px; color: #64748B;">Silence sound effects and vocabulary narration</span>
             </div>
             <input type="checkbox" id="muteToggle" ${settings.muted ? 'checked' : ''} class="minecraft-checkbox" />
           </div>

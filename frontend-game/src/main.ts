@@ -158,6 +158,8 @@ class StudentArcadeGame {
     soundManager.onSpeakingStateChange((isSpeaking) => {
       this.updateTeacherSpeakingUI(isSpeaking);
     });
+
+    this.syncBgmState();
   }
 
   public destroy() {
@@ -169,6 +171,7 @@ class StudentArcadeGame {
       window.clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    soundManager.stopBgm();
   }
 
   private preloadTeacherAssets() {
@@ -189,9 +192,20 @@ class StudentArcadeGame {
       '/assets/guide/teacher_blue_incorrect_2.png',
       '/assets/guide/teacher_blue_incorrect_3.png',
       '/assets/guide/teacher_yellow_pose1.png',
-      '/assets/guide/teacher_yellow_pose2.png',
-      '/assets/guide/teacher_yellow_happy.png',
-      '/assets/guide/teacher_yellow_sad.png',
+      '/assets/guide/teacher_yellow_correct_1.png',
+      '/assets/guide/teacher_yellow_correct_2.png',
+      '/assets/guide/teacher_yellow_correct_3.png',
+      '/assets/guide/teacher_yellow_guide_1.png',
+      '/assets/guide/teacher_yellow_guide_2.png',
+      '/assets/guide/teacher_yellow_incorrect_1.png',
+      '/assets/guide/teacher_yellow_incorrect_2.png',
+      '/assets/guide/teacher_yellow_incorrect_3.png',
+      '/assets/guide/teacher_lovely_guide_3.png',
+      '/assets/guide/teacher_lovely_guide_4.png',
+      '/assets/guide/teacher_lovely_guide_5.png',
+      '/assets/guide/teacher_lovely_guide_6.png',
+      '/assets/guide/teacher_annabelle_guide_7.png',
+      '/assets/guide/teacher_annabelle_guide_8.png',
       '/assets/guide/G1.png',
       '/assets/guide/G2.png',
       '/assets/guide/G3.png',
@@ -398,12 +412,64 @@ class StudentArcadeGame {
         }
       }
     } else if (this.state.screen === 'question') {
-      // On question screen, avoid destroying DOM during feedback; only re-render on new question or review load
-      if (partialState.currentData !== undefined || partialState.viewingHistoryItem !== undefined) {
+      // On question screen, avoid destroying DOM during praise animations.
+      // Re-render when question data changes OR when wrongAnswerIds updates so that
+      // the hasSubmitted closure in attachEventListeners resets and remaining cards
+      // stay clickable after an incorrect attempt.
+      if (
+        partialState.currentData !== undefined ||
+        partialState.viewingHistoryItem !== undefined ||
+        partialState.wrongAnswerIds !== undefined
+      ) {
         this.render();
       }
     } else if (this.state.screen !== 'join') {
       this.render();
+    }
+
+    this.syncBgmState();
+  }
+
+  /**
+   * Synchronize background music (BGM) playback with the active game state:
+   * - Only plays on Home / Title Screen and World Map (when idle without activities).
+   * - Automatically pauses when any menu/modal is open, on guide dialogues, during teacher pause,
+   *   or on other screens (questions, join, loading, completed).
+   */
+  private syncBgmState() {
+    // 1. Modals / Menus that mute BGM
+    const isModalOpen =
+      Boolean(this.state.isHowToPlayOpen) ||
+      Boolean(this.state.isSettingsOpen) ||
+      Boolean(this.state.isPauseMenuOpen);
+
+    // 2. Guide / dialogue slides that mute BGM
+    const isGuideOpen = Boolean(this.state.isDialogueOpen);
+
+    // 3. Teacher pause overlay that mutes BGM
+    const isTeacherPaused = Boolean(this.state.isTeacherPaused);
+
+    if (isModalOpen || isGuideOpen || isTeacherPaused) {
+      soundManager.pauseBgm();
+      return;
+    }
+
+    // 4. Allowed screens: 'title' (Home) or 'world_map' (Map idle)
+    if (this.state.screen === 'title') {
+      soundManager.playBgm();
+    } else if (this.state.screen === 'world_map') {
+      const isActivityActive =
+        this.state.mapPhase === 'walking_to_question' ||
+        this.state.mapPhase === 'kingdom_enter_anim';
+
+      if (isActivityActive) {
+        soundManager.pauseBgm();
+      } else {
+        soundManager.playBgm();
+      }
+    } else {
+      // 'question', 'join', 'loading', 'completed'
+      soundManager.pauseBgm();
     }
   }
 
@@ -769,8 +835,9 @@ class StudentArcadeGame {
           '/assets/guide/teacher_gevina_correct_3.png',
         ];
         const yellowHappySprites = [
-          '/assets/guide/teacher_yellow_pose2.png',
-          '/assets/guide/teacher_yellow_happy.png',
+          '/assets/guide/teacher_yellow_correct_1.png',
+          '/assets/guide/teacher_yellow_correct_2.png',
+          '/assets/guide/teacher_yellow_correct_3.png',
         ];
         const activeHappySprites = isYellow
           ? yellowHappySprites
@@ -1067,7 +1134,9 @@ class StudentArcadeGame {
           '/assets/guide/teacher_gevina_incorrect_3.png',
         ];
         const yellowSadSprites = [
-          '/assets/guide/teacher_yellow_sad.png',
+          '/assets/guide/teacher_yellow_incorrect_1.png',
+          '/assets/guide/teacher_yellow_incorrect_2.png',
+          '/assets/guide/teacher_yellow_incorrect_3.png',
         ];
         const activeSadSprites = isYellow
           ? yellowSadSprites

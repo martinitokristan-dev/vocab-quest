@@ -207,14 +207,14 @@ function setIdleAnimation(
 ): TeacherAnimationTimers {
   if (state.submitResult?.is_correct) {
     const happySrc = isYellow
-      ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_happy.png`)
+      ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_correct_1.png`)
       : isGevina
       ? (state.currentFeedbackSprite || `/assets/guide/teacher_gevina_correct_1.png`)
       : (state.currentFeedbackSprite || `/assets/guide/teacher_blue_correct_1.png`);
     setSpriteSrc(spriteImg, mobileSpriteImg, happySrc, 'celebrating');
   } else if (state.wrongAnswerIds.length > 0) {
     const sadSrc = isYellow
-      ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_sad.png`)
+      ? (state.currentFeedbackSprite || `/assets/guide/teacher_yellow_incorrect_1.png`)
       : isGevina
       ? (state.currentFeedbackSprite || `/assets/guide/teacher_gevina_incorrect_1.png`)
       : (state.currentFeedbackSprite || `/assets/guide/teacher_blue_incorrect_1.png`);

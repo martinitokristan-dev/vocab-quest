@@ -32,8 +32,8 @@ export const AVATARS: Avatar[] = [
   { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
   { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
   { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'morena-girl', label: 'Sporty Girl', image: '/assets/morena_girl.png' },
-  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/moreno_boy.png' },
+  { slug: 'sporty-girl', label: 'Sporty Girl', image: '/assets/sporty_girl.png' },
+  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/explorer_boy.png' },
 ];
 
 /**
@@ -42,5 +42,7 @@ export const AVATARS: Avatar[] = [
  * @returns Avatar object or first avatar if not found
  */
 export function getAvatarBySlug(slug: string): Avatar {
+  if (slug === 'moreno-boy') slug = 'explorer-boy';
+  if (slug === 'morena-girl') slug = 'sporty-girl';
   return AVATARS.find((a) => a.slug === slug) || AVATARS[0];
 }

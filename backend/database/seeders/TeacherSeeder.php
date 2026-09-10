@@ -31,7 +31,7 @@ class TeacherSeeder extends Seeder
                 'title'                          => 'EPCES Adventure Entrance',
                 'question_count'                 => 5,
                 'published'                      => true,
-                'background_url'                 => '/assets/kingdom_epces.jpg',
+                'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_1',
             ]
         );
@@ -53,7 +53,7 @@ class TeacherSeeder extends Seeder
                 'title'                          => 'Bayan ng Prosperidad',
                 'question_count'                 => 5,
                 'published'                      => true,
-                'background_url'                 => '/assets/kingdom_bayan.jpg',
+                'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_2',
             ]
         );
@@ -75,7 +75,7 @@ class TeacherSeeder extends Seeder
                 'title'                          => 'Provincial Capitol',
                 'question_count'                 => 5,
                 'published'                      => true,
-                'background_url'                 => '/assets/kingdom_capitol.jpg',
+                'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_3',
             ]
         );

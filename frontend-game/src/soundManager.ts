@@ -19,6 +19,9 @@ class SoundManager {
   };
 
   private currentVoiceAudio: HTMLMediaElement | null = null;
+  private bgmAudio: HTMLAudioElement | null = null;
+  private bgmDesired: boolean = false;
+  private defaultBgmSrc: string = '/assets/audio/BG-MUSIC-VQ.m4a';
   private bgmGain: GainNode | null = null;
   private isSpeechActive: boolean = false;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
@@ -62,6 +65,9 @@ class SoundManager {
       this.pendingAudioOnGesture = null;
       try { fn(); } catch (e) {}
     }
+    if (this.bgmAudio && this.bgmDesired && !this.settings.muted && this.getEffectiveBgmVolume() > 0 && this.bgmAudio.paused) {
+      this.bgmAudio.play().catch(() => {});
+    }
   }
 
   private initContext() {
@@ -101,6 +107,20 @@ class SoundManager {
       this.bgmGain.gain.setValueAtTime(vol * 0.15, this.ctx.currentTime);
     }
 
+    if (this.bgmAudio) {
+      const vol = this.getEffectiveBgmVolume();
+      this.bgmAudio.volume = vol;
+      this.bgmAudio.muted = this.settings.muted;
+
+      if (this.settings.muted || vol <= 0) {
+        if (!this.bgmAudio.paused) {
+          this.bgmAudio.pause();
+        }
+      } else if (this.bgmDesired && this.bgmAudio.paused && this.hasUserInteracted) {
+        this.bgmAudio.play().catch(() => {});
+      }
+    }
+
     if (this.currentVoiceAudio) {
       this.currentVoiceAudio.volume = this.getEffectiveSfxVolume();
       this.currentVoiceAudio.muted = this.settings.muted;
@@ -123,6 +143,71 @@ class SoundManager {
 
   public isNarrating(): boolean {
     return this.isSpeechActive || (Boolean(this.currentVoiceAudio) && !this.currentVoiceAudio?.paused);
+  }
+
+  // --- Background Music (BGM) Control ---
+  public playBgm(src?: string) {
+    if (typeof window === 'undefined') return;
+    this.bgmDesired = true;
+
+    const audioSrc = src || this.defaultBgmSrc;
+    if (!this.bgmAudio) {
+      this.bgmAudio = new Audio(audioSrc);
+      this.bgmAudio.loop = true;
+      this.bgmAudio.preload = 'auto';
+      // Seamless restart fallback when finished
+      this.bgmAudio.addEventListener('ended', () => {
+        if (this.bgmDesired && !this.settings.muted) {
+          this.bgmAudio?.play().catch(() => {});
+        }
+      });
+    } else if (src && !this.bgmAudio.src.endsWith(src)) {
+      this.bgmAudio.src = audioSrc;
+    }
+
+    const vol = this.getEffectiveBgmVolume();
+    this.bgmAudio.volume = vol;
+    this.bgmAudio.muted = this.settings.muted;
+
+    if (this.settings.muted || vol <= 0) {
+      return;
+    }
+
+    if (!this.hasUserInteracted) {
+      this.pendingAudioOnGesture = () => {
+        if (this.bgmDesired) {
+          this.playBgm(src);
+        }
+      };
+      return;
+    }
+
+    if (this.bgmAudio.paused) {
+      this.bgmAudio.play().catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('BGM play caught:', err);
+        }
+      });
+    }
+  }
+
+  public pauseBgm() {
+    this.bgmDesired = false;
+    if (this.bgmAudio && !this.bgmAudio.paused) {
+      this.bgmAudio.pause();
+    }
+  }
+
+  public stopBgm() {
+    this.bgmDesired = false;
+    if (this.bgmAudio) {
+      this.bgmAudio.pause();
+      this.bgmAudio.currentTime = 0;
+    }
+  }
+
+  public isBgmPlaying(): boolean {
+    return Boolean(this.bgmAudio && !this.bgmAudio.paused);
   }
 
   // --- Sound Effects using Web Audio API ---
@@ -560,6 +645,10 @@ class SoundManager {
     } else {
       this.wasPlayingBeforePause = false;
     }
+
+    if (this.bgmAudio && !this.bgmAudio.paused) {
+      this.bgmAudio.pause();
+    }
     
     // Also suspend AudioContext to stop all sound effects
     if (this.ctx && this.ctx.state === 'running') {
@@ -577,6 +666,11 @@ class SoundManager {
     // Resume voice audio if it was playing
     if (this.currentVoiceAudio && this.wasPlayingBeforePause) {
       this.currentVoiceAudio.play().catch(() => {});
+    }
+
+    // Resume BGM if desired and not muted
+    if (this.bgmAudio && this.bgmDesired && !this.settings.muted && this.getEffectiveBgmVolume() > 0 && this.bgmAudio.paused) {
+      this.bgmAudio.play().catch(() => {});
     }
   }
 
@@ -607,6 +701,10 @@ class SoundManager {
           playbackRate: 1.0,
         },
         'morena-girl': {
+          file: '/assets/audio/voice_sporty_girl.mp3',
+          playbackRate: 1.0,
+        },
+        'sporty-girl': {
           file: '/assets/audio/voice_sporty_girl.mp3',
           playbackRate: 1.0,
         },

@@ -19,9 +19,20 @@ def normalize_all_sprites():
         'teacher_blue_pose1.png',
         'teacher_blue_pose2.png',
         'teacher_yellow_pose1.png',
-        'teacher_yellow_pose2.png',
-        'teacher_yellow_happy.png',
-        'teacher_yellow_sad.png',
+        'teacher_yellow_guide_1.png',
+        'teacher_yellow_guide_2.png',
+        'teacher_yellow_correct_1.png',
+        'teacher_yellow_correct_2.png',
+        'teacher_yellow_correct_3.png',
+        'teacher_yellow_incorrect_1.png',
+        'teacher_yellow_incorrect_2.png',
+        'teacher_yellow_incorrect_3.png',
+        'teacher_lovely_guide_3.png',
+        'teacher_lovely_guide_4.png',
+        'teacher_lovely_guide_5.png',
+        'teacher_lovely_guide_6.png',
+        'teacher_annabelle_guide_7.png',
+        'teacher_annabelle_guide_8.png',
         'G1.png', 'G2.png', 'G3.png', 'G4.png', 'G5.png', 'G6.png', 'G7.png', 'G8.png', 'G9.png',
         'teacher_gevina_correct_1.png',
         'teacher_gevina_correct_2.png',
@@ -49,7 +60,7 @@ def normalize_all_sprites():
         new_w = int(crop_w * scale_factor)
         new_h = int(crop_h * scale_factor)
 
-        resized = crop.resize((new_w, new_h), Image.Resampling.NEAREST)
+        resized = crop.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
         # Center by the character's feet/standing centerline (TARGET_WIDTH / 2 = 200)
         import numpy as np
@@ -62,6 +73,16 @@ def normalize_all_sprites():
             paste_x = int(round((TARGET_WIDTH / 2.0) - feet_center))
         else:
             paste_x = (TARGET_WIDTH - new_w) // 2
+
+        # For dialogue guide sprites with wide outstretched arms, center bounding box with generous padding
+        if 'guide' in f and new_w > 300:
+            paste_x = (TARGET_WIDTH - new_w) // 2
+        else:
+            # Ensure sprite does not clip left or right edge of canvas
+            if paste_x < 4:
+                paste_x = 4
+            elif paste_x + new_w > TARGET_WIDTH - 4:
+                paste_x = TARGET_WIDTH - 4 - new_w
 
         paste_y = FEET_BASELINE_Y - new_h
 
@@ -78,7 +99,7 @@ def normalize_all_sprites():
         w, h = crop.size
         new_h = 705
         new_w = int(w * (new_h / h))
-        resized = crop.resize((new_w, new_h), Image.Resampling.NEAREST)
+        resized = crop.resize((new_w, new_h), Image.Resampling.LANCZOS)
         canvas = Image.new("RGBA", (TARGET_WIDTH, TARGET_HEIGHT), (0, 0, 0, 0))
         paste_x = (TARGET_WIDTH - new_w) // 2
         paste_y = FEET_BASELINE_Y - new_h
