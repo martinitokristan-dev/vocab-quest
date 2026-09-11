@@ -180,6 +180,10 @@ export class QuestionScreen {
 
       <!-- Top-Right Controls HUD (Fixed Top Right) -->
       <div class="candy-hud-top-right">
+        <button id="readQuestionBtn" class="candy-replay-btn candy-hud-interactive" title="Replay voice narration">
+          <span id="readQuestionIcon">${Icons.rotateCcw(16)}</span>
+          <span id="readQuestionText">REPLAY</span>
+        </button>
         <button id="questionPauseBtn" class="candy-menu-btn candy-hud-interactive" title="Pause Game Menu">
           <span>${Icons.pause(16)}</span>
           <span>MENU</span>
@@ -190,7 +194,7 @@ export class QuestionScreen {
         <!-- Dual Stage Layout: Centered Question Arena + Right Teacher Stage -->
         <div class="question-stage-layout">
           <!-- Centered Main Question Arena -->
-          <div class="question-arena-card ${isGevina || !question.image_url ? 'no-image-arena' : ''}">
+          <div class="question-arena-card ${isGevina || !question.image_url ? 'no-image-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
             ${isReview ? `
               <div style="margin-bottom: 12px; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border: 1.5px solid #F59E0B; border-radius: 14px; font-size: 14.5px; font-weight: 700; color: #FDE047; display: flex; align-items: center; justify-content: space-between;">
                 <span>⭐ COMPLETED QUESTION REVIEW (READ-ONLY)</span>
@@ -212,13 +216,6 @@ export class QuestionScreen {
                 <div class="mobile-teacher-author">${teacherName}</div>
                 <div class="mobile-teacher-speech-text" id="mobileTeacherSpeech">"${teacherSpeech}"</div>
               </div>
-            </div>
-
-            <div class="question-arena-header">
-              <button id="readQuestionBtn" class="hud-btn question-replay-btn" title="Replay voice narration">
-                <span id="readQuestionIcon">${Icons.rotateCcw(18)}</span>
-                <span id="readQuestionText">REPLAY</span>
-              </button>
             </div>
 
 
@@ -358,8 +355,7 @@ export class QuestionScreen {
         if (isSpeaking) {
           readIcon.innerHTML = Icons.stop(18);
           readText.textContent = 'STOP';
-          readBtn.style.background = '#DC2626';
-          readBtn.style.borderColor = '#EF4444';
+          readBtn.classList.add('btn-speaking');
 
           const listenText = `"Listen carefully, ${studentName}..."`;
           if (desktopBubble) desktopBubble.textContent = listenText;
@@ -367,8 +363,9 @@ export class QuestionScreen {
         } else {
           readIcon.innerHTML = Icons.rotateCcw(18);
           readText.textContent = 'REPLAY';
-          readBtn.style.background = '#059669';
-          readBtn.style.borderColor = '#047857';
+          readBtn.classList.remove('btn-speaking');
+          readBtn.style.background = '';
+          readBtn.style.borderColor = '';
 
           let currentSpeech = `Take your time, ${studentName}! Choose wisely.`;
           if (isReview) {

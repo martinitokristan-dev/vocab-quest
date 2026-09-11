@@ -524,7 +524,7 @@ export const ImageResizerPage: React.FC = () => {
             <div className="bg-[#0284C7] p-4 sm:p-6 rounded-2xl shadow-inner">
               <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-md mx-auto shadow-md">
                 {/* Visual Clue Card */}
-                <div className="w-full max-w-[420px] h-[210px] bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-xl overflow-hidden flex items-center justify-center mx-auto mb-3 p-1">
+                <div className="w-full max-w-[420px] aspect-[16/9] bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-xl overflow-hidden flex items-center justify-center mx-auto mb-3">
                   {previewDataUrl ? (
                     <img
                       src={previewDataUrl}
