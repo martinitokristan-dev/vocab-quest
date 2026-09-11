@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
@@ -23,7 +23,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+(globalThis as any).IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -34,7 +34,7 @@ global.IntersectionObserver = class IntersectionObserver {
 } as any;
 
 // Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
+(globalThis as any).ResizeObserver = class ResizeObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -42,18 +42,18 @@ global.ResizeObserver = class ResizeObserver {
 } as any;
 
 // Mock URL.createObjectURL and URL.revokeObjectURL
-global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
-global.URL.revokeObjectURL = vi.fn();
+(globalThis as any).URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+(globalThis as any).URL.revokeObjectURL = vi.fn();
 
 // Mock MediaStream
-global.MediaStream = class MediaStream {
+(globalThis as any).MediaStream = class MediaStream {
   getTracks() {
     return [{ stop: vi.fn(), kind: 'audio' }];
   }
 } as any;
 
 // Mock BroadcastChannel
-global.BroadcastChannel = class BroadcastChannel {
+(globalThis as any).BroadcastChannel = class BroadcastChannel {
   name: string;
   onmessage: ((event: any) => void) | null = null;
   private messageListeners = new Set<(event: any) => void>();
@@ -94,13 +94,17 @@ global.BroadcastChannel = class BroadcastChannel {
 } as any;
 
 // Mock MediaRecorder
-global.MediaRecorder = class MediaRecorder {
+(globalThis as any).MediaRecorder = class MediaRecorder {
   ondataavailable: ((event: any) => void) | null = null;
   onstop: (() => void) | null = null;
   onerror: ((event: any) => void) | null = null;
   state: 'inactive' | 'recording' | 'paused' = 'inactive';
 
-  constructor(public stream: MediaStream) {}
+  stream: MediaStream;
+
+  constructor(stream: MediaStream) {
+    this.stream = stream;
+  }
 
   start() {
     this.state = 'recording';
@@ -119,7 +123,7 @@ global.MediaRecorder = class MediaRecorder {
     this.state = 'recording';
   }
 
-  static isTypeSupported(type: string): boolean {
+  static isTypeSupported(_type: string): boolean {
     return true;
   }
 } as any;
@@ -141,7 +145,7 @@ Object.defineProperty(navigator, 'mediaDevices', {
 });
 
 // Mock Audio element
-global.Audio = class Audio {
+(globalThis as any).Audio = class Audio {
   public src: string = '';
   public volume: number = 1;
   public paused: boolean = true;
@@ -166,3 +170,4 @@ global.Audio = class Audio {
 
   load() {}
 } as any;
+
