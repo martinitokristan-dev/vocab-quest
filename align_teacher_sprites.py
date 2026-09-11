@@ -91,21 +91,6 @@ def normalize_all_sprites():
         canvas.save(p, "PNG")
         print(f"Normalized {f} -> bbox {canvas.getbbox()}, paste_x={paste_x}")
 
-    # Normalize correct 1 (clapping celebration) to match head/body height
-    correct1_path = os.path.join(guide_dir, "teacher_blue_correct_1.png")
-    if os.path.exists(correct1_path):
-        img = Image.open(correct1_path).convert("RGBA")
-        crop = img.crop(img.getbbox())
-        w, h = crop.size
-        new_h = 705
-        new_w = int(w * (new_h / h))
-        resized = crop.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        canvas = Image.new("RGBA", (TARGET_WIDTH, TARGET_HEIGHT), (0, 0, 0, 0))
-        paste_x = (TARGET_WIDTH - new_w) // 2
-        paste_y = FEET_BASELINE_Y - new_h
-        canvas.paste(resized, (paste_x, paste_y), resized)
-        canvas.save(correct1_path, "PNG")
-        print(f"Normalized teacher_blue_correct_1.png -> bbox {canvas.getbbox()}")
 
 if __name__ == '__main__':
     normalize_all_sprites()
