@@ -1834,6 +1834,49 @@ body {
   box-shadow: 0 1px 4px rgba(217, 119, 6, 0.2);
 }
 
+/* Sleek Minimalist Replay Button for Top HUD */
+.candy-replay-btn {
+  background: #10B981;
+  border: 2px solid #059669;
+  border-bottom: 3.5px solid #047857;
+  border-radius: 999px;
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #FFFFFF;
+  font-family: var(--font-primary), sans-serif;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.candy-replay-btn:hover {
+  transform: translateY(-1.5px);
+  background: #059669;
+  box-shadow: 0 5px 14px rgba(16, 185, 129, 0.35);
+}
+
+.candy-replay-btn:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 2px;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.2);
+}
+
+.candy-replay-btn.btn-speaking,
+.question-replay-btn.btn-speaking {
+  background: #DC2626 !important;
+  border-color: #B91C1C !important;
+  border-bottom-color: #991B1B !important;
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.35) !important;
+  color: #FFFFFF !important;
+}
+
 /* Floating Kingdom Banner / Sleek Nav Pill */
 .candy-zone-pill {
   background: #FFFFFF;
@@ -2661,9 +2704,10 @@ button.candy-zone-pill:active,
   align-items: center;
   justify-content: center;
   gap: clamp(16px, 2.8vw, 36px);
-  max-width: 1200px;
+  max-width: 1240px;
   width: 100%;
   margin: auto auto;
+  transform: translateX(clamp(20px, 3.5vw, 60px));
   position: relative;
   z-index: 10;
 }
@@ -2731,26 +2775,44 @@ button.candy-zone-pill:active,
 /* Question Visual Clue */
 .question-visual-clue-card {
   width: 100%;
-  max-width: 520px;
-  height: 300px;
+  max-width: 100%;
+  height: clamp(330px, 46vh, 420px);
   background: #F8FAFC;
   border: 1.5px solid #E2E8F0;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 8px auto;
-  padding: 6px;
+  padding: 0;
 }
 
 .question-visual-clue-img {
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  border-radius: 10px;
+  max-height: 100%;
+  object-fit: fill;
+  border-radius: 14px;
+  display: block;
+}
+
+/* Kingdom 3 Enlarge Clue Image Container */
+.question-arena-card.kingdom-3-arena .question-visual-clue-card {
+  width: 100%;
+  max-width: 100%;
+  height: clamp(370px, 52vh, 470px);
+  margin: 0 auto 8px auto;
+  padding: 0;
+}
+
+.question-arena-card.kingdom-3-arena .question-visual-clue-img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: fill;
 }
 
 /* Full Width Sentence Box */
@@ -3134,6 +3196,7 @@ button.candy-zone-pill:active,
   .question-stage-layout {
     gap: 18px;
     width: 96vw;
+    transform: none;
   }
 
   .question-teacher-stage {
@@ -3188,6 +3251,7 @@ button.candy-zone-pill:active,
   }
 
   .candy-menu-btn,
+  .candy-replay-btn,
   .candy-zone-pill {
     min-height: 40px;
     padding: 6px 12px;
@@ -3252,6 +3316,11 @@ button.candy-zone-pill:active,
   .question-visual-clue-card {
     height: clamp(120px, 20vh, 160px);
     margin-bottom: 6px;
+  }
+
+  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
+    height: clamp(190px, 28vh, 270px);
+    max-width: 100%;
   }
 
   .question-visual-clue-img {
@@ -3474,7 +3543,8 @@ button.candy-zone-pill:active,
   }
 
   .candy-zone-pill,
-  .candy-menu-btn {
+  .candy-menu-btn,
+  .candy-replay-btn {
     min-height: 42px;
     /* Meets mobile touch requirement */
     padding: 6px 12px;
@@ -3486,7 +3556,8 @@ button.candy-zone-pill:active,
   }
 
   .candy-zone-pill svg,
-  .candy-menu-btn svg {
+  .candy-menu-btn svg,
+  .candy-replay-btn svg {
     width: 15px;
     height: 15px;
   }
@@ -3519,6 +3590,11 @@ button.candy-zone-pill:active,
   .question-visual-clue-card {
     height: clamp(140px, 24vh, 200px);
     margin-bottom: 6px;
+  }
+
+  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
+    height: clamp(190px, 28vh, 260px);
+    max-width: 100%;
   }
 
   .sentence-box {
@@ -3613,6 +3689,12 @@ button.candy-zone-pill:active,
     right: max(8px, env(safe-area-inset-right, 8px));
   }
 
+  .candy-replay-btn {
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 11.5px;
+  }
+
   .question-arena-card {
     padding: 8px 12px;
     gap: 6px;
@@ -3627,6 +3709,11 @@ button.candy-zone-pill:active,
   .question-visual-clue-card {
     height: 100px;
     margin-bottom: 4px;
+  }
+
+  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
+    height: 140px;
+    max-width: 100%;
   }
 
   .sentence-box {
