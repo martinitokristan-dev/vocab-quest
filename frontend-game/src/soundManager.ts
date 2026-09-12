@@ -24,6 +24,8 @@ class SoundManager {
   private defaultBgmSrc: string = '/assets/audio/BG-MUSIC-VQ.m4a';
   private bgmGain: GainNode | null = null;
   private isSpeechActive: boolean = false;
+  private isDucked: boolean = false;
+  private duckVolume: number = 0.19;
   private speakingListeners: Array<(isSpeaking: boolean) => void> = [];
   private wasPlayingBeforePause: boolean = false;
   private hasUserInteracted: boolean = false;
@@ -208,6 +210,64 @@ class SoundManager {
 
   public isBgmPlaying(): boolean {
     return Boolean(this.bgmAudio && !this.bgmAudio.paused);
+  }
+
+  /**
+   * Duck BGM to a low volume for guide/welcoming dialogues.
+   * BGM keeps playing — only the volume is reduced.
+   * @param targetVolume - fraction of EFFECTIVE bgm volume (0–1). Default 0.19 (~19%).
+   */
+  public duckBgm(targetVolume: number = this.duckVolume) {
+    if (this.settings.muted) return;
+    this.isDucked = true;
+    this.duckVolume = targetVolume;
+    const effectiveFull = this.getEffectiveBgmVolume();
+    const duckedVol = Math.max(0, Math.min(1, effectiveFull * targetVolume));
+
+    if (!this.bgmAudio) return;
+
+    // Ensure BGM is playing first
+    if (this.bgmAudio.paused && this.bgmDesired && this.hasUserInteracted) {
+      this.bgmAudio.play().catch(() => {});
+    }
+
+    // Smooth fade-down using a tiny interval (10 steps over ~300ms)
+    this._fadeBgmTo(duckedVol, 300);
+  }
+
+  /**
+   * Restore BGM to its full effective volume after ducking.
+   */
+  public unduckBgm() {
+    if (!this.isDucked) return;
+    this.isDucked = false;
+    const effectiveFull = this.getEffectiveBgmVolume();
+    if (this.bgmAudio && !this.bgmAudio.paused) {
+      this._fadeBgmTo(effectiveFull, 400);
+    } else if (this.bgmAudio) {
+      this.bgmAudio.volume = effectiveFull;
+    }
+  }
+
+  /** Internal: smoothly fade bgmAudio.volume to `targetVol` over `durationMs` */
+  private _fadeBgmTo(targetVol: number, durationMs: number) {
+    if (!this.bgmAudio) return;
+    const steps = 12;
+    const interval = durationMs / steps;
+    const startVol = this.bgmAudio.volume;
+    const delta = (targetVol - startVol) / steps;
+    let step = 0;
+
+    const tick = setInterval(() => {
+      if (!this.bgmAudio) { clearInterval(tick); return; }
+      step++;
+      const next = startVol + delta * step;
+      this.bgmAudio.volume = Math.max(0, Math.min(1, next));
+      if (step >= steps) {
+        this.bgmAudio.volume = targetVol;
+        clearInterval(tick);
+      }
+    }, interval);
   }
 
   // --- Sound Effects using Web Audio API ---
