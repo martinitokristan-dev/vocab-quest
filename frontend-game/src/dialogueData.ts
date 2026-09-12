@@ -91,7 +91,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
         text: 'Welcome to Agusan del Sur Provincial Capitol Kingdom! This is the Difficult Round in the quest. In level 11-15, you will be reading a short story. Then, read each meaning. Look at the sentence marked with the [number]. Find the word in that sentence that matches the meaning. Then, type the word you found.',
         characterImage: '/assets/guide/teacher_annabelle_guide_7.png',
         buttonText: 'NEXT ▶',
-        audioUrl: '/assets/audio/7-guide-sarausas2.m4a',
+        audioUrl: '/assets/audio/7-guide-sarausas2.mp4',
       },
       {
         speaker: 'Teacher Annabelle',
