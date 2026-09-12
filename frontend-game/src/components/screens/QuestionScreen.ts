@@ -10,6 +10,7 @@ interface QuestionScreenProps {
   avatarSlug: string;
   avatarImage: string;
   totalStars: number;
+  activeMapId: number;
   question: any;
   isReview: boolean;
   viewingHistoryItem: any;
@@ -66,7 +67,7 @@ export class QuestionScreen {
     }
 
     const isIdentification = (question.question_type === 'identification') || (!question.answers || question.answers.length === 0);
-    const activeMapId = question.map?.id || 1;
+    const activeMapId = this.props.activeMapId || question.map?.id || 1;
     const isYellow = activeMapId === 3;
     const isGevina = activeMapId === 2;
     const teacherName = isYellow ? 'Teacher Yanna' : isGevina ? 'Teacher Gevina' : 'Teacher Faith';
@@ -102,7 +103,9 @@ export class QuestionScreen {
 
     let teacherSpeech = '';
     if (isReview) {
-      teacherSpeech = `Great job! You mastered this question challenge!`;
+      const starsEarned = viewingHistoryItem?.stars;
+      const starsText = starsEarned ? ` (${starsEarned}★ earned)` : '';
+      teacherSpeech = `You've already completed this question${starsText}! You can review it in read-only mode.`;
     } else if (submitResult) {
       teacherSpeech = customMascotSpeech || (submitResult.is_correct
         ? 'Great job! Moving to the next challenge!'
@@ -112,7 +115,10 @@ export class QuestionScreen {
     } else if (willAutoNarrate || soundManager.isNarrating()) {
       teacherSpeech = `Listen carefully, ${studentName}...`;
     } else {
-      teacherSpeech = `Take your time, ${studentName}! Choose wisely.`;
+      const highlightedWordHtml = currentWord ? `<span class="highlighted-word">${currentWord}</span>` : '';
+      teacherSpeech = currentWord
+        ? `What does the ${highlightedWordHtml} means?`
+        : `Take your time, ${studentName}! Choose wisely.`;
     }
 
     const baseIdleSprite = isYellow 
@@ -194,14 +200,7 @@ export class QuestionScreen {
         <!-- Dual Stage Layout: Centered Question Arena + Right Teacher Stage -->
         <div class="question-stage-layout">
           <!-- Centered Main Question Arena -->
-          <div class="question-arena-card ${isGevina || !question.image_url ? 'no-image-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
-            ${isReview ? `
-              <div style="margin-bottom: 12px; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border: 1.5px solid #F59E0B; border-radius: 14px; font-size: 14.5px; font-weight: 700; color: #FDE047; display: flex; align-items: center; justify-content: space-between;">
-                <span>⭐ COMPLETED QUESTION REVIEW (READ-ONLY)</span>
-                <span>${viewingHistoryItem?.stars || 3} STARS EARNED</span>
-              </div>
-            ` : ''}
-
+          <div class="question-arena-card ${isGevina || !question.image_url ? 'no-image-arena' : ''} ${isGevina ? 'kingdom-2-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
             <!-- Mobile Teacher Mascot Strip (visible on mobile <= 860px) -->
             <div class="mobile-teacher-strip" id="mobileTeacherStrip">
               <div class="mobile-teacher-avatar-box">
@@ -224,6 +223,12 @@ export class QuestionScreen {
             ${(!isGevina && question.image_url) ? `
               <div class="question-visual-clue-card">
                 <img src="${question.image_url}" alt="Question visual clue" class="question-visual-clue-img" />
+              </div>
+            ` : ''}
+
+            ${isGevina ? `
+              <div class="kingdom-2-challenge-badge">
+                <span>CONTEXT CLUE CHALLENGE</span>
               </div>
             ` : ''}
 
@@ -358,8 +363,8 @@ export class QuestionScreen {
           readBtn.classList.add('btn-speaking');
 
           const listenText = `"Listen carefully, ${studentName}..."`;
-          if (desktopBubble) desktopBubble.textContent = listenText;
-          if (mobileBubble) mobileBubble.textContent = listenText;
+          if (desktopBubble) desktopBubble.innerHTML = listenText;
+          if (mobileBubble) mobileBubble.innerHTML = listenText;
         } else {
           readIcon.innerHTML = Icons.rotateCcw(18);
           readText.textContent = 'REPLAY';
@@ -367,9 +372,15 @@ export class QuestionScreen {
           readBtn.style.background = '';
           readBtn.style.borderColor = '';
 
-          let currentSpeech = `Take your time, ${studentName}! Choose wisely.`;
+          const currentWord = (question.highlighted_word || question.target_word || question.word || '')?.trim();
+          const highlightedWordHtml = currentWord ? `<span class="highlighted-word">${currentWord}</span>` : '';
+          let currentSpeech = currentWord
+            ? `What does the ${highlightedWordHtml} means?`
+            : `Take your time, ${studentName}! Choose wisely.`;
           if (isReview) {
-            currentSpeech = 'Great job! You mastered this question challenge!';
+            const starsEarned = this.props.viewingHistoryItem?.stars;
+            const starsText = starsEarned ? ` (${starsEarned}★ earned)` : '';
+            currentSpeech = `You've already completed this question${starsText}! You can review it in read-only mode.`;
           } else if (submitResult) {
             currentSpeech = this.props.customMascotSpeech || (submitResult.is_correct
               ? 'Great job! Moving to the next challenge!'
@@ -379,8 +390,8 @@ export class QuestionScreen {
           }
 
           const idleText = `"${currentSpeech}"`;
-          if (desktopBubble) desktopBubble.textContent = idleText;
-          if (mobileBubble) mobileBubble.textContent = idleText;
+          if (desktopBubble) desktopBubble.innerHTML = idleText;
+          if (mobileBubble) mobileBubble.innerHTML = idleText;
         }
       }
     };

@@ -441,27 +441,47 @@ class StudentArcadeGame {
 
   /**
    * Synchronize background music (BGM) playback with the active game state:
-   * - Only plays on Home / Title Screen and World Map (when idle without activities).
-   * - Automatically pauses when any menu/modal is open, on guide dialogues, during teacher pause,
-   *   or on other screens (questions, join, loading, completed).
+   * - Plays at full volume on Title Screen and World Map (idle).
+   * - Ducks to ~19% volume during guide/welcoming dialogues so BGM plays softly
+   *   under the voiceover without overpowering it.
+   * - Fully pauses on modals (Settings, How-To-Play, Pause Menu), teacher pause,
+   *   and non-map/title screens (question, join, loading, completed).
    */
   private syncBgmState() {
-    // 1. Modals / Menus that mute BGM
+    // 1. Modals / Menus that fully mute BGM
     const isModalOpen =
       Boolean(this.state.isHowToPlayOpen) ||
       Boolean(this.state.isSettingsOpen) ||
       Boolean(this.state.isPauseMenuOpen);
 
-    // 2. Guide / dialogue slides that mute BGM
+    // 2. Guide / welcoming dialogue — BGM ducks to low volume, does NOT stop
     const isGuideOpen = Boolean(this.state.isDialogueOpen);
 
-    // 3. Teacher pause overlay that mutes BGM
+    // 3. Teacher pause overlay that fully mutes BGM
     const isTeacherPaused = Boolean(this.state.isTeacherPaused);
 
-    if (isModalOpen || isGuideOpen || isTeacherPaused) {
+    // Hard-stop cases: modals or teacher pause
+    if (isModalOpen || isTeacherPaused) {
+      soundManager.unduckBgm(); // clear duck state before pausing
       soundManager.pauseBgm();
       return;
     }
+
+    // Duck case: guide/welcoming dialogue is open — play BGM at ~19% of normal volume
+    if (isGuideOpen) {
+      // Make sure BGM is running on an allowed screen before ducking
+      if (this.state.screen === 'title' || this.state.screen === 'world_map') {
+        soundManager.playBgm();   // ensure BGM is started/resumed
+        soundManager.duckBgm(0.19); // fade down to 19% of effective volume
+      } else {
+        soundManager.unduckBgm();
+        soundManager.pauseBgm();
+      }
+      return;
+    }
+
+    // Guide closed — restore full BGM volume if it was ducked
+    soundManager.unduckBgm();
 
     // 4. Allowed screens: 'title' (Home) or 'world_map' (Map idle)
     if (this.state.screen === 'title') {
@@ -1646,6 +1666,7 @@ class StudentArcadeGame {
         avatarSlug: this.state.avatarSlug,
         avatarImage: avatar.image || '/assets/mascot_girl.png',
         totalStars,
+        activeMapId: this.state.currentData?.data?.map?.id || 1,
         question: q,
         isReview,
         viewingHistoryItem: this.state.viewingHistoryItem,
@@ -1695,6 +1716,7 @@ class StudentArcadeGame {
         avatarSlug: this.state.avatarSlug,
         avatarImage: avatar.image || '/assets/mascot_girl.png',
         totalStars,
+        activeMapId: this.state.currentData?.data?.map?.id || 1,
         question: q,
         isReview,
         viewingHistoryItem: this.state.viewingHistoryItem,
