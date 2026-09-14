@@ -1,3 +1,5 @@
+import { networkManager } from './networkManager';
+
 const RAW_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000').trim();
 export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
 export const API_BASE_URL = RAW_URL.endsWith('/api') ? RAW_URL : `${BACKEND_ORIGIN}/api`;
@@ -5,6 +7,8 @@ export const API_BASE_URL = RAW_URL.endsWith('/api') ? RAW_URL : `${BACKEND_ORIG
 export interface JoinGameResponse {
   message: string;
   token: string;
+  is_reconnect?: boolean;
+  room_status?: string;
   player: {
     name: string;
     avatar_slug: string;
@@ -140,12 +144,46 @@ class StudentGameApiClient {
     this.clearSession();
   }
 
-  clearSession() {
+  clearSession(pin?: string) {
     this.token = null;
     localStorage.removeItem('student_session_token');
     localStorage.removeItem('student_player_name');
     localStorage.removeItem('student_avatar_slug');
     localStorage.removeItem('student_pin');
+    this.clearLastScreen(pin);
+  }
+
+  saveLastScreen(screen: string, pin?: string) {
+    if (screen === 'question' || screen === 'world_map') {
+      localStorage.setItem('student_last_screen', screen);
+      if (pin) {
+        localStorage.setItem(`student_last_screen_${pin}`, screen);
+      }
+    }
+  }
+
+  getLastScreen(pin?: string): 'question' | 'world_map' | null {
+    if (pin) {
+      const pinSaved = localStorage.getItem(`student_last_screen_${pin}`);
+      if (pinSaved === 'question' || pinSaved === 'world_map') return pinSaved;
+    }
+    const saved = localStorage.getItem('student_last_screen');
+    return saved === 'question' || saved === 'world_map' ? saved : null;
+  }
+
+  clearLastScreen(pin?: string) {
+    localStorage.removeItem('student_last_screen');
+    if (pin) {
+      localStorage.removeItem(`student_last_screen_${pin}`);
+    }
+    const currentPin = localStorage.getItem('student_pin');
+    if (currentPin) {
+      localStorage.removeItem(`student_last_screen_${currentPin}`);
+    }
+  }
+
+  async ping(): Promise<boolean> {
+    return networkManager.checkConnectionNow();
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -163,10 +201,20 @@ class StudentGameApiClient {
       headers['X-Game-Session-Token'] = token;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (fetchErr: unknown) {
+      networkManager.reportRequestFailure(fetchErr);
+      throw fetchErr;
+    }
+
+    if (!networkManager.isOnline) {
+      networkManager.setOnline(true);
+    }
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
@@ -186,6 +234,10 @@ class StudentGameApiClient {
       if (response.status === 401) {
         this.clearToken();
         throw new Error(errorMessage || 'Unauthorized');
+      }
+
+      if (response.status >= 502 && response.status <= 504) {
+        networkManager.setOnline(false);
       }
 
       throw new Error(errorMessage);

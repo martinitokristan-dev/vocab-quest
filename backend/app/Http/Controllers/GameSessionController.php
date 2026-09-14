@@ -30,7 +30,15 @@ class GameSessionController extends Controller
             ]);
         }
 
-        if (! in_array($room->status, ['waiting', 'in_progress'])) {
+        $existingSession = GameSession::where('room_id', $room->id)
+            ->where('player_name', $validated['player_name'])
+            ->first();
+
+        // Allow joining if room is waiting/in_progress, OR if paused and student is reconnecting to existing session
+        $isAllowedStatus = in_array($room->status, ['waiting', 'in_progress'])
+            || ($room->status === 'paused' && $existingSession);
+
+        if (! $isAllowedStatus) {
             $readableStatus = match ($room->status) {
                 'in_progress' => 'In Progress',
                 'paused'      => 'Paused',
@@ -45,15 +53,11 @@ class GameSessionController extends Controller
 
         $currentCount = $room->gameSessions()->count();
         $maxStudents = $room->max_students ?? 40;
-        if ($currentCount >= $maxStudents) {
+        if (! $existingSession && $currentCount >= $maxStudents) {
             throw ValidationException::withMessages([
                 'pin' => ["Room is full ({$currentCount}/{$maxStudents} pupils). Ask your teacher to increase capacity or open another room."],
             ]);
         }
-
-        $existingSession = GameSession::where('room_id', $room->id)
-            ->where('player_name', $validated['player_name'])
-            ->first();
 
         if ($existingSession) {
             $authHeader = $request->header('Authorization');
@@ -68,11 +72,12 @@ class GameSessionController extends Controller
             // 1. Pupil has the same token (reconnecting from same device/browser)
             // 2. Room is in waiting lobby (game hasn't started or was reset)
             // 3. Pupil previously completed their game (playing again / restart)
-            // 4. Player is not actively playing in this room (tab closed / disconnected / reset)
+            // 4. Player is not actively playing in this room (tab closed / disconnected / brownout)
             if ($isSameToken || $isInWaitingLobby || $isCompleted || ! $isSessionActive) {
                 // If reconnecting from same browser session, keep token to avoid race conditions with in-flight requests
                 $newToken = ($isSameToken && ! empty($existingSession->token)) ? $existingSession->token : Str::random(60);
-                $isResetting = $isCompleted || $isInWaitingLobby || (! $isSameToken && ! $isSessionActive);
+                // In an active/in_progress game, reconnecting students preserve their score and answers!
+                $isResetting = $isCompleted || $isInWaitingLobby;
 
                 $existingSession->update([
                     'avatar_slug'    => $validated['avatar_slug'],
@@ -90,9 +95,11 @@ class GameSessionController extends Controller
                 Cache::put("session_active_{$existingSession->id}", now()->timestamp, 20);
 
                 return response()->json([
-                    'message' => 'Successfully joined game session.',
-                    'token'   => $newToken,
-                    'player'  => [
+                    'message'      => 'Successfully joined game session.',
+                    'token'        => $newToken,
+                    'is_reconnect' => ! $isResetting,
+                    'room_status'  => $room->status,
+                    'player'       => [
                         'name'        => $existingSession->player_name,
                         'avatar_slug' => $existingSession->avatar_slug,
                     ],
@@ -119,9 +126,11 @@ class GameSessionController extends Controller
             Cache::forget("room_results_{$room->id}");
 
             return response()->json([
-                'message' => 'Successfully joined game session.',
-                'token'   => $session->token,
-                'player'  => [
+                'message'      => 'Successfully joined game session.',
+                'token'        => $session->token,
+                'is_reconnect' => false,
+                'room_status'  => $room->status,
+                'player'       => [
                     'name'        => $session->player_name,
                     'avatar_slug' => $session->avatar_slug,
                 ],

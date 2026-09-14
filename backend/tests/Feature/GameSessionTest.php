@@ -237,3 +237,70 @@ test('wrong answer submissions accumulate wrong_answer_ids and return current_at
         ->assertJsonPath('data.current_attempt.attempts', 2)
         ->assertJsonPath('data.current_attempt.wrong_answer_ids', [$env['a1_wrong']->id, $a1_wrong2->id]);
 });
+
+test('student reconnecting after brownout preserves score and student answers in in_progress room', function () {
+    $env = setupGameRoom();
+    $env['room']->update(['status' => 'in_progress']);
+
+    // Student joins initially
+    $joinRes = $this->postJson('/api/game/join', [
+        'pin'         => '123456',
+        'player_name' => 'Maria',
+        'avatar_slug' => 'scholar',
+    ])->assertCreated();
+
+    $token = $joinRes->json('token');
+
+    // Answer Q1 correctly (gain 3 stars)
+    $this->withHeader('X-Game-Session-Token', $token)
+        ->postJson('/api/game/answer', [
+            'question_id' => $env['q1']->id,
+            'answer_id'   => $env['a1_correct']->id,
+            'stars'       => 3,
+        ])->assertOk();
+
+    $session = GameSession::where('room_id', $env['room']->id)->where('player_name', 'Maria')->first();
+    expect($session->score)->toBe(3);
+    expect($session->studentAnswers()->count())->toBe(1);
+
+    // Simulate PC brownout: session active cache expires
+    \Illuminate\Support\Facades\Cache::forget("session_active_{$session->id}");
+
+    // Student powers on PC and rejoins room with same name
+    $reconnectRes = $this->postJson('/api/game/join', [
+        'pin'         => '123456',
+        'player_name' => 'Maria',
+        'avatar_slug' => 'scholar',
+    ])->assertOk();
+
+    // Verify answers and score were NOT deleted/reset
+    $session->refresh();
+    expect($session->score)->toBe(3);
+    expect($session->studentAnswers()->count())->toBe(1);
+    expect($session->studentAnswers()->first()->is_correct)->toBeTrue();
+});
+
+test('student reconnecting to paused room is permitted', function () {
+    $env = setupGameRoom();
+    $env['room']->update(['status' => 'in_progress']);
+
+    $joinRes = $this->postJson('/api/game/join', [
+        'pin'         => '123456',
+        'player_name' => 'Carlos',
+        'avatar_slug' => 'scholar',
+    ])->assertCreated();
+
+    $session = GameSession::where('room_id', $env['room']->id)->where('player_name', 'Carlos')->first();
+    \Illuminate\Support\Facades\Cache::forget("session_active_{$session->id}");
+
+    // Teacher pauses room
+    $env['room']->update(['status' => 'paused']);
+
+    // Carlos reconnects while room is paused
+    $this->postJson('/api/game/join', [
+        'pin'         => '123456',
+        'player_name' => 'Carlos',
+        'avatar_slug' => 'scholar',
+    ])->assertOk();
+});
+

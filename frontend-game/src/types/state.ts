@@ -58,6 +58,8 @@ export interface StudentGameAppState {
   isSettingsOpen: boolean;
   isPauseMenuOpen: boolean;
   isTeacherPaused: boolean;
+  isConnectionLost: boolean;
+  isReconnecting: boolean;
   roomStatus: 'waiting' | 'in_progress' | 'paused' | 'closed' | string;
   loadingProgress: number; // 0 to 12 segments
   loadingTargetScreen: 'join' | 'world_map' | 'question';
