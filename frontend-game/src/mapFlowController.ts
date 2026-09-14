@@ -172,12 +172,19 @@ export function markKingdomEnteredStored(pin: string, kingdomId: number): void {
 }
 
 /** Wipe all client-side map/kingdom progress for a room PIN (teacher reset / fresh join). */
-export function clearMapFlowProgressForPin(pin: string): void {
-  if (!pin) return;
-  localStorage.removeItem(`seen_global_intro_${pin}`);
-  for (let id = 1; id <= 3; id++) {
-    localStorage.removeItem(`entered_kingdom_${pin}_k${id}`);
-    localStorage.removeItem(`seen_dialogue_${pin}_k${id}`);
+export function clearMapFlowProgressForPin(pin?: string | null): void {
+  const pinsToClear = new Set<string>();
+  if (pin) pinsToClear.add(pin);
+  pinsToClear.add('default');
+  pinsToClear.add('');
+
+  for (const p of pinsToClear) {
+    const suffix = p ? `_${p}` : '';
+    localStorage.removeItem(`seen_global_intro${suffix}`);
+    for (let id = 1; id <= 3; id++) {
+      localStorage.removeItem(`entered_kingdom${suffix}_k${id}`);
+      localStorage.removeItem(`seen_dialogue${suffix}_k${id}`);
+    }
   }
 }
 

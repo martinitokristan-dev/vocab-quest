@@ -20,6 +20,7 @@ import {
   globalLevelNumber,
   getStepRef,
   computeWalkPath,
+  computeInitialMapPhase,
   hydrateEnteredKingdomIds,
   markKingdomEnteredStored,
   markGlobalIntroSeen,
@@ -28,6 +29,7 @@ import {
   getFreshMapFlowState,
   buildKingdomTransitionAction,
 } from './mapFlowController';
+import { networkManager } from './networkManager';
 import { showStarBurstOverlay } from './starBurstOverlay';
 import { type StudentGameAppState } from './types/state';
 import { mergeHistoryWithCompleted } from './utils/history';
@@ -107,6 +109,8 @@ class StudentArcadeGame {
     isSettingsOpen: false,
     isPauseMenuOpen: false,
     isTeacherPaused: false,
+    isConnectionLost: false,
+    isReconnecting: false,
     roomStatus: 'waiting',
     loadingProgress: 0,
     loadingTargetScreen: 'join',
@@ -121,6 +125,7 @@ class StudentArcadeGame {
 
   private pollInterval: number | null = null;
   private loadingInterval: number | null = null;
+  private globalIntroTimer: number | null = null;
   private lastNarratedQuestionId: number | null = null;
   private teacherAnimationTimers = {
     mouthInterval: null as number | null,
@@ -138,6 +143,7 @@ class StudentArcadeGame {
     this.preloadTeacherAssets();
     this.loadFeedbackAudios();
     this.bindGlobalKeyboard();
+    this.bindNetworkStatus();
     this.initRouter();
 
     // Zero-overhead real-time event listener: instant sync with 0 timers and 0 extra RAM
@@ -318,10 +324,19 @@ class StudentArcadeGame {
       onHasToken: () => {
         // If we have a token, show loading animation while fetching data
         if (gameApi.getToken()) {
-          // Start loading animation with data fetch callback
-          this.startLoading('world_map', async () => {
-            // After loading animation completes, fetch current data
-            await this.fetchCurrentQuestion('world_map');
+          const profile = gameApi.getSessionProfile();
+          const lastScreen = gameApi.getLastScreen(profile.pin);
+          const targetScreen: 'world_map' | 'question' = lastScreen === 'question' ? 'question' : 'world_map';
+
+          const loader = this.startLoading(targetScreen, () => {
+            this.startLightweightPoller();
+          });
+
+          void this.fetchCurrentQuestion(targetScreen).then(() => {
+            loader?.markDataReady();
+          }).catch((err) => {
+            console.error('onHasToken fetch error:', err);
+            loader?.markDataReady();
           });
         }
       }
@@ -391,6 +406,9 @@ class StudentArcadeGame {
     }
 
     if (screenChanged) {
+      if (this.state.screen === 'question' || this.state.screen === 'world_map') {
+        gameApi.saveLastScreen(this.state.screen, this.state.pin);
+      }
       this.syncUrl(this.state.screen);
       this.render();
     } else if (modalChanged) {
@@ -502,7 +520,7 @@ class StudentArcadeGame {
     }
   }
 
-  private startLoading(targetScreen: 'join' | 'world_map' = 'join', onReady?: () => void) {
+  private startLoading(targetScreen: 'join' | 'world_map' | 'question' = 'join', onReady?: () => void) {
     if (this.loadingInterval) {
       clearInterval(this.loadingInterval);
       clearTimeout(this.loadingInterval);
@@ -556,21 +574,30 @@ class StudentArcadeGame {
 
   private handleSessionResetByTeacher(showToast = true) {
     const pin = this.state.pin || gameApi.getSessionProfile().pin || '';
-    if (pin) {
-      clearMapFlowProgressForPin(pin);
-      this.clearAllStoredAttempts(pin);
-    }
+    clearMapFlowProgressForPin(pin);
+    this.clearAllStoredAttempts(pin);
+    gameApi.clearSession(pin);
 
     if (this.mapRenderer) {
       this.mapRenderer.destroy();
       this.mapRenderer = null;
     }
+    if (this.worldMapScreen) {
+      this.worldMapScreen.destroy();
+      this.worldMapScreen = null;
+    }
+    if (this.questionScreen) {
+      this.questionScreen.destroy();
+      this.questionScreen = null;
+    }
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
-
-    gameApi.clearSession();
 
     this.setState({
       screen: 'join',
@@ -625,12 +652,41 @@ class StudentArcadeGame {
         const isLoadingScreen = this.state.screen === 'loading';
         const nextScreen = isLoadingScreen
           ? 'loading'
-          : (forceScreen || (isWaiting ? 'world_map' : (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen)));
+          : (isWaiting ? 'world_map' : (forceScreen || (shouldChangeScreen || isMapChanged ? 'world_map' : this.state.screen)));
 
         const pin = this.state.pin || 'default';
+
+        if (isWaiting) {
+          clearMapFlowProgressForPin(pin);
+          this.clearAllStoredAttempts(pin);
+          gameApi.clearLastScreen(pin);
+          mergedHistory = [];
+        }
+
         const activeMapId = res.data.map.id;
-        const enteredKingdomIds = hydrateEnteredKingdomIds(pin, mergedHistory, activeMapId);
-        const hasSeenGlobalIntro = isGlobalIntroSeen(pin);
+        const enteredKingdomIds = isWaiting ? [] : hydrateEnteredKingdomIds(pin, mergedHistory, activeMapId);
+        const hasSeenGlobalIntro = isWaiting ? false : isGlobalIntroSeen(pin);
+
+        // Returning player detection: ONLY valid if game is actively in-progress with recorded answers/score
+        const isReturningPlayer = !isWaiting && (mergedHistory.length > 0 || (res.data.session?.score || 0) > 0);
+        if (isReturningPlayer && !hasSeenGlobalIntro) {
+          markGlobalIntroSeen(pin);
+        }
+
+        const initialMapPhase = isWaiting
+          ? 'awaiting_kingdom_click'
+          : computeInitialMapPhase(
+              enteredKingdomIds,
+              activeMapId,
+              hasSeenGlobalIntro || isReturningPlayer
+            );
+
+        if (isReturningPlayer && (this.state.screen === 'loading' || this.state.screen === 'join')) {
+          const pName = this.state.playerName || gameApi.getSessionProfile().playerName;
+          if (pName) {
+            this.showToast('Welcome Back!', `Resuming your quest, ${pName}!`, 'info', 4500);
+          }
+        }
 
         // Restore persistent attempts & wrong answer IDs across reloads
         const storedAttempts = this.getStoredAttempts(pin);
@@ -672,8 +728,9 @@ class StudentArcadeGame {
           customMascotSpeech: speech,
           isTeacherPaused: isPaused,
           roomStatus: roomStatus,
+          mapPhase: initialMapPhase,
           enteredKingdomIds,
-          hasSeenGlobalIntro,
+          hasSeenGlobalIntro: hasSeenGlobalIntro || isReturningPlayer,
         });
       }
     } catch (err: any) {
@@ -756,27 +813,58 @@ class StudentArcadeGame {
       soundManager.playClick();
       this.setState({ error: null, submitting: true });
 
-      clearMapFlowProgressForPin(this.state.pin);
-      this.clearAllStoredAttempts(this.state.pin);
+      const joinRes = await gameApi.joinRoom(this.state.pin, this.state.playerName, this.state.avatarSlug);
+      const isReconnect = Boolean(joinRes.is_reconnect);
+      const roomStatus = joinRes.room_status || 'waiting';
+      const isWaiting = roomStatus === 'waiting';
 
-      await gameApi.joinRoom(this.state.pin, this.state.playerName, this.state.avatarSlug);
-      this.setState({
-        submitting: false,
-        history: [],
-        attempts: {},
-        score: 0,
-        currentData: null,
-        viewingHistoryItem: null,
-        roomStatus: 'waiting',
-        ...getFreshMapFlowState(),
-      });
+      let targetScreen: 'world_map' | 'question' = 'world_map';
 
-      const loader = this.startLoading('world_map', () => {
+      if (isReconnect && !isWaiting) {
+        // True mid-game reconnection (brownout / power loss / reload during active questions)
+        const lastScreen = gameApi.getLastScreen(this.state.pin);
+        targetScreen = lastScreen === 'question' ? 'question' : 'world_map';
+        this.setState({ submitting: false });
+      } else {
+        // Fresh join, reset pupils, or waiting lobby: fresh start with welcoming guide
+        clearMapFlowProgressForPin(this.state.pin);
+        this.clearAllStoredAttempts(this.state.pin);
+        gameApi.clearLastScreen(this.state.pin);
+
+        if (this.worldMapScreen) {
+          this.worldMapScreen.destroy();
+          this.worldMapScreen = null;
+        }
+        if (this.questionScreen) {
+          this.questionScreen.destroy();
+          this.questionScreen = null;
+        }
+
+        this.setState({
+          submitting: false,
+          history: [],
+          attempts: {},
+          score: 0,
+          currentData: null,
+          viewingHistoryItem: null,
+          selectedAnswerId: null,
+          submitResult: null,
+          wrongAnswerIds: [],
+          customMascotSpeech: null,
+          roomStatus: roomStatus,
+          isTeacherPaused: false,
+          isDialogueOpen: false,
+          dialogueSlideIndex: 0,
+          ...getFreshMapFlowState(),
+        });
+      }
+
+      const loader = this.startLoading(targetScreen, () => {
         this.startLightweightPoller();
       });
 
       // Fetch data in parallel while loader is preparing kingdom challenges
-      await this.fetchCurrentQuestion();
+      await this.fetchCurrentQuestion(targetScreen);
       loader?.markDataReady();
     } catch (err: any) {
       this.setState({ error: err.message || 'Failed to join game room', submitting: false });
@@ -820,7 +908,7 @@ class StudentArcadeGame {
   }
 
   private async handleSelectAnswer(answerId?: number | null, typedAnswer?: string | null) {
-    if (this.state.submitting || !this.state.currentData?.data || this.state.isTeacherPaused) return;
+    if (this.state.submitting || !this.state.currentData?.data || this.state.isTeacherPaused || this.state.isConnectionLost) return;
 
     this.state.submitting = true;
     soundManager.stopSpeech();
@@ -1262,6 +1350,10 @@ class StudentArcadeGame {
         this.handleSessionResetByTeacher(false);
         return;
       }
+      // Re-enable pointer events on answer cards so student can try again when connection restores
+      document.querySelectorAll('.answer-card').forEach((c) => {
+        (c as HTMLElement).style.pointerEvents = 'auto';
+      });
       this.setState({ error: err.message || 'Failed to submit answer', submitting: false });
     }
   }
@@ -1485,7 +1577,20 @@ class StudentArcadeGame {
       return;
     }
 
-    if (this.state.enteredKingdomIds.includes(kingdomId)) return;
+    if (this.state.enteredKingdomIds.includes(kingdomId)) {
+      if (kingdomId === activeMapId) {
+        soundManager.playClick();
+        this.lastNarratedQuestionId = null;
+        this.setState({
+          screen: 'question',
+          mapPhase: 'kingdom_active',
+          pendingMapAction: null,
+          viewingHistoryItem: null,
+          customMascotSpeech: null,
+        });
+      }
+      return;
+    }
 
     this.setState({ mapPhase: 'kingdom_enter_anim' });
 
@@ -1570,11 +1675,15 @@ class StudentArcadeGame {
     ) {
       return;
     }
-    setTimeout(() => {
+    if (this.globalIntroTimer !== null) {
+      clearTimeout(this.globalIntroTimer);
+    }
+    this.globalIntroTimer = window.setTimeout(() => {
+      this.globalIntroTimer = null;
       if (this.state.screen === 'world_map' && !this.state.isDialogueOpen) {
         this.openGlobalIntro();
       }
-    }, 600);
+    }, 450);
   }
 
   private openGlobalIntro() {
@@ -1648,6 +1757,7 @@ class StudentArcadeGame {
         mapFlowOptions: this.getMapFlowOptions(activeMapId),
         mapRenderer: this.mapRenderer
       });
+      this.maybeShowGlobalIntro();
     }
   }
 
@@ -1836,6 +1946,106 @@ class StudentArcadeGame {
     `;
 
     document.body.appendChild(overlay);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 📡 NETWORK STATUS MONITOR & CONNECTION LOST OVERLAY
+  // ─────────────────────────────────────────────────────────────────────────────
+  private bindNetworkStatus() {
+    networkManager.subscribe((isOnline) => {
+      const prevLost = this.state.isConnectionLost;
+      const connectionLost = !isOnline;
+
+      if (prevLost !== connectionLost) {
+        this.setState({
+          isConnectionLost: connectionLost,
+          isReconnecting: false,
+        });
+
+        if (connectionLost) {
+          soundManager.pauseAll();
+          soundManager.stopSpeech();
+          clearTeacherAnimationTimers(this.teacherAnimationTimers);
+          this.renderConnectionLostOverlay();
+        } else {
+          soundManager.resumeAll();
+          this.renderConnectionLostOverlay();
+
+          // Connected back! Re-fetch latest question and sync if in an active game session
+          if (gameApi.getToken() && this.state.screen !== 'join' && this.state.screen !== 'title') {
+            void this.fetchCurrentQuestion();
+          }
+          this.showToast('Connection Restored', 'You are back online. Resuming game!', 'success', 4000);
+        }
+      }
+    });
+  }
+
+  private renderConnectionLostOverlay() {
+    const OVERLAY_ID = 'connectionLostOverlay';
+    const existing = document.getElementById(OVERLAY_ID);
+    if (existing) existing.remove();
+
+    if (!this.state.isConnectionLost) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = OVERLAY_ID;
+    overlay.className = 'connection-lost-overlay';
+    overlay.innerHTML = `
+      <div class="connection-lost-card">
+        <div class="connection-lost-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+        </div>
+        <p class="connection-lost-title">Connection Interrupted</p>
+        <p class="connection-lost-subtitle">
+          Internet or brownout interruption detected. Don't worry — your game is paused safely and all your stars are saved!
+        </p>
+        <div class="connection-lost-badge">
+          <span class="connection-lost-dot"></span>
+          ${this.state.isReconnecting ? 'Testing connection...' : 'Waiting for connection...'}
+        </div>
+        <button id="retryConnectionBtn" class="connection-lost-btn" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l6 6"/>
+          </svg>
+          Retry Connection
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const retryBtn = document.getElementById('retryConnectionBtn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', async () => {
+        soundManager.playClick();
+        this.setState({ isReconnecting: true });
+        retryBtn.innerHTML = `
+          <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          Checking...
+        `;
+        const ok = await networkManager.checkConnectionNow();
+        if (!ok) {
+          soundManager.playWrong();
+          this.setState({ isReconnecting: false });
+          this.showToast('Still Offline', 'Could not reach server yet. Reconnecting automatically...', 'warning', 3000);
+          this.renderConnectionLostOverlay();
+        }
+      });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2029,7 +2239,14 @@ class StudentArcadeGame {
               this.questionScreen.destroy();
               this.questionScreen = null;
             }
-            this.clearAllStoredAttempts(this.state.pin);
+            if (this.worldMapScreen) {
+              this.worldMapScreen.destroy();
+              this.worldMapScreen = null;
+            }
+            const pin = this.state.pin;
+            clearMapFlowProgressForPin(pin);
+            this.clearAllStoredAttempts(pin);
+            gameApi.clearSession(pin);
             this.setState({
               isPauseMenuOpen: false,
               screen: 'title',
@@ -2040,6 +2257,7 @@ class StudentArcadeGame {
               submitResult: null,
               wrongAnswerIds: [],
               customMascotSpeech: null,
+              ...getFreshMapFlowState(),
             });
           },
           onClearPollInterval: () => {

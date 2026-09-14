@@ -1089,7 +1089,7 @@ export class Game2DMapRenderer {
         worldY >= k.y - k.height / 2 &&
         worldY <= k.y + k.height / 2
       ) {
-        if (k.clickable && !k.entered && this.onKingdomClickCallback) {
+        if (k.clickable && this.onKingdomClickCallback) {
           soundManager.playClick();
           this.onKingdomClickCallback(k.id);
           return;
