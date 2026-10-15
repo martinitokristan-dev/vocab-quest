@@ -2953,21 +2953,34 @@ button.candy-zone-pill:active,
   display: block;
 }
 
-/* Kingdom 3 Enlarge Clue Image Container */
+/* Context Clue Challenge (Kingdom 2 & 3) Image Container: Balanced to fit image + badge + sentence + 4 choices */
+.question-arena-card:has(.kingdom-2-challenge-badge) .question-visual-clue-card,
+.question-arena-card.kingdom-2-arena .question-visual-clue-card,
 .question-arena-card.kingdom-3-arena .question-visual-clue-card {
   width: 100%;
   max-width: 100%;
-  height: clamp(370px, 52vh, 470px);
-  margin: 0 auto 8px auto;
+  height: clamp(200px, 28vh, 270px);
+  margin: 0 auto 6px auto;
   padding: 0;
 }
 
+.question-arena-card:has(.kingdom-2-challenge-badge) .question-visual-clue-img,
+.question-arena-card.kingdom-2-arena .question-visual-clue-img,
 .question-arena-card.kingdom-3-arena .question-visual-clue-img {
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
-  object-fit: fill;
+  object-fit: contain;
+  background: #F1F5F9;
+}
+
+/* Kingdom 3 Golden Badge Theme */
+.question-arena-card.kingdom-3-arena .kingdom-2-challenge-badge {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border: 2px solid #D97706;
+  color: #92400E;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.2);
 }
 
 /* Full Width Sentence Box */
@@ -3563,10 +3576,6 @@ button.candy-zone-pill:active,
     margin-bottom: 6px;
   }
 
-  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
-    height: clamp(190px, 28vh, 270px);
-    max-width: 100%;
-  }
 
   .question-visual-clue-img {
     max-height: 100%;
@@ -3842,10 +3851,6 @@ button.candy-zone-pill:active,
     margin-bottom: 6px;
   }
 
-  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
-    height: clamp(190px, 28vh, 260px);
-    max-width: 100%;
-  }
 
   .sentence-box {
     padding: 10px 14px;
@@ -3961,10 +3966,6 @@ button.candy-zone-pill:active,
     margin-bottom: 4px;
   }
 
-  .question-arena-card.kingdom-3-arena .question-visual-clue-card {
-    height: 140px;
-    max-width: 100%;
-  }
 
   .sentence-box {
     padding: 6px 10px;
@@ -4137,6 +4138,79 @@ button.candy-zone-pill:active,
   overflow: hidden;
 }
 
+.star-burst-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.star-burst-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 12px 28px;
+  font-family: var(--font-primary), sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease;
+  outline: none;
+}
+
+.star-burst-btn:hover {
+  transform: translateY(-2px) scale(1.04);
+}
+
+.star-burst-btn:active {
+  transform: translateY(2px) scale(0.96);
+}
+
+.star-burst-btn-back {
+  background: #334155;
+  color: #F8FAFC;
+  border: 2px solid #64748B;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.15);
+}
+
+.star-burst-btn-back:hover {
+  background: #475569;
+  border-color: #94A3B8;
+}
+
+.star-burst-btn-continue {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #0F172A;
+  border: 2.5px solid #FDE68A;
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.6);
+  animation: star-continue-pulse 2s infinite ease-in-out;
+}
+
+.star-burst-btn-continue:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.7), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+}
+
+@keyframes star-continue-pulse {
+  0%, 100% {
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+  }
+  50% {
+    box-shadow: 0 8px 28px rgba(245, 158, 11, 0.75);
+  }
+}
+
+.star-btn-icon {
+  font-size: 14px;
+}
+
 @media (max-width: 640px) {
   .star-burst-panel {
     width: min(90vw, 330px);
@@ -4162,6 +4236,19 @@ button.candy-zone-pill:active,
     width: 60px;
     height: 60px;
     border-radius: 12px;
+  }
+
+  .star-burst-actions {
+    gap: 10px;
+    margin-top: 18px;
+    flex-direction: row;
+  }
+
+  .star-burst-btn {
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 14px;
+    flex: 1;
   }
 }
 

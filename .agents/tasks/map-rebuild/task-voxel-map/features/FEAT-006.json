@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Integration, documentation, full verification: PLAN.md steps 18-20. Factory in MAP\\src\\index.ts, minimal wiring in the listed game files, MAP\\tools\\verify.mjs for AC8-AC22, README.md with fidelity/perf numbers, wired-file list, backend follow-ups and limitations, final gate. Depends on FEAT-005.",
+  "status": "completed",
+  "steps": [
+    "PLAN.md step 18: MAP\\src\\index.ts createMapRenderer/isVoxelMapEnabled with soundManager hooks and PNG fallback; edit WorldMapScreen.ts, main.ts (re-grep map?.id|map.id first), mapFlowController.ts, dialogueData.ts, utils\\teacherAnimation.ts, components\\screens\\QuestionScreen.ts per DESIGN 19.2",
+    "PLAN.md step 19: MAP\\tools\\verify.mjs full browser run, screenshots K1 L1/L20/L45+gate, K2 L1/L45+gate, K3 L1/L45, no-PNG network log, 4x throttle fps, baked MB, reduced motion; real-game smoke with PIN 123456 if backend runnable (else say not verified); write MAP\\README.md; tick PLAN.md",
+    "PLAN.md step 20: final gate: build + map:test green, git status scoped to allowed paths, vocab-map.png and reference PNG untouched, temp files removed, no commit"
+  ],
+  "acceptance_criteria": [
+    "npm run build passes with 0 errors and npm run map:test passes",
+    "?map=png still loads the old renderer; default is voxel; construction failure falls back to PNG and sets sessionStorage vq_map_voxel_failed",
+    "No network request for vocab-map.png or vocab-quest-map.png when voxel mode is active (AC9)",
+    "README.md lists every file touched outside MAP, the run commands, API, measured fidelity and perf numbers, all 11 backend follow-ups and the required limitations",
+    "git status shows no change under backend\\ or frontend-portal\\, no deleted PNG, no commit created"
+  ],
+  "verification": [
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run build",
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run map:test",
+    "node MAP/tools/verify.mjs against npm run map:demo",
+    "git -C C:\\Users\\marti\\vocab-game status --short"
+  ],
+  "blocked_reason": null,
+  "findings": "Done, nothing committed. VERIFIED: npm run build 0 errors; npm run map:test 18 files / 88 tests pass (1 skipped); git status only package.json, package-lock.json, tsconfig.json, the 6 listed src files, .agents/, MAP/ (no backend/frontend-portal change, no PNG touched). verify.mjs against map:demo: screenshots K1 L1/L20/L45/gate, K2 L1/L45/gate, K3 L1/L45 in MAP/reference/compare/verify-*.png (K1 gate and K2 L1 viewed); no vocab-map.png/vocab-quest-map.png request (AC9); baked max 5 segments / ~40 MB (AC21); reduced motion 0 changed pixels (AC22); no page errors. NOT VERIFIED / FAILED: (1) AC20 4x-throttle medium gate: perf.mjs final runs 32.7 and 28.2 fps (gate 55; unthrottled 4.36-4.48 ms vs 2.64 earlier), verify.mjs 33.6 fps; low passes (46.7-54 fps). Earlier quiet-machine run passed at 60.9. No render code changed in between; load from dev server/backend likely but unproven, needs a re-run on a quiet machine. (2) Real-game smoke with PIN 123456 not run (backend on :8000 and dev server on :5173 appeared up, but no room/session was set up). (3) ?map=png and the fallback sessionStorage vq_map_voxel_failed path verified by code/build only, no browser load of the full game. (4) wiring in main.ts (kingdomIdOf, completedByKingdom, setAvailability) is type-checked only. Fidelity gate from FEAT-003 remains not met (41.2% blocks, checklist 32/52); listed in README limitations. README.md has run commands, API, files touched outside MAP, numbers, all 11 backend follow-ups and limitations."
+}

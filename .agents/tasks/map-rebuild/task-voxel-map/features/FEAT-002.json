@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Rendering engine and performance gate: PLAN.md steps 5-8. Voxel rasteriser/materials/sprite cache/text/flag sprites, terrain generation and bake pipeline (far-field rows, bake budget, queue, placeholder), VoxelWorldMap core with layers, camera, pointer/keyboard input, HUD skeleton, demo shell with compare-mode skeleton, and the milestone-0 perf spike. Depends on FEAT-001. Must pass the perf gate before FEAT-003 starts.",
+  "status": "completed",
+  "steps": [
+    "PLAN.md step 5: MAP\\src\\raster\\{voxelRaster,materials,spriteCache,text,flagSprite}.ts, MAP\\data\\models\\{types,props}.ts, tests\\raster.test.ts",
+    "PLAN.md step 6: MAP\\src\\gen\\{heightfield,carve,scatter,segmentScene}.ts, MAP\\src\\render\\{bakeBudget,bake,bakeQueue}.ts; tests farfield, bakeBudget, seam-noise",
+    "PLAN.md step 7: MAP\\src\\VoxelWorldMap.ts, render\\frame.ts, render\\layers\\{sky,objects,nodes,overlays}.ts, input\\{pointer,keyboard}.ts, hud\\{hud.ts,hud.css,icons.ts}; stub procedural scenes for all 21 segments so the whole world scrolls",
+    "PLAN.md step 8: MAP\\demo\\{index.html,main.ts,demo.css,vite.config.mjs} (relative imports only), ?compare=1 skeleton, MAP\\tools\\perf.mjs writing MAP\\tools\\perf-report.md; run the gate and record numbers in findings"
+  ],
+  "acceptance_criteria": [
+    "npm run map:test and npm run build pass",
+    "npm run map:demo serves the demo and the stub world scrolls top to bottom with no hairline seams or empty margins",
+    "Perf gate recorded in MAP\\tools\\perf-report.md: 1366x768 at K1 L20, unthrottled frame work <= 4.5 ms; 4x CPU throttle >= 55 fps medium, >= 30 fps low; if it fails the engine is fixed before completing this FEAT",
+    "Voxel code contains no reference to vocab-map.png or vocab-quest-map.png outside MAP\\demo",
+    "Canvas backing store uses min(devicePixelRatio,2) and destroy() is idempotent and releases bitmaps"
+  ],
+  "verification": [
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run map:test",
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run build",
+    "Start npm run map:demo in the background, run node MAP/tools/perf.mjs, view a screenshot of the scrolling stub world, then stop the server you started"
+  ],
+  "blocked_reason": null,
+  "findings": "Steps 5-8 implemented, nothing committed. map:test: 16 files / 75 tests pass (new: raster, farfield, bakeBudget, seamNoise); npm run build 0 errors (tsc includes MAP/demo/main.ts). PERF GATE (MAP/tools/perf-report.md, Edge headless via Playwright, 1366x768 DPR1, K1 L20, 3 segments baked, 18.8 MB): unthrottled frame work (medium) 1.29 ms (gate 4.5) PASS; 4x CPU throttle medium 114.2 fps, work 4.16 ms, worst frame 62.5 ms (gate 55) PASS; 4x throttle low 129.2 fps, work 3.76 ms, worst frame 34.7 ms (gate 30) PASS; pan unthrottled 1.13 ms; seam scan over 119 camera positions top to bottom: 0 frames with empty (black) pixels. Screenshots viewed: MAP/reference/compare/step8-{k1-l1,k1-l20,k1-l45,k2-l20,k3-l45}.png (K1 L20 and K3 L45 inspected: voxel terrain, cobble path, lakes, trees, pink nodes, avatar, HUD chip/recenter/dots render, K3 palette differs). Caveats: fps is JS/compositor-limited headless (rAF not vsync capped, so fps numbers are upper bounds; the 4x work ms ~4 ms is the more honest figure); frame work measures JS time only, not GPU raster. One 404 in page console (likely favicon). Design notes for later FEATs: (1) src/VoxelWorldMap.ts implements MapRenderer plus on(), setProgress, setAvailability, setQuality, setReducedMotion, setDebug, getStats, getNodePosition, getGlobalIndex, recenter, and demo helpers jumpToNode/getCamera/setCamera/isBaking/travelTo; entry/padlock/walk/kingdom-transition are basic skeletons (no gate doors, banner, walkPlan warp) for FEAT-005. (2) Terrain is global-lattice (18x10 cells, world-space noise) so segments tile exactly; K1 S1 far-field rows (gen/heightfield.farfieldRows) are baked in render/bake.ts but scatter/hand-placed scene is still stub procedural for all 21 segments. (3) Trees/bushes are drawn from sprites each frame (no sway yet); nodes are cached sprites (pink cube, number on front) with dynamic outlines. (4) Demo: npm run map:demo serves on port 5199 (strictPort), params ?k=&l=&quality=&reduced=1&compare=1 (compare loads the reference PNG, demo only). window.__map exposed. (5) Bake: scale from bakeBudget (medium 1366x768 -> 1.0), 12 ms row-sliced ticks, 1/8 placeholders, LRU prune. (6) Shell caveat: after I ran wmic to terminate the demo vite process, the execute tool stopped returning output, so I could NOT confirm the server on 5199 is stopped; it was started as a background node process (node node_modules/vite/bin/vite.js --config MAP/demo/vite.config.mjs) and the wmic terminate targeted it. Check port 5199 and kill any leftover node vite process."
+}

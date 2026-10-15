@@ -44,7 +44,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
       {
         speaker: 'Teacher Lovely',
         titleBadge: 'WELCOME TO EPCES KINGDOM — EASY ROUND!',
-        text: 'Welcome to EPCES Kingdom, the Easy Round! In level 1 to 5, you will see a picture that represents the box word. Look at the picture, read the sentence carefully, and choose the correct answer from the choices.',
+        text: 'Welcome to EPCES Kingdom, the Easy Round! In levels 1 to 40, you will see a picture that represents the box word. Look at the picture, read the sentence carefully, and choose the correct answer from the choices.',
         characterImage: '/assets/guide/teacher_lovely_guide_3.png',
         buttonText: 'NEXT ▶',
         audioUrl: '/assets/audio/third-guide-almendras2.m4a',
@@ -66,7 +66,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
       {
         speaker: 'Teacher Lovely',
         titleBadge: 'BAYAN NG PROSPERIDAD — AVERAGE ROUND!',
-        text: 'Welcome to Bayan ng Prosperidad Municipal Kingdom, the Average Round! This time, in level 6-10 there will be no picture to guide you, but the context clues - a hint will be underlined. Read the sentence carefully, look for the clues, and use them to figure out the meaning of the box word. Then, choose the best answer from the choices.',
+        text: 'Welcome to Bayan ng Prosperidad Municipal Kingdom, the Average Round! This time, in levels 1 to 40 there will be no picture to guide you, but the context clues - a hint will be underlined. Read the sentence carefully, look for the clues, and use them to figure out the meaning of the box word. Then, choose the best answer from the choices.',
         characterImage: '/assets/guide/teacher_lovely_guide_5.png',
         buttonText: 'NEXT ▶',
         audioUrl: '/assets/audio/fifth-guide-almendras2.m4a',
@@ -88,7 +88,7 @@ export const KINGDOM_DIALOGUES: Record<number, KingdomDialogue> = {
       {
         speaker: 'Teacher Annabelle',
         titleBadge: 'PROVINCIAL CAPITOL — DIFFICULT ROUND!',
-        text: 'Welcome to Agusan del Sur Provincial Capitol Kingdom! This is the Difficult Round in the quest. In level 11-15, you will be reading a short story. Then, read each meaning. Look at the sentence marked with the [number]. Find the word in that sentence that matches the meaning. Then, type the word you found.',
+        text: 'Welcome to Agusan del Sur Provincial Capitol Kingdom! This is the Difficult Round in the quest. In levels 1 to 40, you will be reading a short story. Then, read each meaning. Look at the sentence marked with the [number]. Find the word in that sentence that matches the meaning. Then, type the word you found.',
         characterImage: '/assets/guide/teacher_annabelle_guide_7.png',
         buttonText: 'NEXT ▶',
         audioUrl: '/assets/audio/7-guide-sarausas2.mp4',

@@ -1,0 +1,29 @@
+{
+  "project_type": "Vite + TypeScript single-page game (frontend-game), hand-rolled Canvas 2D map renderer in src/game2d.ts (class Game2DMapRenderer); Phaser 4 is listed in package.json but imported nowhere and must stay unused",
+  "language": "TypeScript 6 (strict-ish flags: noUnusedLocals, noUnusedParameters, erasableSyntaxOnly, verbatimModuleSyntax; no enums or parameter properties). Config/test/demo configs are plain .mjs",
+  "build_system": "Vite 8, no vite.config in FG root. tsconfig.json include is [\"src\"] and types [\"vite/client\"]; FEAT-001 changes include to [\"src\",\"MAP/src\",\"MAP/data\",\"MAP/demo/main.ts\"]. Windows cmd shell; run npm from C:\\Users\\marti\\vocab-game\\frontend-game",
+  "test_framework": "vitest (to be added, pinned devDependency, D10) for MAP/tests; Playwright (pinned devDependency, run through installed Edge with channel 'msedge', no browser download) for browser/fidelity/perf checks in MAP/tools/*.mjs",
+  "build_command": "npm run build   (= tsc && vite build, cwd frontend-game)",
+  "test_command": "npm run map:test   (= tsc -p MAP/tsconfig.tools.json --noEmit && vitest run --config MAP/vitest.config.mjs); demo: npm run map:demo; nodes regen: npm run map:nodes",
+  "verification_instructions": "After every FEAT: npm run build (0 errors) and npm run map:test green. Visual FEATs also owe Playwright screenshots saved in MAP\\reference\\compare\\ that the agent actually views and compares against MAP\\reference\\vocab-quest-map.png, with scores recorded in MAP\\tools\\check-checklist.md. Gates: milestone-0 perf (1366x768, K1 L20: <=4.5 ms unthrottled; 4x CPU throttle >=55 fps medium, >=30 fps low); fidelity (DESIGN 14.0: boxes within 24 units, nodes 1-13 within 12, >=75% of 48x48 blocks deltaE76<14 and mean<12, checklist items 14-26 = 2 and total >=50/56). Repo docs also require npm run build with 0 errors before finishing (GEMINI.md).",
+  "snapshot_or_generated_files": "MAP\\data\\nodes.ts and MAP\\data\\gates.ts are generated and committed-in-tree by npm run map:nodes (a test regenerates and fails on diff). MAP\\reference\\compare\\* screenshots/atlas are QA output, not shipped.",
+  "environment_constraints": "NO git commits and no pushes at all (user rule; overrides any default 'commit locally'). Do not edit src/game2d.ts, public/assets/*, MAP/reference/vocab-quest-map.png, backend/, frontend-portal/. Do not delete public/assets/vocab-map.png; do not restore PNGs into public/assets. Do not restart any existing dev server on a port you did not start. Stray empty frontend-game/copy and frontend-game/dir folders are not ours; leave them. Only MAP/src/index.ts may import from frontend-game/src (game2d, soundManager).",
+  "contribution_requirements": "Minimal wiring outside MAP only in: src/components/screens/WorldMapScreen.ts, src/main.ts, src/mapFlowController.ts, src/dialogueData.ts, src/utils/teacherAnimation.ts, src/components/screens/QuestionScreen.ts, tsconfig.json, package.json, package-lock.json; all listed in MAP\\README.md. Backend follow-ups go in README only (REQUIREMENTS.md section 8). Use pinned exact versions for new deps. Quicksand font, HUD text >=16px, no emojis in UI.",
+  "key_patterns": "game2d.ts: Canvas 2D RAF loop, pointer drag threshold 5px, wheel zoom, stations arrays, KINGDOM plaques, padlock, avatar walk at 150px/s with dust/bounce, soundManager hooks (playHover/playClick/playWrong/playStep/playSuccess/playWhoosh/playPadlockUnlock). mapFlowController.ts holds STEP_COORDS, MAP_OFFSETS {1:0,2:5,3:10}, KINGDOM_TRANSITION_PATHS, getStepRef modulo, globalLevelNumber, buildKingdomTransitionAction. main.ts uses map.id as kingdom number (becomes kingdomIdOf(map) = order_index). Map screen mounts into #canvasContainer via WorldMapScreen.",
+  "relevant_files": [
+    "C:\\Users\\marti\\vocab-game\\.agents\\tasks\\map-rebuild\\DESIGN.md",
+    "C:\\Users\\marti\\vocab-game\\.agents\\tasks\\map-rebuild\\REQUIREMENTS.md",
+    "C:\\Users\\marti\\vocab-game\\.agents\\tasks\\map-rebuild\\setup-note.md",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\MAP\\PLAN.md",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\game2d.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\mapFlowController.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\main.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\components\\screens\\WorldMapScreen.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\dialogueData.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\src\\soundManager.ts",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\tsconfig.json",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\package.json",
+    "C:\\Users\\marti\\vocab-game\\frontend-game\\MAP\\reference\\vocab-quest-map.png"
+  ],
+  "directory_structure": "frontend-game/MAP/{README.md,PLAN.md,review.json(gate, written by reviewer),reference/(+compare/),data/(world,spines,nodes*,gates*,scenes/,models/),src/(index,VoxelWorldMap,api/,core/,gen/,raster/,render/(+layers/),input/,hud/,flow/),tools/,demo/,tests/}. MAP/{assets,data,reference,src} exist now; reference holds only the untouched PNG. Plan: steps 1-20 in PLAN.md map to FEAT-001 (1-4), FEAT-002 (5-8), FEAT-003 (9-10), FEAT-004 (11-13), FEAT-005 (14-17), FEAT-006 (18-20). Design numbers (world 1774x18627, 7 segments/kingdom, node rules, gates table) are in DESIGN.md sections 2-5."
+}

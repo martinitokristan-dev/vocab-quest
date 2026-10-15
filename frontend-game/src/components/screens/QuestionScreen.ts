@@ -1,5 +1,6 @@
 import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
+import { kingdomIdOf } from '../../../MAP/src/flow/kingdomMap';
 
 function getVoiceoverUrl(q: any): string | null {
   return q?.voice_audio_url || q?.voice_video_url || q?.audio_url || null;
@@ -67,7 +68,7 @@ export class QuestionScreen {
     }
 
     const isIdentification = (question.question_type === 'identification') || (!question.answers || question.answers.length === 0);
-    const activeMapId = this.props.activeMapId || question.map?.id || 1;
+    const activeMapId = this.props.activeMapId || (question.map ? kingdomIdOf(question.map) : 1);
     const isYellow = activeMapId === 3;
     const isGevina = activeMapId === 2;
     const teacherName = isYellow ? 'Teacher Yanna' : isGevina ? 'Teacher Gevina' : 'Teacher Faith';
@@ -76,15 +77,16 @@ export class QuestionScreen {
     const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     let formattedSentence = question.sentence;
 
-    // In Kingdom 2, format underlined context clue
-    if (isGevina && question.context_clue) {
+    // In Kingdom 2 and Kingdom 3, format underlined context clue
+    const hasContextClueUnderline = activeMapId === 2 || activeMapId === 3;
+    if (hasContextClueUnderline && question.context_clue) {
       const clueText = question.context_clue.trim();
       const clueRegex = new RegExp(`(${escapeRegExp(clueText)})`, 'gi');
       formattedSentence = formattedSentence.replace(
         clueRegex,
         `<span class="underlined-clue">$1</span>`
       );
-    } else if (isGevina && /<u>(.*?)<\/u>/i.test(formattedSentence)) {
+    } else if (hasContextClueUnderline && /<u>(.*?)<\/u>/i.test(formattedSentence)) {
       formattedSentence = formattedSentence.replace(/<u>(.*?)<\/u>/gi, `<span class="underlined-clue">$1</span>`);
     }
 
@@ -200,7 +202,7 @@ export class QuestionScreen {
         <!-- Dual Stage Layout: Centered Question Arena + Right Teacher Stage -->
         <div class="question-stage-layout">
           <!-- Centered Main Question Arena -->
-          <div class="question-arena-card ${isGevina || !question.image_url ? 'no-image-arena' : ''} ${isGevina ? 'kingdom-2-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
+          <div class="question-arena-card ${!question.image_url ? 'no-image-arena' : ''} ${hasContextClueUnderline && !question.image_url ? 'kingdom-2-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
             <!-- Mobile Teacher Mascot Strip (visible on mobile <= 860px) -->
             <div class="mobile-teacher-strip" id="mobileTeacherStrip">
               <div class="mobile-teacher-avatar-box">
@@ -219,14 +221,14 @@ export class QuestionScreen {
 
 
 
-            <!-- Centered Question Visual Clue Image (Hidden in Kingdom 2) -->
-            ${(!isGevina && question.image_url) ? `
+            <!-- Centered Question Visual Clue Image (Available for all kingdoms) -->
+            ${question.image_url ? `
               <div class="question-visual-clue-card">
                 <img src="${question.image_url}" alt="Question visual clue" class="question-visual-clue-img" />
               </div>
             ` : ''}
 
-            ${isGevina ? `
+            ${hasContextClueUnderline ? `
               <div class="kingdom-2-challenge-badge">
                 <span>CONTEXT CLUE CHALLENGE</span>
               </div>

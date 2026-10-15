@@ -16,10 +16,10 @@ import {
   Volume2,
   Image as ImageIcon,
   BookOpen,
-  Type,
   Target,
   Check,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 
 // Teacher and Kingdom information for elementary school teachers & students
@@ -253,8 +253,8 @@ export const QuestionsPage: React.FC = () => {
   };
 
   const openCreateModal = () => {
-    if (questions.length >= 5) {
-      showToast('Each kingdom stage is limited to a maximum of 5 questions.', 'warning');
+    if (questions.length >= 40) {
+      showToast('Each kingdom stage is limited to a maximum of 40 questions.', 'warning');
       return;
     }
     resetForm();
@@ -518,50 +518,13 @@ export const QuestionsPage: React.FC = () => {
     setAnswers(removed);
   };
 
-  const handleSwitchToMultipleChoice = () => {
-    setQuestionType('multiple_choice');
-    setAnswers((prev) => {
-      const existing = [...prev];
-      if (existing.length === 0) {
-        return [
-          { text: identificationAnswer || '', is_correct: true },
-          { text: '', is_correct: false },
-          { text: '', is_correct: false },
-          { text: '', is_correct: false },
-        ];
-      }
-      if (existing.length === 1) {
-        return [
-          { text: existing[0].text || identificationAnswer || '', is_correct: true },
-          { text: '', is_correct: false },
-          { text: '', is_correct: false },
-          { text: '', is_correct: false },
-        ];
-      }
-      if (existing.length === 2) {
-        return [
-          ...existing,
-          { text: '', is_correct: false },
-          { text: '', is_correct: false },
-        ];
-      }
-      if (existing.length === 3) {
-        return [
-          ...existing,
-          { text: '', is_correct: false },
-        ];
-      }
-      return existing.slice(0, 4);
-    });
-  };
-
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMapId) return;
 
-    if (!editingQuestion && questions.length >= 5) {
-      setFormError('Each kingdom stage is limited to a maximum of 5 questions.');
-      showToast('Each kingdom stage is limited to a maximum of 5 questions.', 'warning');
+    if (!editingQuestion && questions.length >= 40) {
+      setFormError('Each kingdom stage is limited to a maximum of 40 questions.');
+      showToast('Each kingdom stage is limited to a maximum of 40 questions.', 'warning');
       return;
     }
 
@@ -610,20 +573,17 @@ export const QuestionsPage: React.FC = () => {
       const determinedVoiceAudioFile = hasAudio ? (voiceAudioBlob || voiceAudioFile || null) : null;
       const determinedVoiceVideoFile = hasVideo ? (voiceVideoFile || null) : null;
 
-      const targetAnswers =
-        questionType === 'identification'
-          ? [{ text: identificationAnswer.trim() || highlightedWord.trim(), is_correct: true }]
-          : answers;
+      const targetAnswers = answers;
 
       const payload = {
         map_id: selectedMapId,
         order_index: editingQuestion ? editingQuestion.order_index : questions.length + 1,
-        question_type: questionType,
+        question_type: 'multiple_choice' as const,
         sentence: sentence.trim(),
         highlighted_word: highlightedWord.trim(),
-        context_clue: selectedMapId === 2 ? contextClue.trim() || null : null,
-        image_url: selectedMapId === 2 ? null : (imageUrl.trim() || null),
-        image_file: selectedMapId === 2 ? null : (imageFile || null),
+        context_clue: isContextClueStage ? (contextClue.trim() || null) : null,
+        image_url: imageUrl.trim() || null,
+        image_file: imageFile || null,
         voice_audio_file: determinedVoiceAudioFile,
         voice_audio_url: determinedVoiceAudioUrl,
         voice_video_file: determinedVoiceVideoFile,
@@ -697,6 +657,7 @@ export const QuestionsPage: React.FC = () => {
   const activeMap = maps.find((m) => m.id === selectedMapId);
   const activeOrder = activeMap?.order_index ?? 1;
   const activeTeacher = TEACHER_GUIDES[activeOrder];
+  const isContextClueStage = activeOrder === 2 || activeOrder === 3;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -1000,7 +961,7 @@ export const QuestionsPage: React.FC = () => {
                   />
                 </div>
 
-                {selectedMapId === 2 && (
+                {isContextClueStage ? (
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-700">Context Clue (Underlined) *</label>
@@ -1014,67 +975,59 @@ export const QuestionsPage: React.FC = () => {
                       className="minimal-input font-medium text-slate-900 py-2.5 px-3.5"
                     />
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Kingdom 2 rule: Image clues are disabled. This phrase is underlined in the sentence to provide context.
+                      Kingdom {activeOrder} rule: This phrase will be underlined in the game to provide a context clue.
                     </p>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-emerald-50/60 border border-emerald-200/60 rounded-lg text-xs text-emerald-800">
+                    <span className="font-semibold">Kingdom 1 Rule:</span> Learners deduce meaning directly from the photo clue and yellow target word (context clue underlines are disabled for this stage).
+                  </div>
+                )}
+
+                {/* Real-time Dynamic Sentence & Clue Preview */}
+                {(sentence.trim() || highlightedWord.trim()) && (
+                  <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        Live Student In-Game View
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        {highlightedWord && (
+                          <span className="bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded-full border border-amber-300">
+                            🟨 Highlighted Word
+                          </span>
+                        )}
+                        {isContextClueStage && contextClue && (
+                          <span className="bg-sky-100 text-sky-900 font-semibold px-2 py-0.5 rounded-full border border-sky-300">
+                            ✍️ Underlined Clue
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm font-medium text-slate-800 leading-relaxed bg-white p-3 rounded-lg border border-emerald-100">
+                      "{renderHighlightedSentence(
+                        sentence,
+                        highlightedWord,
+                        isContextClueStage ? contextClue : undefined
+                      )}"
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Section 2: Question Format */}
-              <div className="space-y-2 bg-slate-50/70 p-4 rounded-xl border border-slate-200/70">
-                <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Type className="w-3.5 h-3.5 text-slate-400" />
-                  <span>2. Question Format</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSwitchToMultipleChoice}
-                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
-                      questionType === 'multiple_choice'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`w-4 h-4 shrink-0 mt-0.5 ${
-                        questionType === 'multiple_choice' ? 'text-white' : 'text-slate-400'
-                      }`}
-                    />
-                    <div>
-                      <div className={`text-xs font-semibold ${questionType === 'multiple_choice' ? 'text-white' : 'text-slate-900'}`}>
-                        Multiple Choice
-                      </div>
-                      <div className={`text-[11px] mt-0.5 ${questionType === 'multiple_choice' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                        4 definition options
-                      </div>
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-900">
+                      Question Format: Multiple Choice (4 Choices)
                     </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setQuestionType('identification')}
-                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex items-start gap-3 ${
-                      questionType === 'identification'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Type
-                      className={`w-4 h-4 shrink-0 mt-0.5 ${
-                        questionType === 'identification' ? 'text-white' : 'text-slate-400'
-                      }`}
-                    />
-                    <div>
-                      <div className={`text-xs font-semibold ${questionType === 'identification' ? 'text-white' : 'text-slate-900'}`}>
-                        Identification
-                      </div>
-                      <div className={`text-[11px] mt-0.5 ${questionType === 'identification' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                        Type word directly
-                      </div>
+                    <div className="text-[11px] text-slate-500">
+                      Standardized across all kingdoms. Provide 4 answer choices and mark the correct definition below.
                     </div>
-                  </button>
+                  </div>
                 </div>
               </div>
 
@@ -1082,98 +1035,82 @@ export const QuestionsPage: React.FC = () => {
               <div className="space-y-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200/70">
                 <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-slate-400" />
-                  <span>3. Correct Answer & Definitions</span>
+                  <span>3. Correct Answer & Definitions (4 Choices)</span>
                 </div>
 
-                {questionType === 'identification' ? (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Target Answer (What the student must type) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder={highlightedWord ? `e.g. ${highlightedWord}` : 'Enter the target word...'}
-                      value={identificationAnswer}
-                      onChange={(e) => setIdentificationAnswer(e.target.value)}
-                      className="minimal-input text-xs py-2.5 px-3.5"
-                    />
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">
+                      Mark which definition is <strong className="text-emerald-700">Correct</strong>:
+                    </span>
+                    {answers.length < 4 && (
+                      <button
+                        type="button"
+                        onClick={handleAddChoice}
+                        className="btn-secondary text-xs py-1 px-2.5"
+                      >
+                        <span>Add Choice</span>
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">
-                        Mark which definition is <strong className="text-emerald-700">Correct</strong>:
-                      </span>
-                      {answers.length < 4 && (
+
+                  <div className="space-y-2">
+                    {answers.map((ans, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                          ans.is_correct
+                            ? 'bg-emerald-50/40 border-emerald-300/80'
+                            : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        {/* Radio button to mark as correct */}
                         <button
                           type="button"
-                          onClick={handleAddChoice}
-                          className="btn-secondary text-xs py-1 px-2.5"
-                        >
-                          <span>Add Choice</span>
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      {answers.map((ans, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                          onClick={() => handleCorrectAnswerSelect(idx)}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
                             ans.is_correct
-                              ? 'bg-emerald-50/40 border-emerald-300/80'
-                              : 'bg-white border-slate-200'
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
+                              : 'border-slate-300 hover:border-slate-400 text-transparent'
                           }`}
+                          title={ans.is_correct ? 'Correct answer' : 'Click to set as correct answer'}
                         >
-                          {/* Radio button to mark as correct */}
+                          <Check className="w-3 h-3 stroke-[2.5]" />
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              Choice {String.fromCharCode(65 + idx)}{' '}
+                              {ans.is_correct && (
+                                <span className="text-emerald-700 font-medium ml-1">• Correct Answer</span>
+                              )}
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            placeholder={`Enter definition for Choice ${String.fromCharCode(65 + idx)}...`}
+                            value={ans.text}
+                            onChange={(e) => handleAnswerTextChange(idx, e.target.value)}
+                            className="minimal-input text-xs py-1.5"
+                          />
+                        </div>
+
+                        {answers.length > 2 && (
                           <button
                             type="button"
-                            onClick={() => handleCorrectAnswerSelect(idx)}
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
-                              ans.is_correct
-                                ? 'bg-emerald-600 border-emerald-600 text-white'
-                                : 'border-slate-300 hover:border-slate-400 text-transparent'
-                            }`}
-                            title={ans.is_correct ? 'Correct answer' : 'Click to set as correct answer'}
+                            onClick={() => handleRemoveChoice(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Remove choice"
                           >
-                            <Check className="w-3 h-3 stroke-[2.5]" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                Choice {String.fromCharCode(65 + idx)}{' '}
-                                {ans.is_correct && (
-                                  <span className="text-emerald-700 font-medium ml-1">• Correct Answer</span>
-                                )}
-                              </span>
-                            </div>
-                            <input
-                              type="text"
-                              required
-                              placeholder={`Enter definition for Choice ${String.fromCharCode(65 + idx)}...`}
-                              value={ans.text}
-                              onChange={(e) => handleAnswerTextChange(idx, e.target.value)}
-                              className="minimal-input text-xs py-1.5"
-                            />
-                          </div>
-
-                          {answers.length > 2 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveChoice(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Remove choice"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Section 4: Multimedia Clues (Optional) */}
@@ -1183,14 +1120,12 @@ export const QuestionsPage: React.FC = () => {
                   <span>4. Multimedia Clues (Optional)</span>
                 </div>
 
-                {/* Visual Context Image (Disabled for Kingdom 2) */}
-                {selectedMapId === 2 ? (
-                  <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600">
-                    <span className="font-semibold text-slate-800">Kingdom 2 (Average Round):</span> Image clues are disabled. Context clues in the sentence are underlined instead.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
+                {/* Visual Context Image (Available for all Kingdoms) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-slate-700">Visual Context Image (Photo Clue)</label>
+                    <span className="text-[11px] text-slate-500">Supported across all kingdoms</span>
+                  </div>
 
                   {!imagePreviewUrl ? (
                     <div className="flex items-center gap-2">
@@ -1235,7 +1170,6 @@ export const QuestionsPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-              )}
 
                 {/* Teacher Voiceover */}
                 <div className="space-y-2 pt-2 border-t border-slate-200">

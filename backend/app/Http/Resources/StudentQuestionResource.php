@@ -28,7 +28,7 @@ class StudentQuestionResource extends JsonResource
             'voice_audio_url'           => $this->voice_audio_url,
             'voice_video_url'           => $this->voice_video_url,
             'voice_media_type'          => $this->voice_media_type ?? 'none',
-            'image_url'                 => ($this->map_id === 2) ? null : $this->image_url,
+            'image_url'                 => $this->image_url,
             'map'                       => [
                 'id' => $this->map_id,
             ],

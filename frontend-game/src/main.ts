@@ -1,6 +1,7 @@
 import './style.css';
 import { gameApi, isSessionAuthError } from './api';
-import { Game2DMapRenderer } from './game2d';
+import type { MapRenderer } from '../MAP/src';
+import { kingdomIdOf, kingdomForMapId, rememberMap } from '../MAP/src/flow/kingdomMap';
 import { soundManager } from './soundManager';
 import { Icons } from './icons';
 import { KINGDOM_DIALOGUES, GLOBAL_INTRO_DIALOGUE } from './dialogueData';
@@ -27,7 +28,6 @@ import {
   isGlobalIntroSeen,
   clearMapFlowProgressForPin,
   getFreshMapFlowState,
-  buildKingdomTransitionAction,
 } from './mapFlowController';
 import { networkManager } from './networkManager';
 import { showStarBurstOverlay } from './starBurstOverlay';
@@ -58,10 +58,24 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 
+/** Re-key completed_questions by kingdom (DB map ids are not guaranteed to be 1..3); unknown maps are skipped. */
+function completedByKingdom<T extends { map_id?: number }>(list: T[] | undefined): T[] {
+  const out: T[] = [];
+  for (const cq of list || []) {
+    if (cq.map_id === undefined) {
+      out.push(cq);
+      continue;
+    }
+    const kingdom = kingdomForMapId(cq.map_id);
+    if (kingdom !== null) out.push({ ...cq, map_id: kingdom });
+  }
+  return out;
+}
+
 class StudentArcadeGame {
   private appEl: HTMLElement;
   private bgLayerEl: HTMLElement;
-  private mapRenderer: Game2DMapRenderer | null = null;
+  private mapRenderer: MapRenderer | null = null;
 
   // Screen components
   private titleScreen: TitleScreen | null = null;
@@ -125,6 +139,7 @@ class StudentArcadeGame {
 
   private pollInterval: number | null = null;
   private loadingInterval: number | null = null;
+  private loadingCompletionTimeout: number | null = null;
   private globalIntroTimer: number | null = null;
   private lastNarratedQuestionId: number | null = null;
   private teacherAnimationTimers = {
@@ -333,10 +348,17 @@ class StudentArcadeGame {
           });
 
           void this.fetchCurrentQuestion(targetScreen).then(() => {
-            loader?.markDataReady();
+            if (this.state.screen === 'loading') {
+              loader?.markDataReady();
+            }
           }).catch((err) => {
             console.error('onHasToken fetch error:', err);
-            loader?.markDataReady();
+            if (isSessionAuthError(err)) {
+              this.cancelLoading();
+              this.handleSessionResetByTeacher();
+            } else if (this.state.screen === 'loading') {
+              loader?.markDataReady();
+            }
           });
         }
       }
@@ -520,12 +542,20 @@ class StudentArcadeGame {
     }
   }
 
-  private startLoading(targetScreen: 'join' | 'world_map' | 'question' = 'join', onReady?: () => void) {
+  private cancelLoading(): void {
     if (this.loadingInterval) {
-      clearInterval(this.loadingInterval);
       clearTimeout(this.loadingInterval);
+      clearInterval(this.loadingInterval);
       this.loadingInterval = null;
     }
+    if (this.loadingCompletionTimeout) {
+      clearTimeout(this.loadingCompletionTimeout);
+      this.loadingCompletionTimeout = null;
+    }
+  }
+
+  private startLoading(targetScreen: 'join' | 'world_map' | 'question' = 'join', onReady?: () => void) {
+    this.cancelLoading();
 
     const totalSegments = 15;
     let currentSegment = 0;
@@ -545,15 +575,15 @@ class StudentArcadeGame {
       }
 
       if (currentSegment >= totalSegments) {
-        if (this.loadingInterval) {
-          clearTimeout(this.loadingInterval);
-          clearInterval(this.loadingInterval);
-          this.loadingInterval = null;
-        }
+        this.cancelLoading();
         soundManager.playSuccess();
-        setTimeout(() => {
-          this.setState({ screen: targetScreen, loadingProgress: totalSegments });
-          if (onReady) onReady();
+        this.loadingCompletionTimeout = window.setTimeout(() => {
+          this.loadingCompletionTimeout = null;
+          // Guard: Only advance if still on the loading screen and not cancelled/reset
+          if (this.state.screen === 'loading') {
+            this.setState({ screen: targetScreen, loadingProgress: totalSegments });
+            if (onReady) onReady();
+          }
         }, 220);
         return;
       }
@@ -573,6 +603,8 @@ class StudentArcadeGame {
   }
 
   private handleSessionResetByTeacher(showToast = true) {
+    this.cancelLoading();
+
     const pin = this.state.pin || gameApi.getSessionProfile().pin || '';
     clearMapFlowProgressForPin(pin);
     this.clearAllStoredAttempts(pin);
@@ -598,6 +630,8 @@ class StudentArcadeGame {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+
+    this.syncUrl('join', true);
 
     this.setState({
       screen: 'join',
@@ -644,7 +678,7 @@ class StudentArcadeGame {
         const isMapChanged = this.state.currentData?.data?.map.id !== res.data.map.id;
         const shouldChangeScreen = (this.state.screen === 'join');
 
-        let mergedHistory = mergeHistoryWithCompleted(this.state.history, res.data.completed_questions || []);
+        let mergedHistory = mergeHistoryWithCompleted(this.state.history, completedByKingdom(res.data.completed_questions));
 
         const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
         const roomStatus = res.room_status || res.data?.room_status || (isPaused ? 'paused' : 'in_progress');
@@ -663,7 +697,8 @@ class StudentArcadeGame {
           mergedHistory = [];
         }
 
-        const activeMapId = res.data.map.id;
+        rememberMap(res.data.map);
+        const activeMapId = kingdomIdOf(res.data.map);
         const enteredKingdomIds = isWaiting ? [] : hydrateEnteredKingdomIds(pin, mergedHistory, activeMapId);
         const hasSeenGlobalIntro = isWaiting ? false : isGlobalIntroSeen(pin);
 
@@ -736,6 +771,7 @@ class StudentArcadeGame {
     } catch (err: any) {
       console.error('Fetch question error:', err);
       if (isSessionAuthError(err) && this.state.screen !== 'join') {
+        this.cancelLoading();
         this.handleSessionResetByTeacher();
       }
     }
@@ -753,6 +789,10 @@ class StudentArcadeGame {
         this.state.submitResult ||
         !gameApi.getToken()
       ) {
+        if (!gameApi.getToken() && (this.state.screen === 'world_map' || this.state.screen === 'question')) {
+          this.cancelLoading();
+          this.handleSessionResetByTeacher(false);
+        }
         return;
       }
 
@@ -792,6 +832,7 @@ class StudentArcadeGame {
         }
       } catch (err: any) {
         if (isSessionAuthError(err)) {
+          this.cancelLoading();
           this.handleSessionResetByTeacher();
         }
       }
@@ -918,7 +959,7 @@ class StudentArcadeGame {
     const currentAttempts = (this.state.attempts[q.id] || 0) + 1;
     const updatedAttempts = { ...this.state.attempts, [q.id]: currentAttempts };
     const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
-    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const activeMapId = this.currentKingdomId();
     const isYellow = activeMapId === 3;
     const isGevina = activeMapId === 2;
 
@@ -1075,7 +1116,7 @@ class StudentArcadeGame {
           try {
             // Run star animation AND resolve the pre-fetched question data in parallel.
             // Stars play for ~1.85s; the API was already fetching during audio playback.
-            const [, res] = await Promise.all([
+            const [burstResult, res] = await Promise.all([
               showStarBurstOverlay(starsEarned, globalLevel),
               nextQuestionPromise,
             ]);
@@ -1091,12 +1132,13 @@ class StudentArcadeGame {
               return;
             }
 
-            const newMapId = res.data.map.id;
+            rememberMap(res.data.map);
+            const newMapId = kingdomIdOf(res.data.map);
             const newQIndex =
               res.data.question?.order_index ||
               res.data.map?.current_question_num ||
               1;
-            const mergedHistory = mergeHistoryWithCompleted(this.state.history, res.data.completed_questions || []);
+            const mergedHistory = mergeHistoryWithCompleted(this.state.history, completedByKingdom(res.data.completed_questions));
             const pin = this.state.pin || 'default';
             const enteredKingdomIds = hydrateEnteredKingdomIds(pin, mergedHistory, newMapId);
             const isPaused = Boolean(res.is_paused || res.data?.is_paused || res.room_status === 'paused' || res.data?.room_status === 'paused');
@@ -1122,14 +1164,11 @@ class StudentArcadeGame {
               return;
             }
 
-            if (newMapId !== prevMapId) {
-              const transitionAction = buildKingdomTransitionAction(
-                prevMapId,
-                questionOrder,
-                newMapId
-              );
-              const filteredEntered = enteredKingdomIds.filter((id) => id < newMapId);
+            if (completedStep && this.mapRenderer) {
+              this.mapRenderer.centerOnLocation(completedStep.x, completedStep.y);
+            }
 
+            if (burstResult.action === 'back') {
               this.setState({
                 screen: 'world_map',
                 currentData: res,
@@ -1139,26 +1178,86 @@ class StudentArcadeGame {
                 selectedAnswerId: null,
                 wrongAnswerIds: [],
                 currentFeedbackSprite: null,
+                mapPhase: 'kingdom_active',
+                lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
                 isTeacherPaused: isPaused,
                 roomStatus,
-                mapPhase: transitionAction ? 'walking_to_question' : 'awaiting_kingdom_click',
-                pendingMapAction: transitionAction,
+                enteredKingdomIds,
+                pendingMapAction: null,
+              });
+              this.startLightweightPoller();
+              return;
+            }
+
+            if (newMapId !== prevMapId) {
+              const filteredEntered = enteredKingdomIds.filter((id) => id < newMapId);
+
+              // 1. Keep player on prevMapId (Kingdom 1) to show portal entry
+              this.setState({
+                screen: 'world_map',
+                currentData: {
+                  ...res,
+                  data: {
+                    ...res.data,
+                    map: {
+                      ...res.data.map,
+                      id: prevMapId,
+                      order_index: prevMapId,
+                    },
+                  },
+                },
+                score: res.data.session.score,
+                history: mergedHistory,
+                submitResult: null,
+                selectedAnswerId: null,
+                wrongAnswerIds: [],
+                currentFeedbackSprite: null,
+                isTeacherPaused: isPaused,
+                roomStatus,
+                mapPhase: 'walking_to_question',
+                pendingMapAction: null,
                 lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
                 enteredKingdomIds: filteredEntered,
               });
 
-              if (!transitionAction) {
+              // 2. Play portal entry animation (zoom in with 50% opacity dark overlay & whoosh)
+              const runPortalTransition = async () => {
+                try {
+                  if (this.mapRenderer?.playPortalEntryAnimation) {
+                    await this.mapRenderer.playPortalEntryAnimation(completedStep);
+                  } else {
+                    await new Promise((r) => setTimeout(r, 850));
+                  }
+                } catch (e) {
+                  console.warn('Portal transition animation error:', e);
+                }
+
+                // 3. Transition to newMapId (Kingdom 2) in locked state for tap-to-unlock
+                this.setState({
+                  currentData: res,
+                  mapPhase: 'awaiting_kingdom_click',
+                  pendingMapAction: null,
+                  enteredKingdomIds: filteredEntered,
+                });
+
                 if (this.mapRenderer) {
+                  this.mapRenderer.clearPortalOverlay?.();
                   this.mapRenderer.centerOnKingdom(newMapId);
                 }
+
                 this.showToast(
                   'New Kingdom Unlocked!',
-                  'Tap the next kingdom on the map to continue your quest!',
+                  'Tap the kingdom on the map to unlock it with your key!',
                   'success',
                   5000
                 );
-              }
-              this.startLightweightPoller();
+                this.startLightweightPoller();
+              };
+
+              requestAnimationFrame(() => {
+                setTimeout(runPortalTransition, 300);
+              });
+
               return;
             }
 
@@ -1484,9 +1583,25 @@ class StudentArcadeGame {
     };
   }
 
+  private currentKingdomId(): number {
+    const map = this.state.currentData?.data?.map;
+    return map ? kingdomIdOf(map) : 1;
+  }
+
+  /** Voxel map only: tell it how many levels the backend serves per kingdom ("coming soon" beyond that). */
+  private syncMapAvailability() {
+    const r = this.mapRenderer;
+    const map = this.state.currentData?.data?.map;
+    if (!r || !map || !('setAvailability' in r) || typeof map.total_questions !== 'number') return;
+    (r as MapRenderer & { setAvailability(a: Record<number, number>): void }).setAvailability({
+      [kingdomIdOf(map)]: map.total_questions,
+    });
+  }
+
   private syncMapRendererOptions() {
     if (!this.mapRenderer) return;
-    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    this.syncMapAvailability();
+    const activeMapId = this.currentKingdomId();
     this.mapRenderer.setMapFlowOptions(this.getMapFlowOptions(activeMapId));
   }
 
@@ -1556,6 +1671,46 @@ class StudentArcadeGame {
   }
 
   private async handleKingdomClick(kingdomId: number) {
+    if (this.state.mapPhase === 'kingdom_enter_anim') return;
+
+    if (!gameApi.getToken()) {
+      soundManager.playWrong();
+      this.showToast('Please Join First', 'Join a game session with your PIN to start playing!', 'warning');
+      this.cancelLoading();
+      this.handleSessionResetByTeacher(false);
+      return;
+    }
+
+    if (this.state.roomStatus === 'waiting') {
+      try {
+        const freshStatus = await gameApi.getGameStatus();
+        const isPaused = Boolean(freshStatus.is_paused || freshStatus.room_status === 'paused');
+        const roomStatus = freshStatus.room_status || (isPaused ? 'paused' : 'in_progress');
+        this.setState({ roomStatus, isTeacherPaused: isPaused });
+        if (roomStatus === 'in_progress') {
+          soundManager.playSuccess();
+          this.showToast(
+            'Session Started',
+            'Your teacher has started the game. Unlocking kingdom...',
+            'success',
+            3000
+          );
+        }
+      } catch (err) {
+        if (isSessionAuthError(err)) {
+          this.cancelLoading();
+          this.handleSessionResetByTeacher();
+          return;
+        }
+      }
+    }
+
+    if (this.state.isTeacherPaused || this.state.roomStatus === 'paused') {
+      soundManager.playHover();
+      this.showToast('Session Paused', 'Your teacher has paused the game session.', 'warning');
+      return;
+    }
+
     if (this.state.roomStatus === 'waiting') {
       soundManager.playHover();
       this.showToast(
@@ -1566,7 +1721,7 @@ class StudentArcadeGame {
       return;
     }
 
-    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const activeMapId = this.currentKingdomId();
     if (kingdomId > activeMapId) {
       soundManager.playWrong();
       this.showToast(
@@ -1652,7 +1807,7 @@ class StudentArcadeGame {
             pendingMapAction: null,
           });
           this.syncMapRendererOptions();
-          const targetKingdomId = action.toStep?.mapId || this.state.currentData?.data?.map?.id || 1;
+          const targetKingdomId = action.toStep?.mapId || this.currentKingdomId();
           if (this.mapRenderer) {
             this.mapRenderer.centerOnKingdom(targetKingdomId);
           }
@@ -1701,7 +1856,7 @@ class StudentArcadeGame {
   // ─────────────────────────────────────────────────────────────────────────────
   private renderWorldMapScreen() {
     const avatar = getAvatarBySlug(this.state.avatarSlug);
-    const activeMapId = this.state.currentData?.data?.map?.id || 1;
+    const activeMapId = this.currentKingdomId();
     const currentQuestionIndex =
       this.state.currentData?.data?.question?.order_index ||
       this.state.currentData?.data?.map?.current_question_num ||
@@ -1730,6 +1885,7 @@ class StudentArcadeGame {
         },
         onMapRendererInit: (renderer) => {
           this.mapRenderer = renderer;
+          this.syncMapAvailability();
           this.bindMapCallbacks(activeMapId, currentQuestionIndex);
           if (this.state.pendingMapAction) {
             this.executePendingMapAction();
@@ -1737,6 +1893,7 @@ class StudentArcadeGame {
           this.maybeShowGlobalIntro();
         },
         onMapRendererUpdate: (_renderer) => {
+          this.syncMapAvailability();
           this.bindMapCallbacks(activeMapId, currentQuestionIndex);
           if (this.state.pendingMapAction) {
             this.executePendingMapAction();
@@ -1776,7 +1933,7 @@ class StudentArcadeGame {
         avatarSlug: this.state.avatarSlug,
         avatarImage: avatar.image || '/assets/mascot_girl.png',
         totalStars,
-        activeMapId: this.state.currentData?.data?.map?.id || 1,
+        activeMapId: this.currentKingdomId(),
         question: q,
         isReview,
         viewingHistoryItem: this.state.viewingHistoryItem,
@@ -1826,7 +1983,7 @@ class StudentArcadeGame {
         avatarSlug: this.state.avatarSlug,
         avatarImage: avatar.image || '/assets/mascot_girl.png',
         totalStars,
-        activeMapId: this.state.currentData?.data?.map?.id || 1,
+        activeMapId: this.currentKingdomId(),
         question: q,
         isReview,
         viewingHistoryItem: this.state.viewingHistoryItem,

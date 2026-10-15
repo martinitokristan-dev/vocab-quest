@@ -1,4 +1,5 @@
 import { soundManager } from '../soundManager';
+import { kingdomIdOf } from '../../MAP/src/flow/kingdomMap';
 
 interface TeacherAnimationState {
   isSpeaking: boolean;
@@ -69,7 +70,8 @@ export function updateTeacherSpeakingUI(
   const mobileSpriteImg = document.getElementById('mobileTeacherAvatar') as HTMLImageElement | null;
   if (!spriteImg && !mobileSpriteImg) return timers;
 
-  const activeMapId = state.currentData?.data?.map?.id || 1;
+  const currentMap = state.currentData?.data?.map;
+  const activeMapId = currentMap ? kingdomIdOf(currentMap) : 1;
   const isYellow = activeMapId === 3;
   const isGevina = activeMapId === 2;
 

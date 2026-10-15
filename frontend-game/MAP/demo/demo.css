@@ -1,0 +1,168 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0f172a;
+  font-family: 'Quicksand', system-ui, sans-serif;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+body.compare #stage {
+  position: relative;
+  inset: auto;
+  width: 1774px;
+  height: 887px;
+}
+
+body.compare #panel {
+  display: none;
+}
+
+#atlas {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: auto;
+  background: #8fd0f5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  align-content: flex-start;
+}
+
+#atlas figure {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+#atlas canvas {
+  display: block;
+  background: repeating-conic-gradient(#e8f2fa 0% 25%, #d4e6f4 0% 50%) 0 0 / 16px 16px;
+}
+
+body.compare #controls,
+body.compare #errors {
+  display: none;
+}
+
+#controls {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 12;
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+#controls summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+#controls .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+#controls select,
+#controls input[type='number'],
+#controls button {
+  font: inherit;
+  min-height: 36px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #fff;
+}
+
+#controls button {
+  cursor: pointer;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+#controls input[type='number'] {
+  width: 4.5em;
+}
+
+#readout {
+  margin-top: 6px;
+  font-size: 16px;
+  opacity: 0.95;
+  white-space: pre-line;
+}
+
+#errors {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: min(640px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #7f1d1d;
+  color: #fff;
+  font-size: 16px;
+  white-space: pre-line;
+}
+
+#errors[hidden] {
+  display: none;
+}
+
+#panel {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#compare-bar {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 11;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+  font-size: 16px;
+}
+
+#compare-bar[hidden] {
+  display: none;
+}
+
+#reference-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1774px;
+  height: 887px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9;
+}

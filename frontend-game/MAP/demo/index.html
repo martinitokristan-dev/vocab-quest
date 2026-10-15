@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Vocab Quest voxel map demo</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="errors" role="alert" hidden></div>
+    <details id="controls" open>
+      <summary>Demo controls</summary>
+      <div class="row" style="gap: 6px;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; width: 100%; letter-spacing: 0.05em;">Quick Kingdom Review</span>
+        <button id="btn-k1" type="button" style="background:#15803d;border-color:#16a34a;font-weight:700;">🏫 1 EPCES</button>
+        <button id="btn-k2" type="button" style="background:#b45309;border-color:#d97706;font-weight:700;">🏛️ 2 Bayan</button>
+        <button id="btn-k3" type="button" style="background:#1d4ed8;border-color:#2563eb;font-weight:700;">🏛️ 3 Capitol</button>
+      </div>
+      <div class="row" style="gap: 6px;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; width: 100%; letter-spacing: 0.05em;">Inspection & Camera</span>
+        <button id="btn-view-landmark" type="button" style="background:#0f766e;border-color:#14b8a6;font-weight:700;">🔍 Landmark</button>
+        <button id="btn-view-peak" type="button" style="background:#7c3aed;border-color:#8b5cf6;font-weight:700;">🏔️ Peak (L45)</button>
+        <button id="btn-toggle-lock" type="button" style="background:#475569;border-color:#64748b;font-weight:700;">🔒 Toggle Lock</button>
+        <button id="btn-unlock-all" type="button" style="background:#e11d48;border-color:#f43f5e;font-weight:700;">✨ Unlock All</button>
+      </div>
+      <div class="row">
+        <label for="pick-k">Kingdom</label>
+        <select id="pick-k">
+          <option value="1">1 EPCES</option>
+          <option value="2">2 Bayan ng Prosperidad</option>
+          <option value="3">3 Provincial Capitol</option>
+        </select>
+        <label for="pick-l">Level</label>
+        <input id="pick-l" type="number" min="1" max="45" value="1" />
+        <button id="btn-jump" type="button">Jump</button>
+      </div>
+      <div class="row">
+        <button id="btn-complete" type="button">Complete level</button>
+        <button id="btn-reset" type="button">Reset</button>
+        <button id="btn-recenter" type="button">Recenter</button>
+      </div>
+      <div class="row">
+        <label for="avail">Available levels</label>
+        <input id="avail" type="range" min="1" max="45" value="45" />
+        <output id="avail-out" for="avail">45</output>
+      </div>
+      <div class="row">
+        <label for="quality">Quality</label>
+        <select id="quality">
+          <option value="auto">auto</option>
+          <option value="high">high</option>
+          <option value="medium">medium</option>
+          <option value="low">low</option>
+        </select>
+        <label for="avatar">Avatar</label>
+        <select id="avatar">
+          <option value="/assets/explorer_boy.png">explorer boy</option>
+          <option value="/assets/mascot_boy.png">mascot boy</option>
+          <option value="/assets/mascot_girl.png">mascot girl</option>
+          <option value="/assets/scholar_boy.png">scholar boy</option>
+          <option value="/assets/scholar_girl.png">scholar girl</option>
+          <option value="/assets/sporty_girl.png">sporty girl</option>
+        </select>
+      </div>
+      <div class="row">
+        <label><input id="chk-reduced" type="checkbox" /> Reduced motion</label>
+        <label><input id="chk-debug" type="checkbox" /> Debug nodes</label>
+      </div>
+      <div id="readout" aria-live="off"></div>
+    </details>
+    <div id="panel" aria-live="off">
+      <div><strong>Voxel map demo</strong></div>
+      <div id="stats">starting...</div>
+    </div>
+    <div id="compare-bar" hidden>
+      <label for="compare-opacity">Reference overlay</label>
+      <input id="compare-opacity" type="range" min="0" max="100" value="0" />
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

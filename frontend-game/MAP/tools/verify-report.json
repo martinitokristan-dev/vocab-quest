@@ -1,0 +1,49 @@
+{
+  "checks": {
+    "bake": {
+      "maxSeg": 4,
+      "maxMB": 34.39768600463867,
+      "pass": true
+    },
+    "fps4x_medium": {
+      "fps": 28.1,
+      "min": 24.2,
+      "max": 29.8,
+      "runs": [
+        24.2,
+        28.9,
+        28.1,
+        24.7,
+        29.8
+      ],
+      "pass": false
+    },
+    "fps4x_low": {
+      "fps": 50.9,
+      "min": 49.6,
+      "max": 51.8,
+      "runs": [
+        49.6,
+        50.9,
+        51.8,
+        50.5,
+        51
+      ],
+      "pass": true
+    },
+    "reducedMotion": {
+      "changedPixels": 0,
+      "pass": true
+    },
+    "noPngRequests": {
+      "requests": [],
+      "pass": true
+    },
+    "pageErrors": {
+      "errors": [],
+      "pass": true
+    }
+  },
+  "errors": [],
+  "pass": false
+}

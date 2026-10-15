@@ -2,10 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Models\GameSession;
 use App\Models\Map;
 use App\Models\MapCharacter;
 use App\Models\Question;
 use App\Models\Room;
+use App\Models\StudentAnswer;
 use App\Models\User;
 use App\Models\Vocabulary;
 use Illuminate\Database\Seeder;
@@ -24,12 +26,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 2. Create Map 1
+        // 2. Create Map 1 (EPCES - 40 Questions)
         $map1 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 1],
             [
                 'title'                          => 'EPCES Adventure Entrance',
-                'question_count'                 => 5,
+                'question_count'                 => 40,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_1',
@@ -46,12 +48,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 3. Create Map 2 (5 Questions)
+        // 3. Create Map 2 (Bayan ng Prosperidad - 40 Questions)
         $map2 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 2],
             [
                 'title'                          => 'Bayan ng Prosperidad',
-                'question_count'                 => 5,
+                'question_count'                 => 40,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_2',
@@ -68,12 +70,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 4. Create Map 3 (5 Questions)
+        // 4. Create Map 3 (Provincial Capitol - 40 Questions)
         $map3 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 3],
             [
                 'title'                          => 'Provincial Capitol',
-                'question_count'                 => 5,
+                'question_count'                 => 40,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_3',
@@ -90,289 +92,64 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 5. Seed Vocabulary
-        $words = ['exhausted', 'brave', 'triumphant', 'legendary', 'perseverent'];
-        foreach ($words as $word) {
-            Vocabulary::firstOrCreate(['word' => $word]);
-        }
+        // Clear previous student answers and active sessions so manual test starts cleanly
+        StudentAnswer::query()->delete();
+        GameSession::query()->delete();
 
-        // 6. Seed Questions for Map 1 (EPCES - 3 Questions)
-        $q1 = Question::updateOrCreate(
-            ['map_id' => $map1->id, 'order_index' => 1],
-            [
-                'sentence'              => 'The student felt exhausted after studying all night.',
-                'highlighted_word'      => 'exhausted',
-                'image_url'             => 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q1->answers()->delete();
-        $q1->answers()->createMany([
-            ['text' => 'Very tired',      'is_correct' => true],
-            ['text' => 'Very happy',      'is_correct' => false],
-            ['text' => 'Very scared',     'is_correct' => false],
-            ['text' => 'Full of energy',  'is_correct' => false],
-        ]);
+        // ── Map 1 Questions (EPCES: Easy Round, Pictures + Yellow Highlight, No Underlines, 3 Questions) ──
+        $map1Questions = [
+            ['word' => 'exhausted', 'sentence' => 'The student felt exhausted after studying all night for the test.', 'correct' => 'Very tired', 'wrong' => ['Very happy', 'Very scared', 'Full of energy']],
+            ['word' => 'brave', 'sentence' => 'The brave knight stood boldly before the roaring dragon.', 'correct' => 'Courageous', 'wrong' => ['Cowardly', 'Silent', 'Fearful']],
+            ['word' => 'triumphant', 'sentence' => 'The team felt triumphant after winning the championship game.', 'correct' => 'Victorious', 'wrong' => ['Defeated', 'Angry', 'Disappointed']],
+        ];
 
-        $q2 = Question::updateOrCreate(
-            ['map_id' => $map1->id, 'order_index' => 2],
-            [
-                'sentence'              => 'The brave knight stood before the dragon.',
-                'highlighted_word'      => 'brave',
-                'image_url'             => 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q2->answers()->delete();
-        $q2->answers()->createMany([
-            ['text' => 'Courageous', 'is_correct' => true],
-            ['text' => 'Cowardly',   'is_correct' => false],
-            ['text' => 'Silent',     'is_correct' => false],
-            ['text' => 'Fearful',    'is_correct' => false],
-        ]);
+        // ── Map 2 Questions (Bayan ng Prosperidad: Average Round, Pictures + Yellow Highlight + Underlined Clues, 3 Questions) ──
+        $map2Questions = [
+            ['word' => 'diligent', 'clue' => 'organized all her study notes neatly', 'sentence' => 'The diligent student organized all her study notes neatly every single evening.', 'correct' => 'Hardworking and attentive', 'wrong' => ['Lazy and careless', 'Forgetful', 'Easily distracted']],
+            ['word' => 'vibrant', 'clue' => 'colorful decorations and joyful music', 'sentence' => 'The town fiesta was vibrant with colorful decorations and joyful music echoing in the streets.', 'correct' => 'Bright and lively', 'wrong' => ['Dull and gloomy', 'Silent and dark', 'Pale and faded']],
+            ['word' => 'ancient', 'clue' => 'stood in the plaza for hundreds of years', 'sentence' => 'The ancient balete tree stood in the plaza for hundreds of years before the town was founded.', 'correct' => 'Extremely old', 'wrong' => ['Brand new', 'Tiny and weak', 'Modern and young']],
+        ];
 
-        $q3 = Question::updateOrCreate(
-            ['map_id' => $map1->id, 'order_index' => 3],
-            [
-                'sentence'              => 'The team felt triumphant after winning the game.',
-                'highlighted_word'      => 'triumphant',
-                'image_url'             => 'https://images.unsplash.com/photo-1526676037777-05a232554f77?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q3->answers()->delete();
-        $q3->answers()->createMany([
-            ['text' => 'Victorious',   'is_correct' => true],
-            ['text' => 'Defeated',     'is_correct' => false],
-            ['text' => 'Angry',        'is_correct' => false],
-            ['text' => 'Disappointed', 'is_correct' => false],
-        ]);
+        // ── Map 3 Questions (Provincial Capitol: Pictures + Yellow Highlight + Underlined Clues, 3 Questions) ──
+        $map3Questions = [
+            ['word' => 'majestic', 'clue' => 'stood tall on the hilltop', 'sentence' => 'The majestic capitol building stood tall on the hilltop overlooking the province.', 'correct' => 'Grand and impressive', 'wrong' => ['Hidden and small', 'Ordinary and plain', 'Flimsy']],
+            ['word' => 'historic', 'clue' => 'founding of Agusan del Sur', 'sentence' => 'The museum preserved historic artifacts from the founding of Agusan del Sur.', 'correct' => 'Important in history', 'wrong' => ['Futuristic', 'Unimportant', 'Fictional']],
+            ['word' => 'brilliant', 'clue' => 'solved the municipality water shortage', 'sentence' => 'The young engineer presented a brilliant blueprint that solved the municipality water shortage.', 'correct' => 'Exceptionally clever', 'wrong' => ['Foolish', 'Common', 'Unoriginal']],
+        ];
 
-        $q1_4 = Question::updateOrCreate(
-            ['map_id' => $map1->id, 'order_index' => 4],
-            [
-                'sentence'              => 'The ancient library was filled with numerous fascinating books.',
-                'highlighted_word'      => 'numerous',
-                'image_url'             => 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q1_4->answers()->delete();
-        $q1_4->answers()->createMany([
-            ['text' => 'Many',   'is_correct' => true],
-            ['text' => 'Few',    'is_correct' => false],
-            ['text' => 'Hidden', 'is_correct' => false],
-            ['text' => 'Single', 'is_correct' => false],
-        ]);
+        // Helper to seed questions for a map
+        $seedMap = function (Map $map, array $questionsList, bool $hasImages = false) {
+            $map->questions()->delete();
 
-        $q1_5 = Question::updateOrCreate(
-            ['map_id' => $map1->id, 'order_index' => 5],
-            [
-                'sentence'              => 'She demonstrated remarkable resilience when overcoming the obstacle.',
-                'highlighted_word'      => 'resilience',
-                'image_url'             => 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q1_5->answers()->delete();
-        $q1_5->answers()->createMany([
-            ['text' => 'Strength to recover', 'is_correct' => true],
-            ['text' => 'Fear and worry',     'is_correct' => false],
-            ['text' => 'Laziness',           'is_correct' => false],
-            ['text' => 'Giving up quickly',  'is_correct' => false],
-        ]);
+            foreach ($questionsList as $i => $qData) {
+                Vocabulary::firstOrCreate(['word' => $qData['word']]);
 
-        // 7. Seed Questions for Map 2 (Bayan ng Prosperidad - 5 Questions)
-        $q4 = Question::updateOrCreate(
-            ['map_id' => $map2->id, 'order_index' => 1],
-            [
-                'sentence'              => 'The diligent student organized all her study notes neatly.',
-                'highlighted_word'      => 'diligent',
-                'context_clue'          => 'organized all her study notes neatly',
-                'image_url'             => null,
-                'has_context_highlight' => true,
-                'has_image'             => false,
-            ]
-        );
-        $q4->answers()->delete();
-        $q4->answers()->createMany([
-            ['text' => 'Hardworking and attentive', 'is_correct' => true],
-            ['text' => 'Lazy and careless',         'is_correct' => false],
-            ['text' => 'Forgetful',                 'is_correct' => false],
-            ['text' => 'Easily distracted',         'is_correct' => false],
-        ]);
+                $q = Question::create([
+                    'map_id'                => $map->id,
+                    'order_index'           => $i + 1,
+                    'sentence'              => $qData['sentence'],
+                    'highlighted_word'      => $qData['word'],
+                    'context_clue'          => $qData['clue'] ?? null,
+                    'image_url'             => $hasImages ? 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800' : null,
+                    'has_context_highlight' => true,
+                    'has_image'             => $hasImages,
+                    'question_type'         => 'multiple_choice',
+                ]);
 
-        $q5 = Question::updateOrCreate(
-            ['map_id' => $map2->id, 'order_index' => 2],
-            [
-                'sentence'              => 'The town fiesta was filled with vibrant and colorful decorations.',
-                'highlighted_word'      => 'vibrant',
-                'context_clue'          => 'colorful decorations',
-                'image_url'             => null,
-                'has_context_highlight' => true,
-                'has_image'             => false,
-            ]
-        );
-        $q5->answers()->delete();
-        $q5->answers()->createMany([
-            ['text' => 'Bright and lively', 'is_correct' => true],
-            ['text' => 'Dull and gloomy',   'is_correct' => false],
-            ['text' => 'Silent and dark',   'is_correct' => false],
-            ['text' => 'Pale and faded',    'is_correct' => false],
-        ]);
+                $answers = [
+                    ['text' => $qData['correct'], 'is_correct' => true],
+                    ['text' => $qData['wrong'][0], 'is_correct' => false],
+                    ['text' => $qData['wrong'][1], 'is_correct' => false],
+                    ['text' => $qData['wrong'][2], 'is_correct' => false],
+                ];
+                $q->answers()->createMany($answers);
+            }
+        };
 
-        $q6 = Question::updateOrCreate(
-            ['map_id' => $map2->id, 'order_index' => 3],
-            [
-                'sentence'              => 'The ancient tree stood in the town square for hundreds of years.',
-                'highlighted_word'      => 'ancient',
-                'context_clue'          => 'for hundreds of years',
-                'image_url'             => null,
-                'has_context_highlight' => true,
-                'has_image'             => false,
-            ]
-        );
-        $q6->answers()->delete();
-        $q6->answers()->createMany([
-            ['text' => 'Extremely old',   'is_correct' => true],
-            ['text' => 'Brand new',       'is_correct' => false],
-            ['text' => 'Tiny and weak',   'is_correct' => false],
-            ['text' => 'Modern and young', 'is_correct' => false],
-        ]);
-
-        $q7 = Question::updateOrCreate(
-            ['map_id' => $map2->id, 'order_index' => 4],
-            [
-                'sentence'              => 'The curious boy examined the mysterious footprint in the soil.',
-                'highlighted_word'      => 'curious',
-                'context_clue'          => 'examined the mysterious footprint',
-                'image_url'             => null,
-                'has_context_highlight' => true,
-                'has_image'             => false,
-            ]
-        );
-        $q7->answers()->delete();
-        $q7->answers()->createMany([
-            ['text' => 'Eager to investigate', 'is_correct' => true],
-            ['text' => 'Uninterested',         'is_correct' => false],
-            ['text' => 'Sleepy',               'is_correct' => false],
-            ['text' => 'Careless',             'is_correct' => false],
-        ]);
-
-        $q8 = Question::updateOrCreate(
-            ['map_id' => $map2->id, 'order_index' => 5],
-            [
-                'sentence'              => 'The sunrise over the river created a peaceful morning view.',
-                'highlighted_word'      => 'peaceful',
-                'context_clue'          => 'sunrise over the river',
-                'image_url'             => null,
-                'has_context_highlight' => true,
-                'has_image'             => false,
-            ]
-        );
-        $q8->answers()->delete();
-        $q8->answers()->createMany([
-            ['text' => 'Calm and serene',  'is_correct' => true],
-            ['text' => 'Chaotic and loud', 'is_correct' => false],
-            ['text' => 'Dangerous',       'is_correct' => false],
-            ['text' => 'Stormy and wild',  'is_correct' => false],
-        ]);
-
-        // 8. Seed Questions for Map 3 (Provincial Capitol - 5 Questions)
-        $q9 = Question::updateOrCreate(
-            ['map_id' => $map3->id, 'order_index' => 1],
-            [
-                'sentence'              => 'The majestic capitol building stood tall on the hilltop.',
-                'highlighted_word'      => 'majestic',
-                'image_url'             => 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q9->answers()->delete();
-        $q9->answers()->createMany([
-            ['text' => 'Grand and impressive', 'is_correct' => true],
-            ['text' => 'Hidden and small',     'is_correct' => false],
-            ['text' => 'Ordinary',             'is_correct' => false],
-            ['text' => 'Simple and plain',     'is_correct' => false],
-        ]);
-
-        $q10 = Question::updateOrCreate(
-            ['map_id' => $map3->id, 'order_index' => 2],
-            [
-                'sentence'              => 'The museum preserved historic artifacts from long ago.',
-                'highlighted_word'      => 'historic',
-                'image_url'             => 'https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q10->answers()->delete();
-        $q10->answers()->createMany([
-            ['text' => 'Important in history', 'is_correct' => true],
-            ['text' => 'Futuristic',           'is_correct' => false],
-            ['text' => 'Unimportant',          'is_correct' => false],
-            ['text' => 'Fictional',            'is_correct' => false],
-        ]);
-
-        $q11 = Question::updateOrCreate(
-            ['map_id' => $map3->id, 'order_index' => 3],
-            [
-                'sentence'              => 'The young inventor shared a brilliant idea with the class.',
-                'highlighted_word'      => 'brilliant',
-                'image_url'             => 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q11->answers()->delete();
-        $q11->answers()->createMany([
-            ['text' => 'Exceptionally clever', 'is_correct' => true],
-            ['text' => 'Foolish',              'is_correct' => false],
-            ['text' => 'Common',               'is_correct' => false],
-            ['text' => 'Unoriginal',           'is_correct' => false],
-        ]);
-
-        $q12 = Question::updateOrCreate(
-            ['map_id' => $map3->id, 'order_index' => 4],
-            [
-                'sentence'              => 'The choir sang in harmonious melody that touched everyone.',
-                'highlighted_word'      => 'harmonious',
-                'image_url'             => 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q12->answers()->delete();
-        $q12->answers()->createMany([
-            ['text' => 'Pleasantly agreeable and tuneful', 'is_correct' => true],
-            ['text' => 'Harsh and screeching',             'is_correct' => false],
-            ['text' => 'Completely silent',                'is_correct' => false],
-            ['text' => 'Clashing and noisy',               'is_correct' => false],
-        ]);
-
-        $q13 = Question::updateOrCreate(
-            ['map_id' => $map3->id, 'order_index' => 5],
-            [
-                'sentence'              => 'The flourishing trade made the province prosperous and thriving.',
-                'highlighted_word'      => 'prosperous',
-                'image_url'             => 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=80',
-                'has_context_highlight' => true,
-                'has_image'             => true,
-            ]
-        );
-        $q13->answers()->delete();
-        $q13->answers()->createMany([
-            ['text' => 'Successful and thriving', 'is_correct' => true],
-            ['text' => 'Poor and struggling',      'is_correct' => false],
-            ['text' => 'Inactive',                 'is_correct' => false],
-            ['text' => 'Bankrupt and ruined',       'is_correct' => false],
-        ]);
+        // Seed 3 questions per kingdom for fast manual testing
+        $seedMap($map1, $map1Questions, true);
+        $seedMap($map2, $map2Questions, true);
+        $seedMap($map3, $map3Questions, true);
 
         // 9. Seed Active Game Room with PIN 123456
         Room::updateOrCreate(
@@ -384,7 +161,7 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // Dynamically sync question counts for all maps based on actual seeded questions
+        // Dynamically sync question counts for all maps based on actual seeded questions (3 each)
         foreach (Map::all() as $m) {
             $m->update(['question_count' => $m->questions()->count()]);
         }

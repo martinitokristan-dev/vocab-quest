@@ -1,3 +1,5 @@
+import { getFlowMode } from '../MAP/src/flow/flowMode';
+
 export type MapInteractionPhase =
   | 'awaiting_kingdom_click'
   | 'kingdom_enter_anim'
@@ -28,9 +30,10 @@ export interface MapFlowOptions {
   mapPhase: MapInteractionPhase;
 }
 
+/** Legacy PNG map only (5 levels per kingdom). The voxel map uses MAP/src/flow/flowAdapter. */
 const MAP_OFFSETS: Record<number, number> = { 1: 0, 2: 5, 3: 10 };
 
-/** Hardcoded step coordinates aligned with game2d.ts station arrays */
+/** Hardcoded step coordinates aligned with game2d.ts station arrays (PNG mode only) */
 export const STEP_COORDS: Record<number, Array<{ x: number; y: number; blockH: number }>> = {
   1: [
     { x: 140, y: 780, blockH: 66 },
@@ -70,17 +73,65 @@ export const KINGDOM_TRANSITION_PATHS: Record<string, Array<{ x: number; y: numb
   ],
 };
 
+// ── Modern World Map (40 levels per kingdom, 1200x8800) ─────────────────────────
+export const MODERN_MAP_W = 1200;
+export const MODERN_PATH_TOP_Y = 400;
+export const MODERN_PATH_BOT_Y = 8000;
+export const MODERN_LEVELS_PER_KINGDOM = 40;
+
+export function getModernRoadPoint(t: number): { x: number; y: number } {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const y = MODERN_PATH_BOT_Y - clampedT * (MODERN_PATH_BOT_Y - MODERN_PATH_TOP_Y);
+  const x = MODERN_MAP_W / 2 + Math.sin(clampedT * Math.PI * 6) * 260;
+  return { x, y };
+}
+
+export function getModernStepRef(mapId: number, questionIndex: number): StepRef | null {
+  if (questionIndex < 1 || questionIndex > MODERN_LEVELS_PER_KINGDOM) return null;
+  const t = (questionIndex - 1) / (MODERN_LEVELS_PER_KINGDOM - 1);
+  const pt = getModernRoadPoint(t);
+  return {
+    mapId,
+    questionIndex,
+    x: pt.x,
+    y: pt.y,
+  };
+}
+
+export function computeModernWalkPath(from: StepRef, to: StepRef): Array<{ x: number; y: number }> {
+  if (from.mapId === to.mapId) {
+    const tFrom = (from.questionIndex - 1) / (MODERN_LEVELS_PER_KINGDOM - 1);
+    const tTo = (to.questionIndex - 1) / (MODERN_LEVELS_PER_KINGDOM - 1);
+    const diff = Math.abs(to.questionIndex - from.questionIndex);
+    const numSteps = Math.max(16, diff * 16);
+    const points: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i <= numSteps; i++) {
+      const p = i / numSteps;
+      const t = tFrom + (tTo - tFrom) * p;
+      points.push(getModernRoadPoint(t));
+    }
+    return points;
+  }
+  // Transition across kingdoms: step right into the portal at current location
+  const fromPt = getModernRoadPoint((from.questionIndex - 1) / (MODERN_LEVELS_PER_KINGDOM - 1));
+  return [
+    fromPt,
+    { x: fromPt.x, y: fromPt.y - 25 },
+  ];
+}
+
+// The mode is read at every call (never cached at module load): the renderer factory sets it.
 export function globalLevelNumber(mapId: number, questionIndex: number): number {
+  if (getFlowMode() === 'voxel') return (mapId - 1) * MODERN_LEVELS_PER_KINGDOM + questionIndex;
   return (MAP_OFFSETS[mapId] ?? 0) + questionIndex;
 }
 
 export function getStepRef(mapId: number, questionIndex: number): StepRef | null {
+  if (getFlowMode() === 'voxel') return getModernStepRef(mapId, questionIndex);
   const mapSteps = STEP_COORDS[mapId];
   if (!mapSteps || mapSteps.length === 0) return null;
-  // Normalize index so both 1..5 local index and 6..10/11..15 global orderIndex resolve properly!
-  const zeroIndex = questionIndex > mapSteps.length
-    ? ((questionIndex - 1) % mapSteps.length)
-    : Math.max(0, questionIndex - 1);
+  if (questionIndex < 1 || questionIndex > mapSteps.length) return null;
+  const zeroIndex = questionIndex - 1;
   const coords = mapSteps[zeroIndex];
   if (!coords) return null;
   return {
@@ -100,6 +151,7 @@ export function isKingdomEntered(kingdomId: number, enteredKingdomIds: number[])
 }
 
 export function computeWalkPath(from: StepRef, to: StepRef): Array<{ x: number; y: number }> {
+  if (getFlowMode() === 'voxel') return computeModernWalkPath(from, to);
   if (from.mapId === to.mapId) {
     return [
       { x: from.x, y: from.y },
@@ -123,6 +175,19 @@ export function buildKingdomTransitionAction(
   fromQuestionIndex: number,
   toMapId: number
 ): PendingMapAction | null {
+  if (getFlowMode() === 'voxel') {
+    const fromStep = getModernStepRef(fromMapId, fromQuestionIndex) ?? getModernStepRef(fromMapId, MODERN_LEVELS_PER_KINGDOM);
+    const toStep = getModernStepRef(toMapId, 1);
+    if (!fromStep || !toStep || toMapId <= fromMapId) return null;
+    return {
+      type: 'kingdom_transition',
+      fromStep,
+      toStep,
+      path: computeModernWalkPath(fromStep, toStep),
+      bubbleText: 'NEW KINGDOM UNLOCKED!',
+      thenScreen: 'await_kingdom',
+    };
+  }
   const mapSteps = STEP_COORDS[fromMapId] || [];
   // Use fromQuestionIndex or fallback to the last station of fromMapId (e.g. station 5)
   const fromStep = getStepRef(fromMapId, fromQuestionIndex) || getStepRef(fromMapId, mapSteps.length || 5);

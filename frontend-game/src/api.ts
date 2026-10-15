@@ -233,7 +233,7 @@ class StudentGameApiClient {
 
       if (response.status === 401) {
         this.clearToken();
-        throw new Error(errorMessage || 'Unauthorized');
+        throw new ApiError(errorMessage || 'Unauthorized', 401);
       }
 
       if (response.status >= 502 && response.status <= 504) {

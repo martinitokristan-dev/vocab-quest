@@ -173,17 +173,17 @@ test('deleting a non-existent or already-deleted question returns friendly 404 j
         ]);
 });
 
-test('question creation fails when map already has 5 questions (422)', function () {
+test('question creation fails when map already has 40 questions (422)', function () {
     $teacher = User::factory()->create();
     $map     = Map::factory()->create(['teacher_id' => $teacher->id]);
 
-    for ($i = 1; $i <= 5; $i++) {
+    for ($i = 1; $i <= 40; $i++) {
         Question::factory()->create(['map_id' => $map->id, 'order_index' => $i]);
     }
 
     $this->actingAs($teacher)
         ->postJson("/api/maps/{$map->id}/questions", [
-            'order_index'      => 6,
+            'order_index'      => 41,
             'sentence'         => 'The extra question.',
             'highlighted_word' => 'extra',
             'answers'          => [

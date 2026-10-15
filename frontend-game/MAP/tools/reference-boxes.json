@@ -1,0 +1,29 @@
+{
+  "note": "Reference px boxes (x0,y0,x1,y1) measured on MAP/reference/vocab-quest-map.png. ids are the rendered sprite ids (union) compared against the box. Gate: every edge within 24 units; nodes 1-13 within 12.",
+  "tolerance": 24,
+  "nodeTolerance": 12,
+  "landmarks": [
+    { "name": "school", "ref": [80, 318, 458, 525], "ids": ["school"] },
+    { "name": "sign", "ref": [28, 530, 398, 735], "ids": ["sign_planter", "letter_i", "letter_heart", "letter_e1", "letter_p", "letter_c", "letter_e2", "letter_s"] },
+    { "name": "hall", "ref": [730, 270, 1080, 505], "ids": ["hall", "hall_steps"] },
+    { "name": "lamp", "ref": [1003, 423, 1028, 522], "ids": ["lamp"] },
+    { "name": "towerWest", "ref": [428, 372, 528, 515], "ids": ["towerWest"] },
+    { "name": "towerEast", "ref": [1046, 352, 1145, 505], "ids": ["towerEast"] },
+    { "name": "capitol", "ref": [1325, 95, 1752, 345], "ids": ["capitol", "pole_ph", "pole_w", "pole_e", "flag0", "flag1", "flag2"] },
+    { "name": "vanWest", "ref": [645, 400, 730, 490], "ids": ["vanWest"] },
+    { "name": "vanNE", "ref": [1262, 268, 1342, 335], "ids": ["vanNE"] },
+    { "name": "cars", "ref": [1618, 336, 1762, 400], "ids": ["carRed", "suvDark"] },
+    { "name": "bridge", "ref": [548, 585, 668, 668], "ids": ["bridge"] },
+    { "name": "waterfall1", "ref": [736, 612, 780, 699], "ids": ["wf1"] },
+    { "name": "waterfall2", "ref": [1104, 612, 1144, 699], "ids": ["wf2"] },
+    { "name": "waterfall3", "ref": [1304, 712, 1349, 797], "ids": ["wf3"] },
+    { "name": "waterfall4", "ref": [1564, 607, 1614, 692], "ids": ["wf4"] },
+    { "name": "yellowFlagWest", "ref": [1436, 138, 1466, 165], "ids": ["flag0"] },
+    { "name": "yellowFlagEast", "ref": [1599, 146, 1629, 175], "ids": ["flag2"] },
+    { "name": "philippineFlag", "ref": [1512, 105, 1567, 145], "ids": ["flag1"] }
+  ],
+  "nodes": [
+    [175, 775], [352, 722], [502, 667], [713, 540], [808, 565], [925, 573], [1043, 566],
+    [1153, 537], [1266, 364], [1345, 413], [1430, 445], [1525, 472], [1637, 488]
+  ]
+}

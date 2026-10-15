@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Effects and behaviour: PLAN.md steps 14-17. Animated water/waterfalls/clouds/flags/sway/glow/sparkles, node state visuals, quality governor, avatar walking, follow/glide/warp camera, recenter, progress/availability API, kingdom gating, padlock/mist, entry animations, gate + title banner + camera travel, legacy and new events, accessibility proxies, reduced motion, responsive/DPR, full demo controls. Depends on FEAT-004.",
+  "status": "completed",
+  "steps": [
+    "PLAN.md step 14: render\\layers\\{water,clouds,nodes,avatar}.ts + dynamic objects, quality tiers H/M/L, adaptive governor, world clock frozen under reduced motion",
+    "PLAN.md step 15: avatar walk, walkPlan warp, glide/warp camera, recenter, setProgress/updateProgress/setAvailability, gating table (DESIGN 5.4), entrances, mist + 3D padlock, playKingdomEntryAnimation/animatePadlockUnlock promises, gate doors, banner, camera travel, K3 finale, input lock with try/finally, on() events + legacy registration methods",
+    "PLAN.md step 16: hud\\{a11y,banner}.ts, progress chip, kingdom mini-indicator, tooltip, recenter emphasis, safe-area insets, reduced-motion listener, DPR change",
+    "PLAN.md step 17: complete demo controls (pickers, Jump, Complete level, Reset, Recenter, toggles, availability slider, debug overlay, avatar picker, readouts)"
+  ],
+  "acceptance_criteria": [
+    "3 s capture shows changes in water, waterfalls, both flag types, canopies and clouds; with prefers-reduced-motion emulated, world-layer frames are identical (AC13, AC22)",
+    "Current node pulses, hover shows sky-blue glow and tooltip, completed nodes show 1-3 stars, locked dimmed (AC14)",
+    "Complete level walks the avatar node to node, camera centers current node within 1.2 s with no frame moving > 25% of viewport height (AC15, AC16)",
+    "Drag, wheel, pinch, keyboard pan/zoom stay inside world and zoom in [minZoom, 3.2] (AC17); recenter returns within 1 s and works by keyboard (AC18)",
+    "Level 45 triggers gate animation, banner 2-3 s, camera arrival at next kingdom, input locked then unlocked, repeated 1->2->3 (AC19)",
+    "Resize 1920x1080 -> 390x844 keeps aspect and current node visible (AC12); DPR 2 screenshot crisp (AC11)",
+    "perf gate still holds (AC20) and events fire exactly once per interaction",
+    "npm run map:test and npm run build pass"
+  ],
+  "verification": [
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run map:test",
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run build",
+    "Playwright runs against npm run map:demo for AC11-AC20 with screenshots and numbers recorded in findings"
+  ],
+  "blocked_reason": null,
+  "findings": "DONE, nothing committed. map:test 18 files/88 pass, npm run build 0 errors, perf.mjs re-run PASS (2.64 ms unthrottled, 4x medium 60.9 fps, low 68 fps, seam 0/119). New: layers water/avatar/effects/gate, hud a11y/banner, tools/check-effects.mjs (Playwright, Edge). Browser results (1774x887 unless noted): AC13 3 s diff water 25%, falls 40%, flags 3-7% (3 flags), canopies 304/318 regions, sky-gate cloud zone 40148 px; AC22 reduced motion 0 changed pixels (whole frame and sky zone). AC14 current pulse 3317 px, hover tooltip + 787 sky-blue px, stars 1-3 under completed, locked dimmed with lock glyph (feat5-node-states.png). AC15/16 walk L5->L6 771 ms, max camera move/frame 0.0004 vh, centered at arrival; gate sequences max 0.015 vh/frame. AC17 drag/wheel/pinch(CDP)/keyboard stayed inside world, zoom 1..3.2. AC18 recenter far 337 ms, near 764 ms, Home 341 ms. AC19 K1->K2, K2->K3 gate (doors, avatar fade, banner 2507 ms, camera arrives at next entrance, locked ~4.7 s then unlocked), repeated twice, K3 finale 2403 ms locked then unlocked, entrance click emits kingdomClick once. Events once: node clicks 1/11, 1/12 only (locked + drag emit none), Enter on proxy emits once; 18 proxies (<=24), labels per DESIGN 11. AC12 1920x1080 -> 390x844 -> back: zoom 1.08/0.55/1.08, level visible each time, uniform zoom. AC11 DPR2: 900x600 css -> 1800x1200 backing. Deviations/notes: sway amp 0.025/0.04 (design 0.012/0.02, too faint); tree/bush sprites sway via model-key table; drift clouds have no parallax (x drift only); window glow not implemented (lamp glow only); K3 finale auto-detected as zero-length walk at K3 L45 (flowAdapter computeWalkPath(from,from)); recenter emphasis = current node centre outside viewport; mist covers lower half of locked kingdom. Demo server on 5199 stopped. Known: single 404 console message (non-map resource)."
+}

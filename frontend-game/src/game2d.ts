@@ -292,34 +292,27 @@ export class Game2DMapRenderer {
     if (isPortraitMobile) {
       // Option A: "Kingdom Fit" - Fits all 5 stations of the active kingdom edge-to-edge
       // with comfortable padding on mobile portrait screens (typically 360px - 430px wide).
-      const kingdomFitScale = Math.max(0.55, Math.min(0.70, w / 580));
+      const kingdomFitScale = Math.max(0.70, Math.min(0.95, w / 460));
       baseScale = kingdomFitScale;
-      this.minZoom = Math.min(0.35, w / this.WORLD_WIDTH);
-      this.maxZoom = 2.4;
+      this.minZoom = Math.min(0.40, w / this.WORLD_WIDTH);
+      this.maxZoom = 2.8;
       this.zoomLevel = kingdomFitScale;
     } else {
-      // Desktop / Landscape view: fill viewport edge-to-edge
+      // Desktop / Landscape view: fill viewport edge-to-edge with closer character focus
       baseScale = Math.max(w / this.WORLD_WIDTH, h / this.WORLD_HEIGHT);
       this.minZoom = baseScale;
-      this.maxZoom = baseScale * 3.1;
-      this.zoomLevel = baseScale;
+      this.maxZoom = baseScale * 3.4;
+      this.zoomLevel = baseScale * 1.35;
     }
 
-    // If whole map width fits comfortably on screen, center the entire map
-    if (w >= this.WORLD_WIDTH * baseScale) {
-      this.panOffset.x = (w - this.WORLD_WIDTH * baseScale) / 2;
-      this.panOffset.y = (h - this.WORLD_HEIGHT * baseScale) / 2;
-    } else {
-      // On mobile / portrait screens where map is wider than the viewport,
-      // center camera directly on the active kingdom / player position
-      const isAwaitingKingdom = this.mapFlowOptions?.mapPhase === 'awaiting_kingdom_click';
-      const focal = isAwaitingKingdom
-        ? this.getActiveFocalPoint()
-        : ((this.playerPos && this.playerPos.x > 0) ? this.playerPos : this.getActiveFocalPoint());
-      const targetPan = this.computePanForWorldCenter(focal.x, focal.y, baseScale);
-      this.panOffset.x = targetPan.x;
-      this.panOffset.y = targetPan.y;
-    }
+    // Always center camera directly on the active kingdom / player position for character focus
+    const isAwaitingKingdom = this.mapFlowOptions?.mapPhase === 'awaiting_kingdom_click';
+    const focal = isAwaitingKingdom
+      ? this.getActiveFocalPoint()
+      : ((this.playerPos && this.playerPos.x > 0) ? this.playerPos : this.getActiveFocalPoint());
+    const targetPan = this.computePanForWorldCenter(focal.x, focal.y, this.zoomLevel);
+    this.panOffset.x = targetPan.x;
+    this.panOffset.y = targetPan.y;
     this.clampCameraBounds();
   }
 
@@ -740,6 +733,18 @@ export class Game2DMapRenderer {
 
     this.clampCameraBounds();
     this.inputLocked = false;
+  }
+
+  public async playPortalEntryAnimation(_targetPos?: { x: number; y: number }): Promise<void> {
+    this.inputLocked = true;
+    soundManager.playWhoosh();
+    // Fade in 50% dark overlay
+    await this.animateFullScreenFade(0, 0.5, 800);
+    this.inputLocked = false;
+  }
+
+  public clearPortalOverlay(): void {
+    this.fullScreenFadeAlpha = 0;
   }
 
   public animatePadlockUnlock(kingdomId: number): Promise<void> {
@@ -1492,12 +1497,14 @@ export class Game2DMapRenderer {
         const u = isUnlocking ? this.unlockingPadlock! : null;
 
         // 1. Soft Dark Feathered Mask over the locked kingdom structure (fades during unlock)
-        const maskW = k.width + 40;
-        const maskH = k.height + 20;
-        const darkGrad = this.ctx.createRadialGradient(k.x, k.y, k.width * 0.15, k.x, k.y, maskW * 0.5);
+        const maskW = k.width * 0.9;
+        const maskH = k.height * 0.8;
+        const darkGrad = this.ctx.createRadialGradient(k.x, k.y, 10, k.x, k.y, maskW * 0.5);
         const mistA = u ? u.mistAlpha : 1;
-        darkGrad.addColorStop(0, `rgba(2, 6, 23, ${0.76 * mistA})`);
-        darkGrad.addColorStop(0.55, `rgba(15, 23, 42, ${0.65 * mistA})`);
+        darkGrad.addColorStop(0, `rgba(15, 23, 42, ${0.48 * mistA})`);
+        darkGrad.addColorStop(0.35, `rgba(15, 23, 42, ${0.28 * mistA})`);
+        darkGrad.addColorStop(0.70, `rgba(15, 23, 42, ${0.08 * mistA})`);
+        darkGrad.addColorStop(0.92, `rgba(15, 23, 42, ${0.01 * mistA})`);
         darkGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
 
         this.ctx.fillStyle = darkGrad;

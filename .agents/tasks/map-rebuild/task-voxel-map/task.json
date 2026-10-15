@@ -1,0 +1,7 @@
+{
+  "task_id": "task-voxel-map",
+  "task_description": "Replace the PNG game map (vocab-map.png, 15 levels) with a code-rendered Canvas 2D voxel world map: 3 kingdoms x 45 levels = 135 nodes, upward progression, eased follow camera, kingdom gate/banner transitions, animated effects, demo page. Everything under C:\\Users\\marti\\vocab-game\\frontend-game\\MAP\\ except minimal wiring listed in MAP\\README.md. Full ordered plan: C:\\Users\\marti\\vocab-game\\frontend-game\\MAP\\PLAN.md (20 steps). Design: C:\\Users\\marti\\vocab-game\\.agents\\tasks\\map-rebuild\\DESIGN.md.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005", "FEAT-006"],
+  "blocked_reason": null
+}

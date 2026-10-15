@@ -37,9 +37,9 @@ class QuestionController extends Controller
     {
         $this->authorize('update', $map);
 
-        if ($map->questions()->count() >= 5) {
+        if ($map->questions()->count() >= 40) {
             throw ValidationException::withMessages([
-                'questions' => ['Limit reached: Each kingdom stage can only have a maximum of 5 questions.'],
+                'questions' => ['Limit reached: Each kingdom stage can only have a maximum of 40 questions.'],
             ]);
         }
 

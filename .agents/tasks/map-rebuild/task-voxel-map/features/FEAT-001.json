@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Foundation: PLAN.md steps 1-4. Tooling (vitest, @types/node, playwright pinned; tsconfig include; npm scripts; MAP tsconfig.tools/vitest config), pure core modules (rng, math, quality, camera, status, api types), world data + node generator + generated nodes.ts/gates.ts + layout/walkPath, flow layer (flowMode, kingdomMap, flowAdapter) and guard tests. No rendering. Independent of rendering work; everything later depends on it.",
+  "status": "completed",
+  "steps": [
+    "PLAN.md step 1: npm install -D --save-exact vitest @types/node playwright (from C:\\Users\\marti\\vocab-game\\frontend-game); edit tsconfig.json include; add scripts map:demo, map:test, map:nodes (DESIGN 19.2 item 6); create MAP\\tsconfig.tools.json, MAP\\vitest.config.mjs, placeholder MAP\\src\\index.ts",
+    "PLAN.md step 2: MAP\\src\\core\\{rng,math,quality,camera,status}.ts and MAP\\src\\api\\types.ts (re-read src\\game2d.ts ~560-900 for real signatures); tests rng/camera/status",
+    "PLAN.md step 3: MAP\\data\\{world,spines}.ts, MAP\\data\\scenes\\k1.ts (footprints only), MAP\\src\\core\\{layout,walkPath}.ts, MAP\\tools\\generate-nodes.ts, generated MAP\\data\\{nodes,gates}.ts; tests nodes/gates/walkpath/walkplan; apply the DESIGN 3.3 adjustment rule until all bounds hold",
+    "PLAN.md step 4: MAP\\src\\flow\\{flowMode,kingdomMap,flowAdapter}.ts; tests flow, flowMode, kingdomMap, importBoundary, noRefAssets, types.test-d.ts"
+  ],
+  "acceptance_criteria": [
+    "npm run map:test passes (covers AC1-AC6 logic, gates, walk plans, flow mode, import boundary)",
+    "npm run build passes with 0 errors with MAP/src, MAP/data, MAP/demo/main.ts in tsconfig include (demo/main.ts may be created as a stub if tsc requires it)",
+    "nodes.ts has exactly 135 records, spacing 90-200 except the two tagged bridge hops, K1 L1-13 within 12 units of the reference anchors",
+    "git diff shows no change to src/game2d.ts, public/assets, backend"
+  ],
+  "verification": [
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run map:test",
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Verified: npm run map:test (12 files, 53 tests pass; includes tsc -p MAP/tsconfig.tools.json) and npm run build (0 errors). Nothing committed. Deps pinned: vitest 5.0.4, @types/node 24.19.2, playwright 1.64.0 (no browser download). map:nodes is `node MAP/tools/map-nodes.mjs` (sets MAP_REGEN=1 and runs MAP/tests/generate-nodes.regen.test.ts; cmd-safe). vitest config sets fileParallelism:false so the 135x135 walkpath timing (<100ms) is not skewed. Node generation needed NO waypoint adjustment: K1 hops 90.8 (L10-L11) .. 198.2 (A-B), bridge hops L3-L4 246.3 and L8-L9 206.6 tagged hop:'bridge' on the arriving node (L4, L9); K2/K3 spacing within 95-195; gates/entrances match the DESIGN 3.2 table exactly. K1 anchors were used as given in the design (L9 nudged to 1266,364); the +/-4 px re-measurement on the PNG and footprint re-measure were NOT done (left for FEAT-003 step 10, data/scenes/k1.ts K1_S1_FOOTPRINTS holds the design table values). K1_LEVEL45_U lever in data/spines.ts is unused (5650). For later steps: (1) MAP/src/core/layout.ts computeLayout() is the source for nodes/gates/entrances and dense per-kingdom paths (KingdomPath with cum, nodeArc, frontArc, gateFront); spines in MAP/data/spines.ts (waypoints + fixed/pinned nodes); (2) walkPath.computeWalkPath returns shared read-only Pt objects, segments<=60; walkPlan(from,to?) ends at the gate front (K1/K2) or L45 (K3), warpAfterIndex marks the teleport; the next-kingdom re-spawn is not part of the plan; (3) flow/flowAdapter getStepRef returns avatar standing position y = node.y - blockH/2 + 10 (legacy formula) plus blockH; computeWalkPath/buildTransitionPlan shift polylines by that offset and snap ends to the step refs; buildTransitionPlan(from,q,to) returns {fromStep,toStep,path,warpAfterIndex}; (4) api/types.ts MapFlowOptions.mapPhase is string; MapRenderer is satisfied by Game2DMapRenderer (tests/types.test-d.ts compiles under map:test); (5) status.deriveStatuses/avatarNode take optional nodes param (default NODES); (6) core/camera.ts also exports followTarget, glideAt, shouldWarp, defaultZoom, KINGDOM_TRAVEL_MS; (7) core/quality.ts exports detectQuality(info) and detectQualityFromNavigator (deviceMemory<=4 caps at medium via the same thresholds); (8) MAP/demo/main.ts is an empty stub (export {}), MAP/src/index.ts is `export {}`; MAP/demo/vite.config.mjs does not exist yet (map:demo script will fail until FEAT for step 8). Shell note: this environment's command output is unreliable; redirect to a file and read it with read_file."
+}

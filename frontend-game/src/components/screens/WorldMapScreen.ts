@@ -1,6 +1,6 @@
 import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
-import { Game2DMapRenderer, type StarHistoryItem } from '../../game2d';
+import { createMapRenderer, type MapRenderer, type StarHistoryItem } from '../../../MAP/src';
 
 interface WorldMapScreenProps {
   playerName: string;
@@ -11,11 +11,11 @@ interface WorldMapScreenProps {
   totalStars: number;
   history: StarHistoryItem[];
   mapFlowOptions: any;
-  mapRenderer: Game2DMapRenderer | null;
+  mapRenderer: MapRenderer | null;
   onAvatarClick: () => void;
   onPauseClick: () => void;
-  onMapRendererInit: (renderer: Game2DMapRenderer) => void;
-  onMapRendererUpdate: (renderer: Game2DMapRenderer) => void;
+  onMapRendererInit: (renderer: MapRenderer) => void;
+  onMapRendererUpdate: (renderer: MapRenderer) => void;
 }
 
 /**
@@ -69,7 +69,7 @@ export class WorldMapScreen {
 
       <!-- Top-Right Controls HUD -->
       <div class="candy-hud-top-right animate-fade-in">
-        <div class="candy-zone-pill">
+        <div class="candy-zone-pill candy-hud-interactive" title="Center map">
           <span>${Icons.map(18)}</span>
           <span>PROSPERIDAD MAP</span>
         </div>
@@ -103,6 +103,11 @@ export class WorldMapScreen {
       soundManager.stopSpeech();
       this.props.onPauseClick();
     });
+
+    document.querySelector('.candy-zone-pill')?.addEventListener('click', () => {
+      soundManager.playClick();
+      this.props.mapRenderer?.centerOnActiveLocation?.();
+    });
   }
 
   /**
@@ -130,7 +135,7 @@ export class WorldMapScreen {
         }
       });
     } else {
-      const renderer = new Game2DMapRenderer(
+      const { renderer } = createMapRenderer(
         container,
         this.props.avatarImage || '/assets/mascot_girl.png',
         this.props.activeMapId,

@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Rest of the world: PLAN.md steps 11-13. K1 segments S2-S7 with sky gate zone and top gate, Kingdom 2 (Bayan ng Prosperidad) and Kingdom 3 (Provincial Capitol) models and 7-segment scenes with cloud-stairs arrival zones, entrances and K1/K2 gates. Depends on FEAT-003. K2 and K3 steps are independent of each other in content but share the models/types, so keep the order K1, K2, K3.",
+  "status": "completed",
+  "steps": [
+    "PLAN.md step 11: data\\scenes\\k1.ts S2-S7, sky gate zone (>= 6 large block clouds), render\\layers\\clouds.ts cloudField(k), K1 gate arch; score checklist items 1-2 on K1 S7 / K1-K2 boundary",
+    "PLAN.md step 12: data\\models\\k2-*.ts, data\\scenes\\k2.ts S1-S7, cloud stairs, town arch entrance with 320x200 hit rect, colosseum hero, K2 gate",
+    "PLAN.md step 13: data\\models\\k3-*.ts, data\\scenes\\k3.ts S1-S7, capitol arch entrance, grand capitol finale (no gate)",
+    "Walk the whole world in the demo and capture the listed screenshots; read bakedSegments and bakedMB"
+  ],
+  "acceptance_criteria": [
+    "Screenshots K1 L20, K1 L45 + gate, K2 L1, K2 L45 + gate, K3 L1, K3 L45 finale and the K1/K2 and K2/K3 boundaries show no gaps, seams or empty margins (AC10)",
+    "Checklist items 1-2 pass on K1 S7 sky gate zone",
+    "Scrolling the entire world keeps baked segments <= maxBaked and total bitmap MB < 150 (AC21)",
+    "Kingdoms visibly differ (grass, sky tint, hill silhouette, landmark set) while sharing cube size and lighting",
+    "No scene object overlaps a node or the path (nodes.test.ts clearance still passes)",
+    "Perf gate from FEAT-002 still holds with real scenes"
+  ],
+  "verification": [
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run map:test",
+    "cd C:\\Users\\marti\\vocab-game\\frontend-game && npm run build",
+    "node MAP/tools/perf.mjs (re-run) and view the seven screenshots in MAP\\reference\\compare\\"
+  ],
+  "blocked_reason": null,
+  "findings": "DONE, nothing committed. Added: data/scenes/{types,index,k2,k3}.ts and K1_SEGMENTS in k1.ts (route-relative item scripts, ponds, fences, flags, themed decor); models arch.ts (gate_k1/gate_k2/k2_arch/k3_arch), k1-extra, k2-town, k2-nature, k3-land, k3-capitol (registered in models/index.ts, ~40 new models, new materials); gen/{zones,ponds,kingdomScene}.ts; render/layers/clouds.ts cloudField(k) + drawClouds; carve.ts now returns MAT_SKY and tapers/pond-carves; bake.ts paints seam sky gradient + block clouds, island cliffs, K1 boardwalk planks beyond S1; segmentScene uses kingdom scripts; VoxelWorldMap also draws the next segment's tall sprites. tools/world-shots.mjs; tests/scenes.test.ts. Seams: lower kingdom horizon at boundaryY+330 (sky gate zone, 9 large clouds), upper kingdom island edge at boundaryY-270 with a peninsula carrying the entrance arch, 6 cloud stairs gate->entrance; K3 top 330 units are sky with peaks. RESULTS: map:test 18 files / 88 pass (1 skipped), npm run build 0 errors. World walk (256 frames, 1366x768 medium): bakedSegments max 5 (<= maxBaked), bakedMB max 39.7 (< 150), 0 frames with empty pixels. perf.mjs re-run with real scenes: frame work 2.68 ms unthrottled (gate 4.5), 4x throttle medium 101.7 fps, low 106.0 fps, seam scan 0/119. Screenshots viewed in MAP/reference/compare: step11-k1-l20, step11-k1-l45-gate, step11-k1-s7-sky, step12-k2-l1, step12-k1-k2-boundary, step12-k2-l45-gate, step13-k3-l1, step13-k2-k3-boundary, step13-k3-l45-finale; no gaps/seams. Known: a single 404 console message (non-map resource, also seen before); sprites rasterise lazily on first sight; K1 S2-S7 and K2/K3 compositions are hand-scripted first passes, not fidelity-gated."
+}
