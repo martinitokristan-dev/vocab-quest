@@ -1,14 +1,8 @@
-import { Icons } from '../../icons';
+﻿import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
-
-const AVATARS = [
-  { slug: 'learner-girl', label: 'Learner Girl', image: '/assets/mascot_girl.png' },
-  { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
-  { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
-  { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'sporty-girl', label: 'Sporty Girl', image: '/assets/sporty_girl.png' },
-  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/explorer_boy.png' },
-];
+import { gameApi } from '../../api';
+import { AVATARS } from '../../utils/constants';
+import { preloadMap3D } from '../../../MAP/src/three/shared';
 
 interface JoinScreenProps {
   pin: string;
@@ -124,6 +118,9 @@ export class JoinScreen {
     `;
 
     requestAnimationFrame(() => this.attachEventListeners());
+    // While the pupil types the PIN, fetch the 3D map code and the chosen student in the background.
+    const chosen = AVATARS.find((a) => a.slug === activeSlug);
+    if (chosen) preloadMap3D(chosen.image);
   }
 
   /**
@@ -142,7 +139,16 @@ export class JoinScreen {
     pinIn?.focus();
 
     pinIn?.addEventListener('input', (e) => {
-      this.props.onPinChange((e.target as HTMLInputElement).value);
+      const pin = (e.target as HTMLInputElement).value;
+      this.props.onPinChange(pin);
+      // Auto-fill last used name for this PIN (helps returning students after pause)
+      if (pin.length === 6 && nameIn && !nameIn.value.trim()) {
+        const savedName = gameApi.getLastPlayerName(pin);
+        if (savedName) {
+          nameIn.value = savedName;
+          this.props.onPlayerNameChange(savedName);
+        }
+      }
     });
 
     nameIn?.addEventListener('input', (e) => {
@@ -158,6 +164,8 @@ export class JoinScreen {
         if (slug) {
           soundManager.playClick();
           this.props.onAvatarSelect(slug);
+          const picked = AVATARS.find((a) => a.slug === slug);
+          if (picked) preloadMap3D(picked.image);
 
           document.querySelectorAll('.student-avatar-card').forEach((c) => {
             const isMatch = c.getAttribute('data-slug') === slug;

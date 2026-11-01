@@ -1869,7 +1869,9 @@ export class Game2DMapRenderer {
 
       // 4. ACCURATE BOLD 3D YELLOW CANDY STARS ALIGNED BELOW NUMBER (LARGE & PROMINENT)
       if (step.completed) {
-        const starCount = Math.max(1, Math.min(3, step.stars || 3));
+        // 0 stars (found on the last choice) → three empty outline stars instead of gold ones
+        const isZeroStar = step.stars === 0;
+        const starCount = isZeroStar ? 3 : Math.max(1, Math.min(3, step.stars ?? 3));
 
         const starConfigs =
           starCount === 3
@@ -1888,7 +1890,7 @@ export class Game2DMapRenderer {
               ];
 
         starConfigs.forEach((cfg) => {
-          this.drawCandyStar(step.x + cfg.offsetX, starY + cfg.offsetY, cfg.r, cfg.rot, true);
+          this.drawCandyStar(step.x + cfg.offsetX, starY + cfg.offsetY, cfg.r, cfg.rot, !isZeroStar);
         });
       }
 

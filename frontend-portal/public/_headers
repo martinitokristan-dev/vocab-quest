@@ -1,0 +1,5 @@
+# Cloudflare Pages response headers (copied to dist/ by Vite).
+# index.html keeps the Pages default (always revalidated) so a new deploy is seen at once.
+
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

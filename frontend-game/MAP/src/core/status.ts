@@ -50,6 +50,17 @@ export function deriveStatuses(
   });
 }
 
+/**
+ * Status of one level inside a kingdom (ModernWorldMap). Only levels before the current one are
+ * completed and only the current one is playable; every later level is locked.
+ */
+export function levelStatus(level: number, currentLevel: number, entered: boolean): NodeStatus {
+  if (!entered) return 'locked';
+  if (level < currentLevel) return 'completed';
+  if (level === currentLevel) return 'current';
+  return 'locked';
+}
+
 /** Node the avatar stands on: the current node, or the last available node of the current kingdom. */
 export function avatarNode(
   progress: Progress,

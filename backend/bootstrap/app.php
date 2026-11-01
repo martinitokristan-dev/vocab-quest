@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'game.session' => \App\Http\Middleware\EnsureGameSession::class,
         ]);
+        $middleware->api(append: [\App\Http\Middleware\EtagResponses::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(function (\Illuminate\Http\Request $request) {

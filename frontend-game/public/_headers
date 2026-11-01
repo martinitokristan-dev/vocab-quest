@@ -1,0 +1,13 @@
+# Cloudflare Pages response headers (copied to dist/ by Vite).
+# index.html keeps the Pages default (always revalidated), so a new deploy is seen at once.
+# Pictures, sounds, 3D models and the hashed JS/CSS are kept on the device for a day and then
+# refreshed in the background, so a returning pupil does not re-check ~60 files every start.
+
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/models/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/draco/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800

@@ -1,9 +1,20 @@
-import { Icons } from '../../icons';
+﻿import { Icons } from '../../icons';
 import { soundManager } from '../../soundManager';
 import { kingdomIdOf } from '../../../MAP/src/flow/kingdomMap';
 
 function getVoiceoverUrl(q: any): string | null {
   return q?.voice_audio_url || q?.voice_video_url || q?.audio_url || null;
+}
+
+/** Teacher line shown when re-opening an already completed question (handles 0 stars too). */
+function reviewSpeechText(stars: unknown): string {
+  if (typeof stars === 'number' && stars > 0) {
+    return `You've already completed this question (${stars}★ earned)! You can review it in read-only mode.`;
+  }
+  if (stars === 0) {
+    return `You've already completed this question, but no stars this time. Review it so you can earn stars on the next one!`;
+  }
+  return `You've already completed this question! You can review it in read-only mode.`;
 }
 
 interface QuestionScreenProps {
@@ -40,6 +51,8 @@ export class QuestionScreen {
   private props: QuestionScreenProps;
   private updateReadButton: (isSpeaking: boolean) => void = () => {};
   private narrationTimeout: number | null = null;
+  /** The soft entrance plays once when the screen opens, not on every re-render (answer taps re-render it). */
+  private enteredQuestionId: number | null = null;
 
   constructor(container: HTMLElement, props: QuestionScreenProps) {
     this.container = container;
@@ -105,9 +118,7 @@ export class QuestionScreen {
 
     let teacherSpeech = '';
     if (isReview) {
-      const starsEarned = viewingHistoryItem?.stars;
-      const starsText = starsEarned ? ` (${starsEarned}★ earned)` : '';
-      teacherSpeech = `You've already completed this question${starsText}! You can review it in read-only mode.`;
+      teacherSpeech = reviewSpeechText(viewingHistoryItem?.stars);
     } else if (submitResult) {
       teacherSpeech = customMascotSpeech || (submitResult.is_correct
         ? 'Great job! Moving to the next challenge!'
@@ -198,11 +209,11 @@ export class QuestionScreen {
         </button>
       </div>
 
-      <div class="question-scene-container animate-fade-in">
+      <div class="question-scene-container animate-fade-in ${this.enteredQuestionId === question.id ? '' : 'vq-q-enter'}">
         <!-- Dual Stage Layout: Centered Question Arena + Right Teacher Stage -->
         <div class="question-stage-layout">
           <!-- Centered Main Question Arena -->
-          <div class="question-arena-card ${!question.image_url ? 'no-image-arena' : ''} ${hasContextClueUnderline && !question.image_url ? 'kingdom-2-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
+          <div class="question-arena-card ${!question.image_url ? 'no-image-arena' : ''} ${hasContextClueUnderline ? 'context-clue-arena' : ''} ${hasContextClueUnderline && !question.image_url ? 'kingdom-2-arena' : ''} ${isYellow ? 'kingdom-3-arena' : ''}">
             <!-- Mobile Teacher Mascot Strip (visible on mobile <= 860px) -->
             <div class="mobile-teacher-strip" id="mobileTeacherStrip">
               <div class="mobile-teacher-avatar-box">
@@ -219,8 +230,6 @@ export class QuestionScreen {
               </div>
             </div>
 
-
-
             <!-- Centered Question Visual Clue Image (Available for all kingdoms) -->
             ${question.image_url ? `
               <div class="question-visual-clue-card">
@@ -228,11 +237,6 @@ export class QuestionScreen {
               </div>
             ` : ''}
 
-            ${hasContextClueUnderline ? `
-              <div class="kingdom-2-challenge-badge">
-                <span>CONTEXT CLUE CHALLENGE</span>
-              </div>
-            ` : ''}
 
             <!-- Centered Full-Width Sentence Box -->
             <div class="sentence-box">
@@ -328,6 +332,7 @@ export class QuestionScreen {
         </div>
       </div>
     `;
+    this.enteredQuestionId = question.id;
 
     this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting);
   }
@@ -380,9 +385,7 @@ export class QuestionScreen {
             ? `What does the ${highlightedWordHtml} means?`
             : `Take your time, ${studentName}! Choose wisely.`;
           if (isReview) {
-            const starsEarned = this.props.viewingHistoryItem?.stars;
-            const starsText = starsEarned ? ` (${starsEarned}★ earned)` : '';
-            currentSpeech = `You've already completed this question${starsText}! You can review it in read-only mode.`;
+            currentSpeech = reviewSpeechText(this.props.viewingHistoryItem?.stars);
           } else if (submitResult) {
             currentSpeech = this.props.customMascotSpeech || (submitResult.is_correct
               ? 'Great job! Moving to the next challenge!'

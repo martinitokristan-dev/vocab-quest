@@ -90,13 +90,17 @@ export function drawNode(v: View, sprites: Sprites, n: NodeDraw): void {
     ctx.strokeStyle = EMERALD;
     ctx.lineWidth = 3;
     ctx.strokeRect(bx - 1.5, by - 1.5, NODE_W + 3, s.blockH + 3);
-    const layout = STAR_LAYOUT[Math.min(3, Math.max(1, s.stars || 1)) - 1];
+    // 0 stars (found on the last choice) → three faded stars instead of one gold star
+    const isZeroStar = s.stars === 0;
+    const layout = STAR_LAYOUT[isZeroStar ? 2 : Math.min(3, Math.max(1, s.stars)) - 1];
     const star = sprites.star();
+    if (isZeroStar) ctx.globalAlpha = 0.28;
     for (let i = 0; i < layout.length; i++) {
       const [dx, dy, r] = layout[i];
       const sz = (r * 2 * STAR_BOX) / 36;
       ctx.drawImage(star, s.x + dx - sz / 2, by + s.blockH + 16 + dy - sz / 2, sz, sz);
     }
+    if (isZeroStar) ctx.globalAlpha = 1;
   }
   if (n.hover) {
     ctx.strokeStyle = HOVER;

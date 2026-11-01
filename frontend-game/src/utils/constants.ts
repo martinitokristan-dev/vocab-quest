@@ -21,6 +21,17 @@ export const TRY_AGAIN_PHRASES = [
   "Almost there! Listen closely and try another choice.",
 ];
 
+/**
+ * Shown when the student only found the answer on the 4th (last) choice → 0 stars.
+ * The answer is correct, so the tone stays positive, but it nudges them to try for stars next time.
+ */
+export const ZERO_STAR_PHRASES = [
+  "You found it! Try to get it on your first try next time to earn stars!",
+  "That's the one! Read the clue carefully next time and try to win some stars!",
+  "Good job finishing! Try again on the next level and aim for three stars!",
+  "You got there! Think before you tap next time, and the stars will come!",
+];
+
 export interface Avatar {
   slug: string;
   label: string;
@@ -28,12 +39,13 @@ export interface Avatar {
 }
 
 export const AVATARS: Avatar[] = [
-  { slug: 'learner-girl', label: 'Learner Girl', image: '/assets/mascot_girl.png' },
-  { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/mascot_boy.png' },
-  { slug: 'scholar-girl', label: 'School Girl', image: '/assets/scholar_girl.png' },
-  { slug: 'scholar-boy', label: 'School Boy', image: '/assets/scholar_boy.png' },
-  { slug: 'sporty-girl', label: 'Sporty Girl', image: '/assets/sporty_girl.png' },
-  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/explorer_boy.png' },
+  // Pictures are renders of the 3D students (art3d/students.blend); the map shows the matching GLB.
+  { slug: 'learner-girl', label: 'Learner Girl', image: '/assets/students/learner-girl.webp' },
+  { slug: 'learner-boy', label: 'Learner Boy', image: '/assets/students/learner-boy.webp' },
+  { slug: 'scholar-girl', label: 'School Girl', image: '/assets/students/scholar-girl.webp' },
+  { slug: 'scholar-boy', label: 'School Boy', image: '/assets/students/scholar-boy.webp' },
+  { slug: 'sporty-girl', label: 'Sporty Girl', image: '/assets/students/sporty-girl.webp' },
+  { slug: 'explorer-boy', label: 'Explorer Boy', image: '/assets/students/explorer-boy.webp' },
 ];
 
 /**

@@ -21,6 +21,9 @@ import type {
   NodeState,
   StarHistoryItem,
 } from './api/types';
+import { AVATAR_HEAD_H, hasWebGL, isLowEndDevice, isMobileDevice } from './three/shared';
+import { levelStatus } from './core/status';
+import type { World3D } from './three/World3D';
 
 /* ── Constants ───────────────────────────────────────────────────────── */
 
@@ -31,6 +34,9 @@ const MAP_W = 1200;
 /** Total scrollable height for one kingdom. */
 const MAP_H = 8800;
 const NODES_PER_ROW = 5;
+
+/** 3D camera tilt (radians, about 34°) used when the student looks at the kingdom building's front. */
+const THREE_FRONT_PITCH = 0.6;
 
 const PATH_TOP_Y = 400;
 const PATH_BOT_Y = 8000;
@@ -1958,6 +1964,7 @@ export class ModernWorldMap implements MapRenderer {
   private isDragging = false;
   private dragStartX = 0;
   private dragStartY = 0;
+  private lastPointerX = 0;
   private lastPointerY = 0;
   private lastPointerTime = 0;
   private instantVY = 0;
@@ -1966,6 +1973,14 @@ export class ModernWorldMap implements MapRenderer {
   private touchDist = 0;
   private touchZoom = 1;
   private inertiaVY = 0;
+  /* 3D orbit drag, Tala-style (OrbitControls enableDamping): pointer moves only collect the turn,
+     the frame loop applies it once per frame and lets it glide out after release. */
+  private orbitPendingYaw = 0;
+  private orbitPendingPitch = 0;
+  private orbitVelYaw = 0; // rad per second
+  private orbitVelPitch = 0;
+  /** 3D pinch/wheel zoom changed the view: move the level buttons once in the next frame. */
+  private layoutDirty = false;
   private isPostWalkZoomEasing = false;
   private pointerDownTarget: HTMLElement | null = null;
   private pointerCaptured = false;
@@ -1990,6 +2005,13 @@ export class ModernWorldMap implements MapRenderer {
   private lastStepSoundDist = 0;
   private walkCallback: (() => void) | null = null;
   private walkBubbleText = '';
+  /** 3D: the student went to the front of the kingdom building (tapped the building) and is away from its level. */
+  private avatarAtFront = false;
+  /** Zoom and focus offset (map px, + = down) the camera eases to after a walk. */
+  private postWalkZoom = 1.45;
+  private postWalkFocusDY = 0;
+  /** Camera turn the 3D view eases to (cancelled by a drag). */
+  private orbitGoal: { yaw: number; pitch: number } | null = null;
 
   /* -- Generated data per kingdom ------------------------------------- */
   private pathNodes: PathNode[] = [];
@@ -2023,6 +2045,15 @@ export class ModernWorldMap implements MapRenderer {
   /* -- Timing --------------------------------------------------------- */
   private lastFrame = 0;
   private time = 0;
+  private lastDt = 16;
+
+  /* -- 3D world (three.js); null = classic 2D canvas ------------------- */
+  private world3d: World3D | null = null;
+  /** True while the 3D code is still downloading. */
+  private pending3D = false;
+  private use3DAvatar = false;
+  /** True when the 2D overlay canvas has something drawn on it (3D mode). */
+  private overlayDrawn = true;
 
   constructor(
     container: HTMLElement,
@@ -2062,7 +2093,30 @@ export class ModernWorldMap implements MapRenderer {
     this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
     this.root.appendChild(this.canvas);
 
-    const rawCtx = this.canvas.getContext('2d', { alpha: false });
+    // 3D world under the 2D canvas (the 2D canvas then only draws the gate portal and sparkles).
+    // ?map3d=0 forces the classic 2D look.
+    let want3D = hasWebGL();
+    try {
+      if (new URLSearchParams(window.location.search).get('map3d') === '0') want3D = false;
+    } catch {
+      /* no location */
+    }
+    // The 3D code is a separate download (dynamic import); until it arrives the map shows a plain sky.
+    if (want3D) {
+      this.pending3D = true;
+      this.root.classList.add('vq-3d');
+      import('./three/World3D')
+        .then((mod) => this.attach3D(mod.World3D))
+        .catch((err) => {
+          console.warn('3D map unavailable, using the 2D map', err);
+          this.pending3D = false;
+          this.root.classList.remove('vq-3d');
+          this.updateNodeStates();
+          this.updateNodePositions();
+        });
+    }
+
+    const rawCtx = this.canvas.getContext('2d', { alpha: want3D });
     if (!rawCtx) throw new Error('Canvas 2D context unavailable');
     this.ctx = rawCtx;
 
@@ -2114,6 +2168,7 @@ export class ModernWorldMap implements MapRenderer {
 
     // Initialize DOM Avatar on top of level
     this.initAvatarDOM(this.avatarUrl);
+    this.use3DAvatar = this.world3d?.setAvatar(this.avatarUrl) ?? false;
 
     // Inject CSS
     this.injectStyles();
@@ -2141,7 +2196,7 @@ export class ModernWorldMap implements MapRenderer {
     if (!this.isKingdomEntered(this.currentKingdom)) {
       this.zoom = 1.25;
       const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310;
+      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
       this.centerOnLocation(bx, by);
     } else {
       this.zoom = 1.45;
@@ -2303,6 +2358,24 @@ export class ModernWorldMap implements MapRenderer {
         background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.45) 0%, rgba(15, 23, 42, 0) 72%);
         border-radius: 50%;
         z-index: -1;
+      }
+
+      .vq-avatar-container.is-3d .vq-avatar-sprite-wrapper,
+      .vq-avatar-container.is-3d .vq-avatar-shadow {
+        visibility: hidden;
+      }
+
+      /* 3D map: the kingdom building is drawn by three.js; the DOM landmark is only a tap area. */
+      .vq-3d .vq-landmark-container,
+      .vq-3d .vq-landmark-container:hover {
+        transform: none !important;
+        filter: none !important;
+        transition: none !important;
+        background: transparent;
+      }
+      .vq-landmark-hit {
+        width: 100%;
+        height: 100%;
       }
 
       .vq-avatar-badge {
@@ -2648,6 +2721,96 @@ export class ModernWorldMap implements MapRenderer {
     this.scenery = generateScenery(kingdom, this.pathNodes);
     this.waterBodies = generateWater(kingdom, this.pathNodes);
     this.clouds = generateClouds(kingdom);
+    this.build3D(kingdom);
+  }
+
+  private build3D(kingdom: KingdomId): void {
+    if (!this.world3d) return;
+    const p0 = this.pathNodes[0];
+    try {
+      this.world3d.setKingdom({
+        kingdom,
+        theme: KINGDOM_THEMES[kingdom],
+        nodes: this.pathNodes,
+        scenery: this.scenery,
+        water: this.waterBodies,
+        mapW: MAP_W,
+        mapH: MAP_H,
+        // the kingdom building stands on the ground below level 1 (where the 2D picture used to be)
+        landmark: { x: p0?.x ?? MAP_W / 2, y: (p0?.y ?? PATH_BOT_Y) + 590 },
+        gate: kingdom < 3 ? { x: MAP_W / 2, y: PATH_TOP_Y - 100 } : undefined,
+      });
+      this.world3d.setLandmarkLocked(!this.isKingdomEntered(kingdom), false);
+    } catch (err) {
+      console.error('3D map build failed, using the 2D map', err);
+      this.disable3D();
+    }
+  }
+
+  /** Called when the 3D code has downloaded: builds the 3D world under the DOM layers. */
+  private attach3D(Ctor: typeof World3D): void {
+    if (this.destroyed || !this.pending3D) return;
+    this.pending3D = false;
+    try {
+      const w = new Ctor({ lite: isLowEndDevice(), mobile: isMobileDevice() });
+      this.world3d = w;
+      this.root.insertBefore(w.canvas, this.canvas);
+      // clouds and birds: their own canvas right above the world
+      this.root.insertBefore(w.skyCanvas, this.canvas);
+      // The 3D student canvas lives in the avatar layer so it is drawn above the level buttons.
+      this.avatarLayer.prepend(w.charCanvas);
+      this.use3DAvatar = w.setAvatar(this.avatarUrl);
+      this.resizeCanvas();
+      this.build3D(this.currentKingdom);
+      if (!this.world3d) return;
+      this.updateNodeStates();
+      this.updateKingdomLockVisuals();
+      this.updateNodePositions();
+    } catch (err) {
+      console.warn('3D map unavailable, using the 2D map', err);
+      this.disable3D();
+    }
+  }
+
+  /** Drops the 3D world and goes back to the classic 2D canvas (e.g. after a WebGL failure). */
+  private disable3D(): void {
+    if (!this.world3d) return;
+    try {
+      this.world3d.dispose();
+    } catch {
+      /* ignore */
+    }
+    this.world3d = null;
+    this.pending3D = false;
+    this.use3DAvatar = false;
+    this.avatarEl?.classList.remove('is-3d');
+    this.root.classList.remove('vq-3d');
+    const ctx = this.canvas.getContext('2d');
+    if (ctx) this.ctx = ctx;
+    // bring back the 2D landmark picture
+    this.updateNodeStates();
+    this.updateNodePositions();
+  }
+
+  /** In 3D the kingdom building stands lower on the map (clear of level 1), so its camera focus moves down too. */
+  private lmShift(): number {
+    return this.world3d || this.pending3D ? 270 : 0;
+  }
+
+  /** The DOM landmark: the full picture in 2D; in 3D only an invisible tap area over the 3D building. */
+  private landmarkContent(kingdom: KingdomId): string {
+    if (this.world3d || this.pending3D) return '<div class="vq-landmark-hit"></div>';
+    return this.renderLandmarkHTML(kingdom);
+  }
+
+  /** Map point -> screen px (CSS) plus local scale (screen px per map px). Works for 2D and 3D. */
+  private toScreen(x: number, y: number, h = 0): { x: number; y: number; s: number } {
+    if (this.world3d) {
+      this.world3d.setView(this.viewX, this.viewY, this.zoom);
+      const p = this.world3d.project(x, y, h);
+      return p.visible ? p : { x: -99999, y: -99999, s: p.s };
+    }
+    return { x: (x - this.viewX) * this.zoom, y: (y - this.viewY) * this.zoom, s: this.zoom };
   }
 
   /* ── Canvas sizing ──────────────────────────────────────────────── */
@@ -2658,6 +2821,7 @@ export class ModernWorldMap implements MapRenderer {
     this.viewportH = rect.height;
     this.canvas.width = Math.round(rect.width * this.dpr);
     this.canvas.height = Math.round(rect.height * this.dpr);
+    this.world3d?.resize(rect.width, rect.height);
     this.updateNodePositions();
   }
 
@@ -2687,11 +2851,33 @@ export class ModernWorldMap implements MapRenderer {
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const dist = Math.hypot(dx, dy);
         if (this.touchDist > 0) {
-          this.zoom = Math.max(0.95, Math.min(2.5, this.touchZoom * (dist / this.touchDist)));
-          this.updateNodePositions();
+          this.setZoom(Math.max(0.95, Math.min(2.5, this.touchZoom * (dist / this.touchDist))));
+          // 3D: buttons are moved once per frame in update(), not on every touch event
+          if (this.world3d) this.layoutDirty = true;
+          else this.updateNodePositions();
         }
       }
     }, { passive: true });
+
+    const endPinch = (e: TouchEvent) => {
+      if (e.touches.length < 2) this.touchDist = 0;
+    };
+    this.root.addEventListener('touchend', endPinch, { passive: true });
+    this.root.addEventListener('touchcancel', endPinch, { passive: true });
+  }
+
+  /** Changes the zoom; in 3D the view centre (the orbit focus, e.g. the student) stays put. */
+  private setZoom(z: number): void {
+    if (this.world3d) {
+      const cx = this.viewX + this.viewportW / (2 * this.zoom);
+      const cy = this.viewY + this.viewportH / (2 * this.zoom);
+      this.zoom = z;
+      this.viewX = cx - this.viewportW / (2 * z);
+      this.viewY = cy - this.viewportH / (2 * z);
+      this.targetViewY = this.viewY;
+    } else {
+      this.zoom = z;
+    }
   }
 
   private triggerKingdomClick(kingdomId: KingdomId): void {
@@ -2706,9 +2892,12 @@ export class ModernWorldMap implements MapRenderer {
 
   private onPointerDown(e: PointerEvent): void {
     // Ignore interactive UI controls that shouldn't initiate camera drag
-    if ((e.target as HTMLElement).closest('.vq-node-btn, .vq-gate-btn, .vq-gate-lock-standalone, .vq-landmark-container, .vq-kingdom-indicator, button, select, input, label')) {
+    const t = e.target as HTMLElement;
+    if (t.closest('.vq-node-btn, .vq-gate-btn, .vq-gate-lock-standalone, .vq-kingdom-indicator, button, select, input, label')) {
       return;
     }
+    // 2D: the landmark picture is a button; 3D: dragging over the building turns the camera
+    if (!this.world3d && t.closest('.vq-landmark-container')) return;
     this.pointerDownTarget = e.target as HTMLElement;
     this.pointerCaptured = false;
     this.isDragging = true;
@@ -2716,6 +2905,7 @@ export class ModernWorldMap implements MapRenderer {
     this.isPostWalkZoomEasing = false;
     this.dragStartX = e.clientX;
     this.dragStartY = e.clientY;
+    this.lastPointerX = e.clientX;
     this.lastPointerY = e.clientY;
     this.lastPointerTime = performance.now();
     this.instantVY = 0;
@@ -2723,6 +2913,9 @@ export class ModernWorldMap implements MapRenderer {
     this.dragViewY = this.viewY;
     this.targetViewY = this.viewY;
     this.inertiaVY = 0;
+    // a new touch catches the gliding camera (like Tala's OrbitControls)
+    this.orbitVelYaw = 0;
+    this.orbitVelPitch = 0;
   }
 
   private onPointerMove(e: PointerEvent): void {
@@ -2738,9 +2931,28 @@ export class ModernWorldMap implements MapRenderer {
         } catch {}
       }
     }
+    if (this.hasMoved && this.world3d) {
+      // 3D: dragging turns the camera 360° around the student (or the kingdom building) and tilts it;
+      // the focus stays on the student, like Tala-Salitaan's map.
+      const mx = e.clientX - this.lastPointerX;
+      const my = e.clientY - this.lastPointerY;
+      this.lastPointerX = e.clientX;
+      this.lastPointerY = e.clientY;
+      if (e.pointerType === 'touch' && this.touchDist > 0) return; // pinch in progress
+      this.orbitGoal = null;
+      // Applied once per frame in update() (a fast mouse sends 2-4 moves per frame).
+      this.orbitPendingYaw += -mx * 0.0075;
+      this.orbitPendingPitch += my * 0.0045;
+      this.inertiaVY = 0;
+      this.instantVY = 0;
+      this.lastPointerTime = performance.now();
+      return;
+    }
     if (this.hasMoved) {
+      // In 3D the ground is tilted, so one finger pixel covers more map vertically.
+      const gy = this.world3d ? this.world3d.groundScaleY : 1;
       this.viewX = this.dragViewX - dx / this.zoom;
-      this.viewY = this.dragViewY - dy / this.zoom;
+      this.viewY = this.dragViewY - dy / (this.zoom * gy);
       this.targetViewY = this.viewY;
       this.clampView();
 
@@ -2767,6 +2979,11 @@ export class ModernWorldMap implements MapRenderer {
 
       // Measure time since last movement: if pointer was held still before release, no fling
       const timeSinceLastMove = performance.now() - this.lastPointerTime;
+      // held still before letting go: the 3D turn stops instead of gliding
+      if (timeSinceLastMove > 75) {
+        this.orbitVelYaw = 0;
+        this.orbitVelPitch = 0;
+      }
       if (timeSinceLastMove > 75 || !this.hasMoved) {
         this.inertiaVY = 0;
       } else {
@@ -2778,7 +2995,10 @@ export class ModernWorldMap implements MapRenderer {
       // If user tapped without dragging, check if they tapped the landmark building or padlock!
       if (!this.hasMoved && !this.inputLocked) {
         const hitTarget = this.pointerDownTarget || (e.target as HTMLElement);
-        if (hitTarget && hitTarget.closest('.vq-landmark-container, .vq-gate-lock-standalone')) {
+        if (hitTarget && hitTarget.closest('.vq-landmark-container') && this.world3d && this.isKingdomEntered(this.currentKingdom)) {
+          // 3D, kingdom already open: the student walks to the building's front (or back to its level)
+          this.onBuildingTap3D();
+        } else if (hitTarget && hitTarget.closest('.vq-landmark-container, .vq-gate-lock-standalone')) {
           this.triggerKingdomClick(this.currentKingdom);
         }
       }
@@ -2788,6 +3008,12 @@ export class ModernWorldMap implements MapRenderer {
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
+    if (this.world3d) {
+      // 3D: the wheel zooms towards / away from the student
+      this.setZoom(Math.max(0.95, Math.min(2.5, this.zoom * Math.exp(-e.deltaY * 0.0012))));
+      this.layoutDirty = true; // buttons follow once per frame (a trackpad sends many wheel events)
+      return;
+    }
     if (e.ctrlKey || e.metaKey) {
       // Zoom
       const delta = -e.deltaY * 0.002;
@@ -2804,12 +3030,23 @@ export class ModernWorldMap implements MapRenderer {
   private clampView(): void {
     const visW = this.viewportW / this.zoom;
     const visH = this.viewportH / this.zoom;
+    if (this.world3d) {
+      // 3D: the ground goes on past the map edges, so only the focus point is kept on the map
+      // (the student stays in the middle of the screen even at the first and last levels).
+      const cx = Math.max(0, Math.min(MAP_W, this.viewX + visW / 2));
+      const cy = Math.max(0, Math.min(MAP_H + 200, this.viewY + visH / 2));
+      this.viewX = cx - visW / 2;
+      this.viewY = cy - visH / 2;
+      return;
+    }
     if (visW >= MAP_W) {
       this.viewX = -(visW - MAP_W) / 2;
     } else {
       this.viewX = Math.max(0, Math.min(MAP_W - visW, this.viewX));
     }
-    this.viewY = Math.max(0, Math.min(MAP_H - visH, this.viewY));
+    // 3D: the kingdom building stands lower (clear of level 1), so allow a little more scroll at the bottom
+    const maxH = MAP_H + (this.world3d || this.pending3D ? 200 : 0);
+    this.viewY = Math.max(0, Math.min(maxH - visH, this.viewY));
   }
 
   /* ── Level node DOM ─────────────────────────────────────────────── */
@@ -2840,10 +3077,21 @@ export class ModernWorldMap implements MapRenderer {
           return;
         }
         this.hooks.click?.();
-        if (this.onStepClickCb) {
-          this.onStepClickCb(this.currentKingdom, pn.level);
+        const open = () => {
+          if (this.onStepClickCb) {
+            this.onStepClickCb(this.currentKingdom, pn.level);
+          }
+          this.emit('levelClick', this.currentKingdom, pn.level);
+        };
+        // 3D: the student is at the kingdom building, so it first walks back along the road to this level
+        if (this.world3d && this.avatarAtFront) {
+          this.walkAlongRoad({ x: pn.x, y: pn.y }, () => {
+            this.avatarAtFront = false;
+            open();
+          });
+          return;
         }
-        this.emit('levelClick', this.currentKingdom, pn.level);
+        open();
       });
 
       el.addEventListener('pointerenter', () => {
@@ -2859,14 +3107,19 @@ export class ModernWorldMap implements MapRenderer {
     landmarkEl.className = 'vq-landmark-container';
     landmarkEl.dataset['kingdom'] = String(this.currentKingdom);
     landmarkEl.title = KINGDOM_THEMES[this.currentKingdom].name;
-    landmarkEl.innerHTML = this.renderLandmarkHTML(this.currentKingdom);
+    landmarkEl.innerHTML = this.landmarkContent(this.currentKingdom);
 
     const onGateClick = (e: Event) => {
+      // 3D: the map root handles the building (tap = open the kingdom, drag = turn the camera)
+      if (this.world3d) return;
       e.stopPropagation();
       this.triggerKingdomClick(this.currentKingdom);
     };
 
-    landmarkEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+    // In 3D the building can also be dragged to turn the camera around it.
+    landmarkEl.addEventListener('pointerdown', (e) => {
+      if (!this.world3d) e.stopPropagation();
+    });
     landmarkEl.addEventListener('click', onGateClick);
     landmarkEl.addEventListener('pointerup', onGateClick);
     this.nodeLayer.appendChild(landmarkEl);
@@ -2978,10 +3231,12 @@ export class ModernWorldMap implements MapRenderer {
 
     const p0 = this.pathNodes[0];
     const bx = p0?.x ?? MAP_W / 2;
-    const by = (p0?.y ?? PATH_BOT_Y) + 310;
+    const by = (p0?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
 
-    const sx = (bx - this.viewX) * this.zoom;
-    const sy = (by - this.viewY) * this.zoom;
+    // 3D: in front of the building's facade, at door height
+    const sp = this.world3d ? this.toScreen(bx, by + 30, 0.42) : this.toScreen(bx, by);
+    const sx = sp.x;
+    const sy = sp.y;
 
     if (sx < -200 || sx > this.viewportW + 200 || sy < -200 || sy > this.viewportH + 200) {
       this.padlockEl.style.display = 'none';
@@ -2990,7 +3245,7 @@ export class ModernWorldMap implements MapRenderer {
 
     this.padlockEl.style.left = `${sx}px`;
     this.padlockEl.style.top = `${sy}px`;
-    this.padlockEl.style.transform = `translate(-50%, -50%) scale(${Math.max(0.75, Math.min(1.8, this.zoom))})`;
+    this.padlockEl.style.transform = `translate(-50%, -50%) scale(${Math.max(0.75, Math.min(1.8, sp.s))})`;
   }
 
   private updateKingdomLockVisuals(): void {
@@ -2999,6 +3254,8 @@ export class ModernWorldMap implements MapRenderer {
     if (landmarkEl) {
       landmarkEl.classList.toggle('is-locked', !isEntered);
     }
+    // While the unlock animation runs it colours the building itself.
+    if (!this.unlockingPadlock) this.world3d?.setLandmarkLocked(!isEntered, false);
     if (!isEntered) {
       this.createPadlockElement();
     } else {
@@ -4504,19 +4761,14 @@ export class ModernWorldMap implements MapRenderer {
       let status: NodeState['status'] = 'locked';
       let stars: 0 | 1 | 2 | 3 = 0;
 
-      if (!isEntered) {
-        status = 'locked';
-      } else if (pn.level < this.currentLevel) {
-        status = 'completed';
+      // levels after the current one stay locked until the current one is finished
+      status = levelStatus(pn.level, this.currentLevel, isEntered);
+      if (status === 'completed') {
         // Look up stars from history
         const hist = this.starsHistory.find(
           (h) => (h.mapId === this.currentKingdom || h.orderIndex === this.currentKingdom) && h.questionIndex === pn.level,
         );
         stars = (hist?.stars ?? 3) as 0 | 1 | 2 | 3;
-      } else if (pn.level === this.currentLevel) {
-        status = 'current';
-      } else if (pn.level === this.currentLevel + 1) {
-        status = 'unlocked';
       }
 
       this.nodeStates.set(pn.level, {
@@ -4528,7 +4780,7 @@ export class ModernWorldMap implements MapRenderer {
         blockH: 54,
         segment: 0,
         status,
-        available: isEntered && pn.level <= this.currentLevel + 1,
+        available: isEntered && pn.level <= this.currentLevel,
         stars,
       });
     }
@@ -4568,25 +4820,54 @@ export class ModernWorldMap implements MapRenderer {
     if (landmarkEl) {
       landmarkEl.dataset['kingdom'] = String(this.currentKingdom);
       landmarkEl.title = KINGDOM_THEMES[this.currentKingdom].name;
-      landmarkEl.innerHTML = this.renderLandmarkHTML(this.currentKingdom);
+      const html = this.landmarkContent(this.currentKingdom);
+      // the SVG picture is big: only rebuild it when it really changes
+      if (landmarkEl.dataset['html'] !== `${this.currentKingdom}:${html.length}`) {
+        landmarkEl.innerHTML = html;
+        landmarkEl.dataset['html'] = `${this.currentKingdom}:${html.length}`;
+      }
     }
   }
 
   private updateNodePositions(): void {
+    // 3D: buttons shrink with distance (perspective) and far ones are hidden, so a low camera
+    // does not pile the far levels up at the horizon.
+    let focusS = 0;
+    if (this.world3d) {
+      const cx = this.viewX + this.viewportW / (2 * this.zoom);
+      const cy = this.viewY + this.viewportH / (2 * this.zoom);
+      focusS = this.toScreen(cx, cy, 0.09).s || 0;
+    }
     for (const pn of this.pathNodes) {
       const el = this.nodeEls.get(pn.level);
       if (!el) continue;
 
-      const screenX = (pn.x - this.viewX) * this.zoom;
-      const screenY = (pn.y - this.viewY) * this.zoom;
+      const sp = this.toScreen(pn.x, pn.y, 0.09);
+      const screenX = sp.x;
+      const screenY = sp.y;
+      const depth = focusS > 0 ? sp.s / focusS : 1;
 
-      // Only show if on screen
-      if (screenX < -50 || screenX > this.viewportW + 50 || screenY < -50 || screenY > this.viewportH + 50) {
-        el.style.display = 'none';
+      // looking at the kingdom building: level buttons behind it are hidden (the building stays solid)
+      const behind = !!this.world3d?.viewingBuilding && this.world3d.blockedByBuilding(pn.x, pn.y, 0.5, true);
+      // Only show if on screen (and, in 3D, not far away)
+      if (behind || screenX < -50 || screenX > this.viewportW + 50 || screenY < -50 || screenY > this.viewportH + 50 || depth < 0.55) {
+        if (el.style.display !== 'none') el.style.display = 'none';
       } else {
-        el.style.display = 'flex';
-        el.style.left = `${screenX}px`;
-        el.style.top = `${screenY}px`;
+        if (el.style.display !== 'flex') el.style.display = 'flex';
+        if (focusS > 0) {
+          // 3D moves every frame: the CSS translate property avoids a layout pass per button
+          if (el.style.left !== '0px') {
+            el.style.left = '0px';
+            el.style.top = '0px';
+          }
+          el.style.translate = `${screenX.toFixed(1)}px ${screenY.toFixed(1)}px`;
+        } else {
+          el.style.translate = '';
+          el.style.left = `${screenX}px`;
+          el.style.top = `${screenY}px`;
+        }
+        el.style.scale = focusS > 0 ? String(Math.min(1.25, depth).toFixed(3)) : '';
+        el.style.opacity = focusS > 0 && depth < 0.7 ? ((depth - 0.55) / 0.15).toFixed(2) : '';
       }
     }
 
@@ -4595,22 +4876,38 @@ export class ModernWorldMap implements MapRenderer {
     if (gateBtn && this.currentKingdom < 3) {
       const gx = MAP_W / 2;
       const gy = PATH_TOP_Y - 100;
-      const sx = (gx - this.viewX) * this.zoom;
-      const sy = (gy - this.viewY) * this.zoom;
-      gateBtn.style.left = `${sx}px`;
-      gateBtn.style.top = `${sy}px`;
+      const sp = this.toScreen(gx, gy);
+      gateBtn.style.left = `${sp.x}px`;
+      gateBtn.style.top = `${sp.y}px`;
     }
 
     // 3D HTML Landmark Building (centered at entrance, strictly below Node 1)
     const landmarkEl = this.nodeLayer.querySelector('.vq-landmark-container') as HTMLElement | null;
-    if (landmarkEl && this.pathNodes.length > 0) {
+    this.world3d?.setView(this.viewX, this.viewY, this.zoom);
+    const rect = this.world3d?.landmarkRect();
+    if (landmarkEl && this.world3d) {
+      // 3D: invisible tap area over the 3D building
+      if (rect && rect.x < this.viewportW && rect.y < this.viewportH && rect.x + rect.w > 0 && rect.y + rect.h > 0) {
+        landmarkEl.style.display = 'block';
+        landmarkEl.style.left = `${rect.x}px`;
+        landmarkEl.style.top = `${rect.y}px`;
+        landmarkEl.style.width = `${rect.w}px`;
+        landmarkEl.style.height = `${rect.h}px`;
+      } else {
+        landmarkEl.style.display = 'none';
+      }
+    } else if (landmarkEl && this.pending3D) {
+      landmarkEl.style.display = 'none';
+    } else if (landmarkEl && this.pathNodes.length > 0) {
+      landmarkEl.style.display = '';
+      landmarkEl.style.width = '';
+      landmarkEl.style.height = '';
       const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
       const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 110;
-      const sx = (bx - this.viewX) * this.zoom;
-      const sy = (by - this.viewY) * this.zoom;
-      landmarkEl.style.left = `${sx}px`;
-      landmarkEl.style.top = `${sy}px`;
-      landmarkEl.style.transform = `translate(-50%, 0) scale(${this.zoom})`;
+      const sp = this.toScreen(bx, by);
+      landmarkEl.style.left = `${sp.x}px`;
+      landmarkEl.style.top = `${sp.y}px`;
+      landmarkEl.style.transform = `translate(-50%, 0) scale(${sp.s})`;
       landmarkEl.style.transformOrigin = 'top center';
     }
 
@@ -4623,6 +4920,8 @@ export class ModernWorldMap implements MapRenderer {
 
   private async switchKingdom(kingdom: KingdomId): Promise<void> {
     if (kingdom === this.currentKingdom) return;
+    this.avatarAtFront = false;
+    this.orbitGoal = null;
 
     this.currentKingdom = kingdom;
     this.deriveCurrentLevel();
@@ -4634,7 +4933,7 @@ export class ModernWorldMap implements MapRenderer {
     if (!this.isKingdomEntered(kingdom)) {
       this.zoom = 1.25;
       const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310;
+      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
       this.centerOnLocation(bx, by);
       this.updateAvatarDOM();
     } else {
@@ -4690,9 +4989,18 @@ export class ModernWorldMap implements MapRenderer {
   private frame(timestamp: number): void {
     if (this.destroyed) return;
 
+    // Map not on screen (question screen, detached or hidden container): draw nothing, like Tala's
+    // frameloop 'never' while the map is covered. Checked cheaply once per frame.
+    if (!this.root.isConnected || this.root.clientWidth === 0) {
+      this.lastFrame = 0; // no time jump when it comes back
+      this.animFrameId = requestAnimationFrame((t) => this.frame(t));
+      return;
+    }
+
     const dt = this.lastFrame ? Math.min(timestamp - this.lastFrame, 50) : 16;
     this.lastFrame = timestamp;
     this.time = timestamp;
+    this.lastDt = dt;
 
     this.update(dt);
     this.updateAvatarDOM();
@@ -4705,12 +5013,18 @@ export class ModernWorldMap implements MapRenderer {
     const dtSec = dt / 1000;
 
     // Smooth camera follow
+    // Frame-rate independent easing (Tala: 1 - exp(-dt * rate)). The rates give the same feel as the
+    // old per-frame factors at 60 Hz (0.1, 0.12, 0.16, inertia x0.88), but no longer run twice as fast
+    // on 120 Hz tablets or stutter when a frame is late.
+    const frames = dt / (1000 / 60);
+    const ease = (perFrame60: number) => 1 - Math.pow(1 - perFrame60, frames);
+
     if (!this.isDragging) {
-      // Smooth momentum inertia
+      // Smooth momentum inertia (inertiaVY is in px per 60 Hz frame)
       if (Math.abs(this.inertiaVY) > 0.3) {
-        this.viewY += this.inertiaVY;
+        this.viewY += this.inertiaVY * frames;
         this.targetViewY = this.viewY;
-        this.inertiaVY *= 0.88;
+        this.inertiaVY *= Math.pow(0.88, frames);
         this.clampView();
         this.updateNodePositions();
       } else {
@@ -4719,7 +5033,7 @@ export class ModernWorldMap implements MapRenderer {
 
       // Smooth scroll to targetViewY (when explicitly set by centerOnLevel / wheel)
       if (!this.avatarWalking && !this.isPostWalkZoomEasing && Math.abs(this.targetViewY - this.viewY) > 0.5) {
-        this.viewY += (this.targetViewY - this.viewY) * 0.1;
+        this.viewY += (this.targetViewY - this.viewY) * ease(0.1);
         this.clampView();
         this.updateNodePositions();
       }
@@ -4732,20 +5046,20 @@ export class ModernWorldMap implements MapRenderer {
 
         const targetY = this.avatarY - this.viewportH / (2 * this.zoom);
         const targetX = this.avatarX - this.viewportW / (2 * this.zoom);
-        this.viewY += (targetY - this.viewY) * 0.16;
-        this.viewX += (targetX - this.viewX) * 0.16;
+        this.viewY += (targetY - this.viewY) * ease(0.16);
+        this.viewX += (targetX - this.viewX) * ease(0.16);
         this.targetViewY = this.viewY;
         this.clampView();
         this.updateNodePositions();
         this.updatePadlockPosition();
       } else if (this.isPostWalkZoomEasing) {
         // Smoothly ease zoom back to base gameplay zoom (1.45) ONLY right after walking finishes
-        const targetZoom = 1.45;
+        const targetZoom = this.postWalkZoom;
         this.zoom += (targetZoom - this.zoom) * Math.min(1, dtSec * 2.5);
-        const targetY = this.avatarY - this.viewportH / (2 * this.zoom);
+        const targetY = this.avatarY + this.postWalkFocusDY - this.viewportH / (2 * this.zoom);
         const targetX = this.avatarX - this.viewportW / (2 * this.zoom);
-        this.viewY += (targetY - this.viewY) * 0.12;
-        this.viewX += (targetX - this.viewX) * 0.12;
+        this.viewY += (targetY - this.viewY) * ease(0.12);
+        this.viewX += (targetX - this.viewX) * ease(0.12);
         this.targetViewY = this.viewY;
         this.clampView();
         this.updateNodePositions();
@@ -4800,6 +5114,59 @@ export class ModernWorldMap implements MapRenderer {
       }
     }
 
+    // 3D drag turn: once per frame, then a short glide after release (Tala: OrbitControls damping)
+    if (this.world3d) {
+      const w = this.world3d;
+      let turned = false;
+      if (this.orbitPendingYaw !== 0 || this.orbitPendingPitch !== 0) {
+        w.orbitBy(this.orbitPendingYaw, this.orbitPendingPitch);
+        if (dtSec > 0) {
+          const vy = Math.max(-6, Math.min(6, this.orbitPendingYaw / dtSec));
+          const vp = Math.max(-3, Math.min(3, this.orbitPendingPitch / dtSec));
+          this.orbitVelYaw += (vy - this.orbitVelYaw) * 0.5;
+          this.orbitVelPitch += (vp - this.orbitVelPitch) * 0.5;
+        }
+        this.orbitPendingYaw = 0;
+        this.orbitPendingPitch = 0;
+        turned = true;
+      } else if (this.isDragging) {
+        // finger held still: no glide when it lets go
+        const k = Math.exp(-dtSec * 20);
+        this.orbitVelYaw *= k;
+        this.orbitVelPitch *= k;
+      } else if (Math.abs(this.orbitVelYaw) > 0.02 || Math.abs(this.orbitVelPitch) > 0.02) {
+        w.orbitBy(this.orbitVelYaw * dtSec, this.orbitVelPitch * dtSec);
+        const k = Math.exp(-dtSec * 6);
+        this.orbitVelYaw *= k;
+        this.orbitVelPitch *= k;
+        turned = true;
+      } else {
+        this.orbitVelYaw = 0;
+        this.orbitVelPitch = 0;
+      }
+      if (turned || this.layoutDirty) {
+        this.layoutDirty = false;
+        this.updateNodePositions();
+        this.updatePadlockPosition();
+      }
+    }
+
+    // 3D: ease the camera turn towards its goal (e.g. facing the kingdom building's front)
+    if (this.orbitGoal && this.world3d && !this.isDragging) {
+      const o = this.world3d.orbit;
+      const dYaw = Math.atan2(Math.sin(this.orbitGoal.yaw - o.yaw), Math.cos(this.orbitGoal.yaw - o.yaw));
+      const dPitch = this.orbitGoal.pitch - o.pitch;
+      if (Math.abs(dYaw) < 0.002 && Math.abs(dPitch) < 0.002) {
+        this.world3d.setOrbit(this.orbitGoal.yaw, this.orbitGoal.pitch);
+        this.orbitGoal = null;
+      } else {
+        const k = Math.min(1, dtSec * 2.2);
+        this.world3d.setOrbit(o.yaw + dYaw * k, o.pitch + dPitch * k);
+      }
+      this.updateNodePositions();
+      this.updatePadlockPosition();
+    }
+
     // Particles update
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -4831,7 +5198,94 @@ export class ModernWorldMap implements MapRenderer {
     }
   }
 
+  /**
+   * Ground position of the 3D student. When idle it stands just behind the current level button
+   * (avatarStandOffsetY eases to -28) so the level number stays readable; while walking it is on the road.
+   */
+  private avatar3DY(): number {
+    return this.avatarY - 10 + this.avatarStandOffsetY * 1.7;
+  }
+
+  /** 3D frame: three.js draws the world and the student; the 2D canvas only adds the gate portal and sparkles. */
+  private draw3D(w: World3D): void {
+    const theme = KINGDOM_THEMES[this.currentKingdom];
+    w.viewingBuilding = this.avatarAtFront && !this.avatarWalking;
+    w.setView(this.viewX, this.viewY, this.zoom);
+    try {
+      w.render(this.time, this.lastDt / 1000, {
+        x: this.avatarX,
+        y: this.avatar3DY(),
+        walking: this.avatarWalking,
+        visible: this.use3DAvatar && this.isKingdomEntered(this.currentKingdom),
+      });
+    } catch (err) {
+      console.error('3D render failed, using the 2D map', err);
+      this.disable3D();
+      return;
+    }
+
+    const ctx = this.ctx;
+    const dpr = this.dpr;
+
+    // Gate portal as a standing billboard at its ground point.
+    let portal: { x: number; y: number; locked: boolean; name: string } | null = null;
+    if (this.activePortalPos) {
+      const nextK = Math.min(3, this.currentKingdom + 1) as KingdomId;
+      portal = { x: this.activePortalPos.x, y: this.activePortalPos.y, locked: false, name: KINGDOM_THEMES[nextK].name };
+    } else if (this.currentKingdom < 3) {
+      const nextK = (this.currentKingdom + 1) as KingdomId;
+      portal = { x: MAP_W / 2, y: PATH_TOP_Y - 100, locked: !this.isKingdomUnlocked(nextK), name: KINGDOM_THEMES[nextK].name };
+    }
+    let portalScreen: { x: number; y: number; s: number } | null = null;
+    if (portal) {
+      const p = this.toScreen(portal.x, portal.y);
+      if (p.x > -600 && p.x < this.viewportW + 600 && p.y > -600 && p.y < this.viewportH + 600) portalScreen = p;
+    }
+    // Nothing to draw on the overlay: leave the (already clear) canvas alone.
+    if (!portalScreen && !this.particles.length) {
+      if (this.overlayDrawn) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.overlayDrawn = false;
+      }
+      return;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.overlayDrawn = true;
+    if (portal && portalScreen) {
+      const p = portalScreen;
+      ctx.setTransform(dpr * p.s, 0, 0, dpr * p.s, dpr * (p.x - p.s * portal.x), dpr * (p.y - p.s * portal.y));
+      drawKingdomGatePortal(ctx, portal.x, portal.y, portal.locked, portal.name, theme, this.time);
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const pt of this.particles) {
+      const alpha = pt.life / pt.maxLife;
+      const sp = this.toScreen(pt.x, pt.y, 0.25);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, Math.max(0.5, pt.size * alpha * sp.s), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   private draw(): void {
+    if (this.world3d) {
+      this.draw3D(this.world3d);
+      return;
+    }
+    if (this.pending3D) {
+      // 3D code still downloading: plain sky instead of flashing the old 2D map
+      const ctx = this.ctx;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#bfe6fb';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.overlayDrawn = true;
+      return;
+    }
     const ctx = this.ctx;
     const theme = KINGDOM_THEMES[this.currentKingdom];
 
@@ -5013,12 +5467,18 @@ export class ModernWorldMap implements MapRenderer {
       this.switchKingdom(newKingdom);
     }
 
+    const prevLevel = this.currentLevel;
     this.currentLevel = Math.max(1, Math.min(LEVELS_PER_KINGDOM, qIndex));
     this.updateNodeStates();
     this.updateKingdomLockVisuals();
 
+    // 3D: a student looking at the kingdom building stays there until the level changes
+    // (switchKingdom already cleared avatarAtFront when the kingdom changed)
+    const stayAtFront = this.avatarAtFront && prevLevel === this.currentLevel;
+    if (!stayAtFront) this.avatarAtFront = false;
+
     // Move avatar to current level ONLY if not walking and not in walking_to_question phase
-    if (!this.avatarWalking && this.flowOpts?.mapPhase !== 'walking_to_question') {
+    if (!stayAtFront && !this.avatarWalking && this.flowOpts?.mapPhase !== 'walking_to_question') {
       const node = this.pathNodes[this.currentLevel - 1];
       if (node) {
         this.avatarX = node.x;
@@ -5122,6 +5582,7 @@ export class ModernWorldMap implements MapRenderer {
         const landmarkEl = this.nodeLayer.querySelector('.vq-landmark-container') as HTMLElement | null;
         if (landmarkEl) {
           if (p >= 0.15) {
+            if (landmarkEl.classList.contains('is-locked')) this.world3d?.setLandmarkLocked(false, true);
             landmarkEl.classList.remove('is-locked');
             landmarkEl.classList.add('is-unlocking');
           }
@@ -5134,7 +5595,7 @@ export class ModernWorldMap implements MapRenderer {
         if (p >= 0.25 && p <= 0.85 && Math.random() < 0.45) {
           const p0 = this.pathNodes[0];
           const bx = p0?.x ?? MAP_W / 2;
-          const by = (p0?.y ?? PATH_BOT_Y) + 310;
+          const by = (p0?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
           this.particles.push({
             x: bx + (Math.random() - 0.5) * 70,
             y: by + (Math.random() - 0.5) * 50,
@@ -5170,7 +5631,7 @@ export class ModernWorldMap implements MapRenderer {
       const k = Math.min(3, Math.max(1, kingdomId)) as KingdomId;
       const p0 = this.pathNodes[0];
       const bx = p0?.x ?? MAP_W / 2;
-      const focalY = (p0?.y ?? PATH_BOT_Y) + 235; // Center point framing both landmark building and padlock
+      const focalY = (p0?.y ?? PATH_BOT_Y) + 235 + this.lmShift(); // Center point framing both landmark building and padlock
 
       // Immediately fade out the "TAP TO UNLOCK" badge so it does not clutter during zoom & unlock
       if (this.padlockEl) {
@@ -5187,8 +5648,9 @@ export class ModernWorldMap implements MapRenderer {
       this.unlockOverlay.style.transition = 'none';
 
       const updateSpotlight = (alpha: number) => {
-        const sx = (bx - this.viewX) * this.zoom;
-        const sy = (focalY - this.viewY) * this.zoom;
+        const fp = this.toScreen(bx, focalY);
+        const sx = fp.x;
+        const sy = fp.y;
         this.unlockOverlay.style.background = `radial-gradient(ellipse 56vw 66vh at ${sx}px ${sy}px, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 28%, rgba(8, 14, 26, 0.30) 52%, rgba(6, 10, 20, 0.55) 75%, rgba(3, 7, 16, 0.70) 100%)`;
         this.unlockOverlay.style.opacity = String(alpha);
       };
@@ -5383,7 +5845,7 @@ export class ModernWorldMap implements MapRenderer {
       if (!this.isKingdomEntered(k)) {
         this.zoom = 1.25;
         const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-        const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310;
+        const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
         this.centerOnLocation(bx, by);
         this.createPadlockElement();
         this.updateAvatarDOM();
@@ -5402,7 +5864,7 @@ export class ModernWorldMap implements MapRenderer {
     if (!this.isKingdomEntered(this.currentKingdom)) {
       this.zoom = 1.25;
       const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310;
+      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
       this.centerOnLocation(bx, by);
       this.createPadlockElement();
       this.updateAvatarDOM();
@@ -5418,7 +5880,7 @@ export class ModernWorldMap implements MapRenderer {
     this.isPostWalkZoomEasing = false;
     this.zoom = 1.15;
     const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-    const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310;
+    const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
     this.centerOnLocation(bx, by);
     this.updateAvatarDOM();
   }
@@ -5497,6 +5959,14 @@ export class ModernWorldMap implements MapRenderer {
       return;
     }
 
+    // Short hops are walked; long trips (several levels) are run, capped at about 2.6 s.
+    let total = 0;
+    for (let i = 1; i < finalPath.length; i++) total += Math.hypot(finalPath[i].x - finalPath[i - 1].x, finalPath[i].y - finalPath[i - 1].y);
+    this.walkSpeed = total > 520 ? Math.min(420, Math.max(160, total / 2.6)) : 160;
+
+    this.avatarAtFront = false;
+    this.postWalkZoom = 1.45;
+    this.postWalkFocusDY = 0;
     this.walkPath = finalPath;
     this.walkIndex = 0;
     this.avatarWalking = true;
@@ -5513,6 +5983,71 @@ export class ModernWorldMap implements MapRenderer {
     this.centerOnLocation(this.avatarX, this.avatarY);
 
     this.hooks.whoosh?.();
+  }
+
+  /** Where the student stands to look at the kingdom building: on the school yard, in front of the steps. */
+  private kingdomFrontSpot(): { x: number; y: number } {
+    const p0 = this.pathNodes[0];
+    const lx = p0?.x ?? MAP_W / 2;
+    const ly = (p0?.y ?? PATH_BOT_Y) + 590; // same landmark point World3D is given
+    return { x: lx + 30, y: ly + 300 };
+  }
+
+  /**
+   * 3D: walks (or runs) the student along the drawn road from where it stands to `to`
+   * (a level, or the front of the kingdom building), then calls `onArrival`.
+   */
+  private walkAlongRoad(to: { x: number; y: number }, onArrival: () => void): void {
+    const road = this.world3d?.roadPath() ?? [];
+    const from = { x: this.avatarX, y: this.avatarY };
+    const nearest = (p: { x: number; y: number }) => {
+      let best = 0;
+      let bd = Infinity;
+      for (let i = 0; i < road.length; i++) {
+        const d = (road[i].x - p.x) ** 2 + (road[i].y - p.y) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      }
+      return best;
+    };
+    const path: Array<{ x: number; y: number }> = [from];
+    if (road.length > 1) {
+      const a = nearest(from);
+      const b = nearest(to);
+      const dir = b >= a ? 1 : -1;
+      for (let i = a; i !== b + dir; i += dir) path.push({ x: road[i].x, y: road[i].y });
+    }
+    path.push(to);
+    const wasFront = this.avatarAtFront;
+    this.animateWalkingPath(path, '', onArrival);
+    this.avatarAtFront = wasFront;
+    // long trips run faster so even level 45 reaches the building in about 8 s
+    let total = 0;
+    for (let i = 1; i < path.length; i++) total += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+    if (total > 520) this.walkSpeed = Math.min(900, Math.max(160, total / 5));
+  }
+
+  /** 3D tap on the kingdom building: go to its front to look at it, or (already there) walk back to the current level. */
+  private onBuildingTap3D(): void {
+    if (this.inputLocked || !this.world3d) return;
+    this.hooks.click?.();
+    if (this.avatarAtFront) {
+      const node = this.pathNodes[this.currentLevel - 1];
+      if (!node) return;
+      this.walkAlongRoad({ x: node.x, y: node.y }, () => {
+        this.avatarAtFront = false;
+      });
+      return;
+    }
+    this.walkAlongRoad(this.kingdomFrontSpot(), () => {
+      this.avatarAtFront = true;
+      // turn the camera to face the building's front and pull back a little so all of it shows
+      this.orbitGoal = { yaw: 0, pitch: THREE_FRONT_PITCH };
+    });
+    this.postWalkZoom = 1.2;
+    this.postWalkFocusDY = -110;
   }
 
   onStepClick(cb: (mapId: number, questionIndex: number) => void): void {
@@ -5533,6 +6068,8 @@ export class ModernWorldMap implements MapRenderer {
     this.avatarUrl = url;
     if (!this.avatarLayer) return;
     this.avatarLayer.innerHTML = '';
+    // The 3D student canvas lives in the avatar layer so it is drawn above the level buttons.
+    if (this.world3d) this.avatarLayer.appendChild(this.world3d.charCanvas);
 
     const el = document.createElement('div');
     el.className = 'vq-avatar-container';
@@ -5587,8 +6124,17 @@ export class ModernWorldMap implements MapRenderer {
     const feetX = this.avatarX;
     const feetY = this.avatarY + this.avatarStandOffsetY;
 
-    const screenX = (feetX - this.viewX) * this.zoom;
-    const screenY = (feetY - this.viewY) * this.zoom;
+    const is3D = this.use3DAvatar && !!this.world3d?.avatarReady;
+    this.avatarEl.classList.toggle('is-3d', is3D);
+    // The 3D student stands on the node itself; only the YOU badge and bubble stay in the DOM above its head.
+    let sp = this.toScreen(feetX, feetY);
+    if (is3D) {
+      // Anchor so the badge's bottom edge sits just above the 3D head (container is 80px tall, badge on top).
+      const head = this.toScreen(this.avatarX, this.avatar3DY(), AVATAR_HEAD_H);
+      sp = { x: head.x, y: head.y - 4 + 80 * head.s, s: head.s };
+    }
+    const screenX = sp.x;
+    const screenY = sp.y;
 
     // Check if within visible bounds (with 140px margin)
     if (screenX < -140 || screenX > this.viewportW + 140 || screenY < -140 || screenY > this.viewportH + 140) {
@@ -5603,8 +6149,8 @@ export class ModernWorldMap implements MapRenderer {
       : Math.sin(this.time * 0.005) * 3;
 
     this.avatarEl.style.left = `${screenX}px`;
-    this.avatarEl.style.top = `${screenY - bob * this.zoom}px`;
-    this.avatarEl.style.transform = `translate(-50%, -100%) scale(${this.zoom})`;
+    this.avatarEl.style.top = `${screenY - (is3D ? 0 : bob * sp.s)}px`;
+    this.avatarEl.style.transform = `translate(-50%, -100%) scale(${sp.s})`;
 
     // Facing direction and walking lean
     const spriteWrapper = this.avatarEl.querySelector('.vq-avatar-sprite-wrapper') as HTMLElement | null;
@@ -5641,6 +6187,8 @@ export class ModernWorldMap implements MapRenderer {
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
     }
+    this.world3d?.dispose();
+    this.world3d = null;
     this.avatarLayer?.remove();
     this.root.remove();
   }
@@ -5652,6 +6200,7 @@ export class ModernWorldMap implements MapRenderer {
       this.switchKingdom(kingdom);
     }
     this.currentLevel = Math.max(1, Math.min(LEVELS_PER_KINGDOM, level));
+    this.avatarAtFront = false;
     const node = this.pathNodes[this.currentLevel - 1];
     if (node) {
       this.avatarX = node.x;
@@ -5681,6 +6230,7 @@ export class ModernWorldMap implements MapRenderer {
       stars: c.stars,
     }));
     this.updateNodeStates();
+    this.avatarAtFront = false;
     const node = this.pathNodes[this.currentLevel - 1];
     if (node) {
       this.avatarX = node.x;
@@ -5702,6 +6252,7 @@ export class ModernWorldMap implements MapRenderer {
     if (this.avatarImgEl) {
       this.avatarImgEl.src = url;
     }
+    if (this.world3d) this.use3DAvatar = this.world3d.setAvatar(url);
   }
 
   getAvatar(): { x: number; y: number } {
@@ -5724,7 +6275,7 @@ export class ModernWorldMap implements MapRenderer {
 
   /* ── Public: stats (for the demo panel) ──────────────────────────── */
 
-  getStats(): { fps: number; drawMs: number; quality: string; bakedSegments: number; bakedMB: number } {
-    return { fps: 60, drawMs: 2, quality: 'high', bakedSegments: 0, bakedMB: 0 };
+  getStats(): { fps: number; drawMs: number; quality: string; bakedSegments: number; bakedMB: number; three?: ReturnType<World3D['stats']> } {
+    return { fps: 60, drawMs: 2, quality: this.world3d ? '3d' : '2d', bakedSegments: 0, bakedMB: 0, three: this.world3d?.stats() };
   }
 }

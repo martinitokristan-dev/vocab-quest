@@ -280,7 +280,7 @@ test('student reconnecting after brownout preserves score and student answers in
     expect($session->studentAnswers()->first()->is_correct)->toBeTrue();
 });
 
-test('student reconnecting to paused room is permitted', function () {
+test('student reconnecting to paused room is permitted even if session active cache exists', function () {
     $env = setupGameRoom();
     $env['room']->update(['status' => 'in_progress']);
 
@@ -290,17 +290,49 @@ test('student reconnecting to paused room is permitted', function () {
         'avatar_slug' => 'scholar',
     ])->assertCreated();
 
-    $session = GameSession::where('room_id', $env['room']->id)->where('player_name', 'Carlos')->first();
-    \Illuminate\Support\Facades\Cache::forget("session_active_{$session->id}");
-
-    // Teacher pauses room
+    // Teacher pauses room without waiting for session cache to expire
     $env['room']->update(['status' => 'paused']);
 
-    // Carlos reconnects while room is paused
-    $this->postJson('/api/game/join', [
+    // Carlos reconnects by entering username while room is paused
+    $reconnectRes = $this->postJson('/api/game/join', [
         'pin'         => '123456',
         'player_name' => 'Carlos',
         'avatar_slug' => 'scholar',
     ])->assertOk();
+
+    expect($reconnectRes->json('is_reconnect'))->toBeTrue();
+    expect($reconnectRes->json('room_status'))->toBe('paused');
+});
+
+test('submitting 4th attempt awards 0 stars and saves correctly', function () {
+    $env = setupGameRoom();
+    $env['room']->update(['status' => 'in_progress']);
+
+    $joinRes = $this->postJson('/api/game/join', [
+        'pin'         => '123456',
+        'player_name' => 'StudentZeroStars',
+        'avatar_slug' => 'scholar',
+    ])->assertCreated();
+
+    $token = $joinRes->json('token');
+    $q = $env['q1'];
+    $correct = $env['a1_correct'];
+
+    // Submit correct answer on 4th attempt with 0 stars
+    $ansRes = $this->withHeader('X-Game-Session-Token', $token)
+        ->postJson('/api/game/answer', [
+            'question_id' => $q->id,
+            'answer_id'   => $correct->id,
+            'stars'       => 0,
+            'attempts'    => 4,
+        ])->assertOk();
+
+    expect($ansRes->json('is_correct'))->toBeTrue();
+    expect($ansRes->json('score'))->toBe(0);
+
+    // Verify student answer record in database
+    $sa = \App\Models\StudentAnswer::where('question_id', $q->id)->first();
+    expect($sa->stars)->toBe(0);
+    expect($sa->attempts)->toBe(4);
 });
 

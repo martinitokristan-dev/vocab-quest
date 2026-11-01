@@ -23,10 +23,9 @@ class EnsureGameSession
             ], 401);
         }
 
-        // Fetch fresh game session with currentMap eager-loaded
-        $session = GameSession::where('token', $token)
-            ->with(['currentMap', 'room'])
-            ->first();
+        // Only the session row. currentMap / room are loaded by the endpoints that use them, so the
+        // 2.5 s status poll costs 1 query instead of 3 (fewer TiDB request units on the free tier).
+        $session = GameSession::where('token', $token)->first();
 
         if (! $session) {
             return response()->json([

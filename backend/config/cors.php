@@ -30,9 +30,13 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // The browser may read the ETag (304 revalidation, see EtagResponses).
+    'exposed_headers' => ['ETag'],
 
-    'max_age' => 0,
+    // The game sends Authorization + X-Game-Session-Token, so every cross-origin request
+    // (Cloudflare Pages -> Render) needs a preflight. Caching it for 2 h (Chrome's maximum)
+    // removes one OPTIONS request per poll instead of sending OPTIONS + GET every 2.5 s.
+    'max_age' => 7200,
 
     'supports_credentials' => false,
 

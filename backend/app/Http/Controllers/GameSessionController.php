@@ -65,6 +65,7 @@ class GameSessionController extends Controller
                 ?? ($authHeader ? str_replace('Bearer ', '', $authHeader) : null);
             $isSameToken = $providedToken && $providedToken === $existingSession->token;
             $isInWaitingLobby = $room->status === 'waiting';
+            $isRoomPaused = $room->status === 'paused';
             $isCompleted = (bool) $existingSession->is_completed;
             $isSessionActive = Cache::has("session_active_{$existingSession->id}");
 
@@ -73,7 +74,8 @@ class GameSessionController extends Controller
             // 2. Room is in waiting lobby (game hasn't started or was reset)
             // 3. Pupil previously completed their game (playing again / restart)
             // 4. Player is not actively playing in this room (tab closed / disconnected / brownout)
-            if ($isSameToken || $isInWaitingLobby || $isCompleted || ! $isSessionActive) {
+            // 5. Room is paused by teacher (allowing pupils to re-enter their username to resume where they left off)
+            if ($isSameToken || $isInWaitingLobby || $isCompleted || ! $isSessionActive || $isRoomPaused) {
                 // If reconnecting from same browser session, keep token to avoid race conditions with in-flight requests
                 $newToken = ($isSameToken && ! empty($existingSession->token)) ? $existingSession->token : Str::random(60);
                 // In an active/in_progress game, reconnecting students preserve their score and answers!

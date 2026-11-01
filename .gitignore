@@ -1,0 +1,16 @@
+# Local agent skills (personal, not shared on GitHub)
+.kiro/skills/
+
+# Local work folders: screenshots, test scripts, image backups (hundreds of MB)
+frontend-game/scratch/
+frontend-game/.scratch/
+frontend-game/MAP/scratch/
+scratch_ref/
+
+# Blender source files (large; kept on this PC)
+art3d/
+*.blend1
+
+# Secrets: never commit real env files (examples stay)
+.env.render
+**/.env.render

@@ -171,6 +171,16 @@ class StudentGameApiClient {
     return saved === 'question' || saved === 'world_map' ? saved : null;
   }
 
+  saveLastPlayerName(pin: string, name: string): void {
+    if (pin && name) {
+      localStorage.setItem(`student_name_${pin}`, name);
+    }
+  }
+
+  getLastPlayerName(pin: string): string {
+    return localStorage.getItem(`student_name_${pin}`) || '';
+  }
+
   clearLastScreen(pin?: string) {
     localStorage.removeItem('student_last_screen');
     if (pin) {

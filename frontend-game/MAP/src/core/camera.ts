@@ -10,6 +10,7 @@ export interface Camera {
 export const MIN_READABLE = 0.46;
 export const MAX_ZOOM = 3.2;
 export const FOLLOW_RATE = 8;
+/** Camera sits 12% of viewport height above the avatar (Tala: similar offset keeps character visible but not blocking buildings) */
 export const FOLLOW_OFFSET = 0.12;
 
 export function fitZoom(vw: number): number {

@@ -12,12 +12,25 @@ export type ToastType = 'warning' | 'info' | 'success';
  * @param type - Toast type (warning, info, success)
  * @param durationMs - Duration in milliseconds before auto-dismiss
  */
+/** The toast on screen now: a repeat of the same message only restarts its timer. */
+let current: { key: string; el: HTMLElement; timer: number; dismiss: () => void } | null = null;
+
 export function showToast(
   title: string,
   message: string,
   type: ToastType = 'warning',
   durationMs = 4000
 ): void {
+  // Spam taps (e.g. on a locked kingdom) must not rebuild and re-animate the same toast every time.
+  const key = `${type}|${title}|${message}`;
+  if (current && current.key === key && current.el.isConnected && !current.el.classList.contains('toast-hiding')) {
+    clearTimeout(current.timer);
+    const c = current;
+    c.timer = window.setTimeout(() => c.dismiss(), durationMs);
+    return;
+  }
+  if (current) clearTimeout(current.timer);
+
   let container = document.getElementById('gameToastContainer');
   if (!container) {
     container = document.createElement('div');
@@ -70,7 +83,9 @@ export function showToast(
   `;
 
   const dismiss = () => {
+    if (toast.classList.contains('toast-hiding')) return;
     toast.classList.add('toast-hiding');
+    if (current?.el === toast) current = null;
     setTimeout(() => {
       toast.remove();
     }, 250);
@@ -79,9 +94,10 @@ export function showToast(
   toast.addEventListener('click', dismiss);
   container.appendChild(toast);
 
-  setTimeout(() => {
+  const timer = window.setTimeout(() => {
     if (toast.parentElement) {
       dismiss();
     }
   }, durationMs);
+  current = { key, el: toast, timer, dismiss };
 }

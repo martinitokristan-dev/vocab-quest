@@ -1,4 +1,4 @@
-import './style.css';
+﻿import './style.css';
 import { gameApi, isSessionAuthError } from './api';
 import type { MapRenderer } from '../MAP/src';
 import { kingdomIdOf, kingdomForMapId, rememberMap } from '../MAP/src/flow/kingdomMap';
@@ -15,7 +15,7 @@ import { HowToPlayModal } from './components/modals/HowToPlayModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { PauseMenuModal } from './components/modals/PauseMenuModal';
 import { DialogueOverlay } from './components/overlays/DialogueOverlay';
-import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, getAvatarBySlug } from './utils/constants';
+import { PRAISE_PHRASES, TRY_AGAIN_PHRASES, ZERO_STAR_PHRASES, getAvatarBySlug } from './utils/constants';
 import { showToast } from './utils/toast';
 import {
   globalLevelNumber,
@@ -200,6 +200,10 @@ class StudentArcadeGame {
     if (this.pollInterval) {
       window.clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this.onPollVisibility) {
+      document.removeEventListener('visibilitychange', this.onPollVisibility);
+      this.onPollVisibility = null;
     }
     soundManager.stopBgm();
   }
@@ -781,6 +785,9 @@ class StudentArcadeGame {
     if (this.pollInterval) clearInterval(this.pollInterval);
 
     const pingStatus = async () => {
+      // Tab in the background / screen off: no polling (the free Render + TiDB plans count every
+      // request). A ping runs right away when the pupil comes back (see visibilitychange below).
+      if (document.hidden) return;
       // Never ping if on join/title screen, submitting, showing praise, or without token
       if (
         this.state.screen === 'join' ||
@@ -840,7 +847,19 @@ class StudentArcadeGame {
 
     // Fast 2.5s polling while in waiting state for instant start response
     this.pollInterval = window.setInterval(pingStatus, 2500);
+
+    if (!this.onPollVisibility) {
+      this.onPollVisibility = () => {
+        if (!document.hidden && this.pollInterval) void this.pingStatusNow?.();
+      };
+      document.addEventListener('visibilitychange', this.onPollVisibility);
+    }
+    this.pingStatusNow = pingStatus;
   }
+
+  /** Status ping of the running poller (used when the tab becomes visible again). */
+  private pingStatusNow: (() => Promise<void>) | null = null;
+  private onPollVisibility: (() => void) | null = null;
 
   private async handleJoin(e: Event) {
     e.preventDefault();
@@ -858,8 +877,24 @@ class StudentArcadeGame {
       const isReconnect = Boolean(joinRes.is_reconnect);
       const roomStatus = joinRes.room_status || 'waiting';
       const isWaiting = roomStatus === 'waiting';
+      const isPaused = roomStatus === 'paused';
+
+      // Always save name keyed by PIN for auto-fill when student returns to join screen
+      gameApi.saveLastPlayerName(this.state.pin, this.state.playerName);
 
       let targetScreen: 'world_map' | 'question' = 'world_map';
+
+      if (isPaused && isReconnect) {
+        // Student re-entered their name into a paused room: restore session + show pause overlay.
+        // The lightweight poller will detect when teacher resumes and auto-continue.
+        this.setState({ submitting: false, roomStatus: 'paused' });
+        const loader = this.startLoading('world_map', () => {
+          this.startLightweightPoller();
+        });
+        await this.fetchCurrentQuestion('world_map');
+        loader?.markDataReady();
+        return;
+      }
 
       if (isReconnect && !isWaiting) {
         // True mid-game reconnection (brownout / power loss / reload during active questions)
@@ -958,7 +993,11 @@ class StudentArcadeGame {
     const q = this.state.currentData.data.question;
     const currentAttempts = (this.state.attempts[q.id] || 0) + 1;
     const updatedAttempts = { ...this.state.attempts, [q.id]: currentAttempts };
-    const starsEarned = currentAttempts === 1 ? 3 : currentAttempts === 2 ? 2 : 1;
+    // Star scoring: 1st attempt=3★, 2nd=2★, 3rd=1★, 4th=0★ (last option by elimination — no real effort)
+    const starsEarned = currentAttempts === 1 ? 3
+                      : currentAttempts === 2 ? 2
+                      : currentAttempts === 3 ? 1
+                      : 0;
     const activeMapId = this.currentKingdomId();
     const isYellow = activeMapId === 3;
     const isGevina = activeMapId === 2;
@@ -1031,14 +1070,23 @@ class StudentArcadeGame {
         // --- 1. CORRECT ANSWER: 3-STAR RATING & SHUFFLED TEACHER PRAISE ---
         const questionOrder = q.order_index || (this.state.history.filter((h) => (h.mapId || 1) === activeMapId).length + 1);
 
+        // 0 stars = found only on the last remaining choice. Use an encouraging "try for stars
+        // next time" line instead of full praise, and skip the teacher's recorded praise clips
+        // (e.g. "Excellent!") since they would not match a 0-star result.
+        const isZeroStar = starsEarned === 0;
+
         // Check for teacher's uploaded praise audio clips — filter by active status & current kingdom
-        const customPraise = selectPraiseClip(this.feedbackAudios, activeMapId);
+        const customPraise = isZeroStar ? null : selectPraiseClip(this.feedbackAudios, activeMapId);
 
         let pIdx = Math.floor(Math.random() * PRAISE_PHRASES.length);
         if (pIdx === this.state.lastPraiseIndex) {
           pIdx = (pIdx + 1) % PRAISE_PHRASES.length;
         }
-        const praiseText = customPraise ? customPraise.phrase : PRAISE_PHRASES[pIdx];
+        const praiseText = isZeroStar
+          ? ZERO_STAR_PHRASES[Math.floor(Math.random() * ZERO_STAR_PHRASES.length)]
+          : customPraise
+          ? customPraise.phrase
+          : PRAISE_PHRASES[pIdx];
 
         const updatedHistory = [
           ...this.state.history.filter((h) => h.questionId !== q.id),
@@ -1168,7 +1216,41 @@ class StudentArcadeGame {
               this.mapRenderer.centerOnLocation(completedStep.x, completedStep.y);
             }
 
-            if (burstResult.action === 'back') {
+            if (burstResult.action === 'replay') {
+              // REPLAY: reopen the level just finished in review mode (read-only — stars are
+              // already saved). The teacher re-reads it via the replay audio button, and the
+              // "World Map" button returns to the map where the student can tap the next level.
+              const replayItem =
+                mergedHistory.find((h) => h.questionId === q.id) ||
+                updatedHistory.find((h) => h.questionId === q.id) ||
+                null;
+              if (replayItem) {
+                this.lastNarratedQuestionId = null;
+                this.setState({
+                  screen: 'question',
+                  viewingHistoryItem: replayItem,
+                  currentData: res,
+                  score: res.data.session.score,
+                  history: mergedHistory,
+                  submitResult: null,
+                  selectedAnswerId: null,
+                  wrongAnswerIds: [],
+                  customMascotSpeech: null,
+                  currentFeedbackSprite: null,
+                  mapPhase: 'kingdom_active',
+                  lastCompletedStep: { mapId: prevMapId, questionIndex: questionOrder },
+                  isTeacherPaused: isPaused,
+                  roomStatus,
+                  enteredKingdomIds,
+                  pendingMapAction: null,
+                });
+                this.startLightweightPoller();
+                return;
+              }
+              // No history item to review (should not happen) → behave like MAP
+            }
+
+            if (burstResult.action === 'back' || burstResult.action === 'replay') {
               this.setState({
                 screen: 'world_map',
                 currentData: res,
@@ -1324,7 +1406,8 @@ class StudentArcadeGame {
             setTimeout(proceedAfterPraise, 600);
           });
         } else {
-          setTimeout(proceedAfterPraise, 1200);
+          // The 0-star message is longer, so give the student a little more time to read it
+          setTimeout(proceedAfterPraise, isZeroStar ? 2200 : 1200);
         }
       } else {
         // --- 2. WRONG ANSWER: SHUFFLED TEACHER CHEER-UP ENCOURAGEMENT ---
@@ -1457,7 +1540,26 @@ class StudentArcadeGame {
     }
   }
 
+  /** Last question picture warmed up (see preloadQuestionImage). */
+  private preloadedQuestionImage: string | null = null;
+
+  /**
+   * Downloads and decodes the current question's picture as soon as the question data is known,
+   * usually while the student is still walking on the map, so the question screen opens without
+   * the picture popping in a moment later.
+   */
+  private preloadQuestionImage() {
+    const url = this.state.currentData?.data?.question?.image_url;
+    if (!url || url === this.preloadedQuestionImage) return;
+    this.preloadedQuestionImage = url;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    img.decode?.().catch(() => undefined);
+  }
+
   private render() {
+    this.preloadQuestionImage();
     if (
       this.mapRenderer &&
       this.state.screen !== 'world_map' &&
@@ -1670,8 +1772,23 @@ class StudentArcadeGame {
     });
   }
 
+  /** True while a kingdom tap is being handled (status check or entry animation): repeat taps wait. */
+  private kingdomClickBusy = false;
+
   private async handleKingdomClick(kingdomId: number) {
     if (this.state.mapPhase === 'kingdom_enter_anim') return;
+    // Spam taps used to start several status requests at once (several "Session Started" toasts and
+    // sounds, and a slow answer). One tap at a time; the others are ignored until it is done.
+    if (this.kingdomClickBusy) return;
+    this.kingdomClickBusy = true;
+    try {
+      await this.handleKingdomClickOnce(kingdomId);
+    } finally {
+      this.kingdomClickBusy = false;
+    }
+  }
+
+  private async handleKingdomClickOnce(kingdomId: number) {
 
     if (!gameApi.getToken()) {
       soundManager.playWrong();
@@ -2002,7 +2119,7 @@ class StudentArcadeGame {
   // 6. COMPLETED SCREEN
   // ─────────────────────────────────────────────────────────────────────────────
   private renderCompletedScreen() {
-    const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars || 1), 0);
+    const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars ?? 0), 0);
 
     if (!this.completedScreen) {
       this.completedScreen = new CompletedScreen(this.appEl, {
@@ -2094,15 +2211,57 @@ class StudentArcadeGame {
           </svg>
         </div>
         <p class="teacher-pause-title">Game Paused</p>
-        <p class="teacher-pause-subtitle">Your teacher has paused the session. Sit tight — it will resume shortly.</p>
+        <p class="teacher-pause-subtitle">Your teacher has paused the session. Sit tight - it will resume shortly.</p>
         <div class="teacher-pause-badge">
           <span class="teacher-pause-dot"></span>
           Waiting for teacher
         </div>
+        <button id="pauseLeaveRoomBtn" class="teacher-pause-leave-btn" title="Leave and re-enter your name to rejoin later">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Leave Room
+        </button>
+        <p class="teacher-pause-leave-hint">You can return later by entering your name again</p>
       </div>
     `;
 
     document.body.appendChild(overlay);
+
+    // "Leave Room" clears token but keeps PIN + name so Join Screen can pre-fill them
+    document.getElementById('pauseLeaveRoomBtn')?.addEventListener('click', () => {
+      soundManager.playClick();
+      const savedPin = this.state.pin;
+      const savedName = this.state.playerName;
+      const savedAvatar = this.state.avatarSlug;
+
+      gameApi.saveLastPlayerName(savedPin, savedName);
+
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
+        this.pollInterval = null;
+      }
+      soundManager.stopSpeech();
+      soundManager.resumeAll();
+      gameApi.clearSession();
+
+      this.setState({
+        screen: 'join',
+        pin: savedPin,
+        playerName: savedName,
+        avatarSlug: savedAvatar,
+        isTeacherPaused: false,
+        isConnectionLost: false,
+        currentData: null,
+        submitResult: null,
+        submitting: false,
+        wrongAnswerIds: [],
+        error: null,
+      });
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

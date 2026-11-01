@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type RoomResultsData } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -68,32 +68,90 @@ export const RoomControlPage: React.FC = () => {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [selectedQuestionForModal, setSelectedQuestionForModal] = useState<any | null>(null);
 
+  // One room action at a time: a ref (not state) blocks a second click before React re-renders.
+  const actionBusy = useRef(false);
+  // Bumped by every action, so a poll that started before it cannot overwrite the new status.
+  const actionSeq = useRef(0);
+  const pollBusy = useRef(false);
+
   const fetchResults = async () => {
+    if (pollBusy.current || actionBusy.current) return; // no overlapping polls, none during an action
+    pollBusy.current = true;
+    const seq = actionSeq.current;
     try {
       const res = await api.getRoomResults(roomId);
       const roomPayload = (res as any)?.data || res;
-      setData(roomPayload);
+      if (seq === actionSeq.current) setData(roomPayload);
     } catch (err) {
       console.error('Failed to fetch room results:', err);
     } finally {
+      pollBusy.current = false;
       setLoading(false);
     }
   };
 
   const silentRefreshResults = async () => {
+    const seq = actionSeq.current;
     try {
       const res = await api.getRoomResults(roomId);
       const roomPayload = (res as any)?.data || res;
-      setData(roomPayload);
+      if (seq === actionSeq.current) setData(roomPayload);
     } catch (err) {
       console.error('Failed to silently refresh results:', err);
     }
   };
 
+  /**
+   * Runs a room action once: ignores repeat clicks, shows the new status right away (optimistic)
+   * and puts the old one back if the server says no.
+   */
+  const runRoomAction = async (
+    optimisticStatus: RoomResultsData['room']['status'] | null,
+    call: () => Promise<unknown>,
+    successToast: [string, 'success' | 'info'],
+    errorText: string,
+    after?: () => void,
+  ) => {
+    if (actionBusy.current) return;
+    actionBusy.current = true;
+    actionSeq.current++;
+    setActionLoading(true);
+    const prevStatus = data?.room?.status;
+    if (optimisticStatus) {
+      setData((prev) => (prev ? { ...prev, room: { ...prev.room, status: optimisticStatus } } : null));
+    }
+    try {
+      await call();
+      showToast(successToast[0], successToast[1]);
+      after?.();
+      actionSeq.current++;
+      silentRefreshResults();
+      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
+    } catch (err: unknown) {
+      if (optimisticStatus && prevStatus) {
+        setData((prev) => (prev ? { ...prev, room: { ...prev.room, status: prevStatus } } : null));
+      }
+      showToast((err instanceof Error && err.message) || errorText, 'error');
+    } finally {
+      actionBusy.current = false;
+      setActionLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchResults();
-    const interval = setInterval(fetchResults, 3000);
-    return () => clearInterval(interval);
+    // No polling while the tab is hidden (free Render/TiDB plans); refresh at once on return.
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchResults();
+    }, 3000);
+    const onVisible = () => {
+      if (!document.hidden) fetchResults();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [roomId]);
 
   // Sort questions ascending from question 1 to 15 in game progression order
@@ -123,103 +181,25 @@ export const RoomControlPage: React.FC = () => {
   const maxCap = room?.max_students ?? 40;
   const capacityPercent = Math.min(100, Math.round((pupilCount / maxCap) * 100));
 
-  const handleStartRoom = async () => {
-    try {
-      setActionLoading(true);
-      await api.startRoom(roomId);
-      showToast('Game session started!', 'success');
-      // Optimistic update: update room status in state
-      setData((prev) => (prev ? {
-        ...prev,
-        room: { ...prev.room, status: 'in_progress' }
-      } : null));
-      // Silent background refresh to get updated data
-      silentRefreshResults();
-      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
-    } catch (err: any) {
-      showToast(err.message || 'Failed to start session', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handleStartRoom = () =>
+    runRoomAction('in_progress', () => api.startRoom(roomId), ['Game session started!', 'success'], 'Failed to start session');
 
-  const handlePauseRoom = async () => {
-    try {
-      setActionLoading(true);
-      await api.pauseRoom(roomId);
-      showToast('Session paused.', 'info');
-      // Optimistic update: update room status in state
-      setData((prev) => (prev ? {
-        ...prev,
-        room: { ...prev.room, status: 'paused' }
-      } : null));
-      // Silent background refresh to get updated data
-      silentRefreshResults();
-      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
-    } catch (err: any) {
-      showToast(err.message || 'Failed to pause session', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handlePauseRoom = () =>
+    runRoomAction('paused', () => api.pauseRoom(roomId), ['Session paused.', 'info'], 'Failed to pause session');
 
-  const handleResumeRoom = async () => {
-    try {
-      setActionLoading(true);
-      await api.resumeRoom(roomId);
-      showToast('Session resumed.', 'success');
-      // Optimistic update: update room status in state
-      setData((prev) => (prev ? {
-        ...prev,
-        room: { ...prev.room, status: 'in_progress' }
-      } : null));
-      // Silent background refresh to get updated data
-      silentRefreshResults();
-      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
-    } catch (err: any) {
-      showToast(err.message || 'Failed to resume session', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handleResumeRoom = () =>
+    runRoomAction('in_progress', () => api.resumeRoom(roomId), ['Session resumed.', 'success'], 'Failed to resume session');
 
-  const confirmCloseRoom = async () => {
-    try {
-      setActionLoading(true);
-      await api.closeRoom(roomId);
-      showToast('Session ended and archived.', 'info');
-      setShowCloseModal(false);
-      // Optimistic update: update room status in state
-      setData((prev) => (prev ? {
-        ...prev,
-        room: { ...prev.room, status: 'closed' }
-      } : null));
-      // Silent background refresh to get updated data
-      silentRefreshResults();
-      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
-    } catch (err: any) {
-      showToast(err.message || 'Failed to end session', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const confirmCloseRoom = () =>
+    runRoomAction('closed', () => api.closeRoom(roomId), ['Session ended and archived.', 'info'], 'Failed to end session', () =>
+      setShowCloseModal(false),
+    );
 
-  const confirmResetRoom = async () => {
-    try {
-      setActionLoading(true);
-      await api.resetRoom(roomId);
-      showToast('Room pupils reset.', 'info');
+  const confirmResetRoom = () =>
+    runRoomAction(null, () => api.resetRoom(roomId), ['Room pupils reset.', 'info'], 'Failed to reset room', () => {
       setShowResetModal(false);
-      // Invalidate cache and refresh to get updated data
       api.invalidateCache(`/rooms/${roomId}/results`);
-      silentRefreshResults();
-      broadcastSync({ type: 'ROOM_STATUS_CHANGED' });
-    } catch (err: any) {
-      showToast(err.message || 'Failed to reset room', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+    });
 
   const handleExportCSV = () => {
     if (students.length === 0) return;

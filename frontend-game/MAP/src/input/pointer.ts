@@ -155,6 +155,11 @@ export class PointerInput {
     }
   }
 
+  /** Returns true if actively dragging (for performance optimization during drag). */
+  isDragging(): boolean {
+    return this.dragging && this.pts.size > 0;
+  }
+
   /** Applies inertia; call once per frame. */
   update(dt: number): void {
     if (this.pts.size > 0 || (this.vx === 0 && this.vy === 0)) return;

@@ -837,6 +837,12 @@ export class VoxelWorldMap implements MapRenderer {
       waiting: false,
       bubble: bubbleText ?? 'QUEST READY!',
     };
+    
+    // Reset camera to optimal walking view (Tala-Salitaan pattern: zoom in slightly during walk)
+    // This ensures good POV regardless of user's manual drag before walking
+    const walkZoom = this.vw >= this.vh ? 1.05 : 1.15; // slightly closer than default for better character visibility
+    const startTarget = followTarget(this.avatar.x, this.avatar.y, this.vh, walkZoom);
+    this.moveTo({ cx: startTarget.cx, cy: startTarget.cy, zoom: walkZoom }, { ms: 400 });
   }
 
   private advanceWalk(dt: number): void {
@@ -1133,8 +1139,32 @@ export class VoxelWorldMap implements MapRenderer {
     const dt = Math.min(0.05, Math.max(0, rawDt / 1000));
     if (rawDt > 0 && rawDt < 500) this.emaInterval += (rawDt - this.emaInterval) * 0.05;
     const t0 = performance.now();
+    
+    // Track camera before update
+    const prevCam = { cx: this.cam.cx, cy: this.cam.cy, zoom: this.cam.zoom };
+    const hadWalk = !!this.walk;
+    const hadWarp = !!this.warp;
+    const hadGlide = !!this.glide;
+    const hadGateAnim = !!this.gateAnim;
+    const prevTime = this.time;
+    
     this.update(dt, now);
-    this.draw();
+    
+    // Only redraw if something changed (Tala-Salitaan pattern: conditional rendering)
+    const camMoved = Math.abs(this.cam.cx - prevCam.cx) > 0.1 || 
+                     Math.abs(this.cam.cy - prevCam.cy) > 0.1 || 
+                     Math.abs(this.cam.zoom - prevCam.zoom) > 0.001;
+    const animating = this.walk || this.warp || this.glide || this.gateAnim;
+    const wasAnimating = hadWalk || hadWarp || hadGlide || hadGateAnim;
+    const timeChanged = !this.reduced && Math.abs(this.time - prevTime) > 0.001;
+    const confettiActive = this.confetti.active;
+    const avatarBubble = this.avatar.bubbleTtl > 0;
+    
+    // Redraw when: camera moved, animations running, or visual effects active
+    if (camMoved || animating || wasAnimating || timeChanged || confettiActive || avatarBubble || this.sizeDirty) {
+      this.draw();
+    }
+    
     this.emaWork += (performance.now() - t0 - this.emaWork) * 0.05;
     this.governor(now);
   }
@@ -1268,7 +1298,13 @@ export class VoxelWorldMap implements MapRenderer {
     this.queue.prune(visible.concat(wanted.slice(visible.length, wanted.length)), limit);
   }
 
+  private lastHeavyDraw = 0;
+  private readonly heavyDrawDelay = 33; // 33ms = ~30 FPS during drag (smooth enough, saves CPU)
+
   private draw(): void {
+    const now = performance.now();
+    const isDragging = this.pointer.isDragging();
+    
     const v = this.view;
     v.dpr = this.dpr;
     v.vw = this.vw;
@@ -1278,12 +1314,25 @@ export class VoxelWorldMap implements MapRenderer {
     v.reduced = this.reduced;
     updateView(v, this.cam.cx, this.cam.cy, this.cam.zoom);
     const [first, last] = visibleRange(v.top, v.bottom);
-    this.queue.touch(first, last);
-    this.updateBake(first, last);
+    
+    // Optimize: Skip heavy baked segment updates during drag (debounce)
+    // This makes drag feel MUCH smoother by reducing CPU work
+    const shouldDrawHeavy = !isDragging || (now - this.lastHeavyDraw) > this.heavyDrawDelay;
+    
+    if (shouldDrawHeavy) {
+      this.queue.touch(first, last);
+      this.updateBake(first, last);
+      this.lastHeavyDraw = now;
+    }
 
     const ctx = this.ctx;
     if (v.left < 0 || v.right > WORLD_W) drawSky(v, kingdomAtY(this.cam.cy));
-    drawSegments(v, this.queue, first, last);
+    
+    // Draw baked segments only if not dragging OR enough time passed
+    // During drag: uses last rendered frame (slightly stale but smooth!)
+    if (shouldDrawHeavy) {
+      drawSegments(v, this.queue, first, last);
+    }
 
     // depth-sorted objects
     const items = this.items;

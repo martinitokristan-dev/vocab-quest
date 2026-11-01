@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { avatarNode, deriveStatuses, globalLevelNumber } from '../src/core/status';
+import { avatarNode, deriveStatuses, globalLevelNumber, levelStatus } from '../src/core/status';
 import type { KingdomId } from '../src/api/types';
 
 function progress(k: KingdomId, l: number, completed: Array<{ kingdom: KingdomId; level: number; stars: number }> = []) {
@@ -59,5 +59,29 @@ describe('deriveStatuses', () => {
     expect(globalLevelNumber(3, 45)).toBe(135);
     expect(() => globalLevelNumber(1, 46)).toThrow(RangeError);
     expect(() => globalLevelNumber(4, 1)).toThrow(RangeError);
+  });
+});
+
+describe('levelStatus (ModernWorldMap)', () => {
+  it('on level 2 only levels before 2 are completed and level 3 stays locked', () => {
+    expect(levelStatus(1, 2, true)).toBe('completed');
+    expect(levelStatus(2, 2, true)).toBe('current');
+    expect(levelStatus(3, 2, true)).toBe('locked');
+    expect(levelStatus(4, 2, true)).toBe('locked');
+  });
+
+  it('no level is ever just "unlocked" ahead of the current one', () => {
+    for (let cur = 1; cur <= 45; cur++) {
+      for (let l = 1; l <= 45; l++) {
+        const s = levelStatus(l, cur, true);
+        expect(s).not.toBe('unlocked');
+        if (l > cur) expect(s).toBe('locked');
+      }
+    }
+  });
+
+  it('a kingdom that is not entered yet shows every level locked', () => {
+    expect(levelStatus(1, 1, false)).toBe('locked');
+    expect(levelStatus(1, 5, false)).toBe('locked');
   });
 });
