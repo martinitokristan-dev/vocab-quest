@@ -9,7 +9,7 @@
  * - Avatar walking along the path
  *
  * Implements the MapRenderer interface so it can be used as a drop-in
- * replacement for VoxelWorldMap / Game2DMapRenderer.
+ * replacement for Game2DMapRenderer (the PNG fallback map).
  */
 
 import type {
@@ -37,6 +37,12 @@ const NODES_PER_ROW = 5;
 
 /** 3D camera tilt (radians, about 34°) used when the student looks at the kingdom building's front. */
 const THREE_FRONT_PITCH = 0.6;
+
+/** After this long without movement the map draws at half rate to save battery. */
+const IDLE_HALF_RATE_MS = 1500;
+/** Camera tilt (radians, about 43°) for every walk: lower than the 50° default for a closer POV,
+ *  high enough that the next level buttons stay visible. */
+const WALK_VIEW_PITCH = 0.75;
 
 const PATH_TOP_Y = 400;
 const PATH_BOT_Y = 8000;
@@ -4986,6 +4992,28 @@ export class ModernWorldMap implements MapRenderer {
 
   /* ── Render loop ────────────────────────────────────────────────── */
 
+  /** Last time something moved (see the battery saver in frame()). */
+  private lastActiveTime = 0;
+
+  /** True while the pupil or an animation moves the map: full 60 fps. */
+  private isMapActive(): boolean {
+    return (
+      this.isDragging ||
+      this.avatarWalking ||
+      this.isPostWalkZoomEasing ||
+      this.inputLocked ||
+      this.layoutDirty ||
+      !!this.orbitGoal ||
+      this.orbitPendingYaw !== 0 ||
+      this.orbitPendingPitch !== 0 ||
+      Math.abs(this.orbitVelYaw) > 0.02 ||
+      Math.abs(this.orbitVelPitch) > 0.02 ||
+      Math.abs(this.inertiaVY) > 0.3 ||
+      Math.abs(this.targetViewY - this.viewY) > 0.5 ||
+      Math.abs(this.avatarStandOffsetY + 28) > 0.5
+    );
+  }
+
   private frame(timestamp: number): void {
     if (this.destroyed) return;
 
@@ -4993,6 +5021,16 @@ export class ModernWorldMap implements MapRenderer {
     // frameloop 'never' while the map is covered. Checked cheaply once per frame.
     if (!this.root.isConnected || this.root.clientWidth === 0) {
       this.lastFrame = 0; // no time jump when it comes back
+      this.animFrameId = requestAnimationFrame((t) => this.frame(t));
+      return;
+    }
+
+    // Battery saver: when nothing is moving (no drag, walk, glide or animation) for a moment, the
+    // map runs at half rate (~30 fps). Clouds, birds, sparkles and the idle student still move,
+    // the GPU does half the work. Any input or movement brings 60 fps back on the next frame.
+    if (this.isMapActive()) {
+      this.lastActiveTime = timestamp;
+    } else if (this.lastFrame && timestamp - this.lastActiveTime > IDLE_HALF_RATE_MS && timestamp - this.lastFrame < 30) {
       this.animFrameId = requestAnimationFrame((t) => this.frame(t));
       return;
     }
@@ -5179,8 +5217,8 @@ export class ModernWorldMap implements MapRenderer {
       }
     }
 
-    // Spawn ambient particles near current node
-    if (Math.random() < 0.15) {
+    // Spawn ambient particles near current node (per time, so half-rate idle frames keep the density)
+    if (Math.random() < 0.15 * Math.min(3, dt / (1000 / 60))) {
       const cn = this.pathNodes[this.currentLevel - 1];
       if (cn) {
         const theme = KINGDOM_THEMES[this.currentKingdom];
@@ -5981,6 +6019,15 @@ export class ModernWorldMap implements MapRenderer {
 
     // Center camera on starting avatar position immediately so character is visible
     this.centerOnLocation(this.avatarX, this.avatarY);
+
+    // 3D (user request): whatever turn/tilt the pupil dragged to, a walk glides the camera to one
+    // fixed view: looking up the road (north) from a medium height, so the student is always seen
+    // walking from the same good angle. A drag during the walk still takes over (orbitGoal = null).
+    if (this.world3d) {
+      this.orbitVelYaw = 0;
+      this.orbitVelPitch = 0;
+      this.orbitGoal = { yaw: 0, pitch: WALK_VIEW_PITCH };
+    }
 
     this.hooks.whoosh?.();
   }

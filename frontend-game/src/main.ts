@@ -208,62 +208,45 @@ class StudentArcadeGame {
     soundManager.stopBgm();
   }
 
-  private preloadTeacherAssets() {
-    const assetUrls = [
-      '/assets/guide/F1.png',
-      '/assets/guide/F2.png',
-      '/assets/guide/F3.png',
-      '/assets/guide/F4.png',
-      '/assets/guide/F5.png',
-      '/assets/guide/F6.png',
-      '/assets/guide/F7.png',
-      '/assets/guide/F8.png',
-      '/assets/guide/F9.png',
-      '/assets/guide/teacher_blue_correct_1.png',
-      '/assets/guide/teacher_blue_correct_2.png',
-      '/assets/guide/teacher_blue_correct_3.png',
-      '/assets/guide/teacher_blue_incorrect_1.png',
-      '/assets/guide/teacher_blue_incorrect_2.png',
-      '/assets/guide/teacher_blue_incorrect_3.png',
-      '/assets/guide/teacher_yellow_pose1.png',
-      '/assets/guide/teacher_yellow_correct_1.png',
-      '/assets/guide/teacher_yellow_correct_2.png',
-      '/assets/guide/teacher_yellow_correct_3.png',
-      '/assets/guide/teacher_yellow_guide_1.png',
-      '/assets/guide/teacher_yellow_guide_2.png',
-      '/assets/guide/teacher_yellow_incorrect_1.png',
-      '/assets/guide/teacher_yellow_incorrect_2.png',
-      '/assets/guide/teacher_yellow_incorrect_3.png',
-      '/assets/guide/teacher_lovely_guide_3.png',
-      '/assets/guide/teacher_lovely_guide_4.png',
-      '/assets/guide/teacher_lovely_guide_5.png',
-      '/assets/guide/teacher_lovely_guide_6.png',
-      '/assets/guide/teacher_annabelle_guide_7.png',
-      '/assets/guide/teacher_annabelle_guide_8.png',
-      '/assets/guide/G1.png',
-      '/assets/guide/G2.png',
-      '/assets/guide/G3.png',
-      '/assets/guide/G4.png',
-      '/assets/guide/G5.png',
-      '/assets/guide/G6.png',
-      '/assets/guide/G7.png',
-      '/assets/guide/G8.png',
-      '/assets/guide/G9.png',
-      '/assets/guide/teacher_gevina_correct_1.png',
-      '/assets/guide/teacher_gevina_correct_2.png',
-      '/assets/guide/teacher_gevina_correct_3.png',
-      '/assets/guide/teacher_gevina_incorrect_1.png',
-      '/assets/guide/teacher_gevina_incorrect_2.png',
-      '/assets/guide/teacher_gevina_incorrect_3.png',
-    ];
+  /** Teacher pictures per kingdom (sprites, praise/encourage poses, kingdom dialogue). */
+  private static readonly TEACHER_ASSETS: Record<number, string[]> = {
+    // 0 = welcome dialogue before any kingdom
+    0: ['teacher_yellow_guide_1', 'teacher_yellow_guide_2'],
+    1: [
+      'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9',
+      'teacher_blue_correct_1', 'teacher_blue_correct_2', 'teacher_blue_correct_3',
+      'teacher_blue_incorrect_1', 'teacher_blue_incorrect_2', 'teacher_blue_incorrect_3',
+      'teacher_lovely_guide_3', 'teacher_lovely_guide_4',
+    ],
+    2: [
+      'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9',
+      'teacher_gevina_correct_1', 'teacher_gevina_correct_2', 'teacher_gevina_correct_3',
+      'teacher_gevina_incorrect_1', 'teacher_gevina_incorrect_2', 'teacher_gevina_incorrect_3',
+      'teacher_lovely_guide_5', 'teacher_lovely_guide_6',
+    ],
+    3: [
+      'teacher_yellow_pose1',
+      'teacher_yellow_correct_1', 'teacher_yellow_correct_2', 'teacher_yellow_correct_3',
+      'teacher_yellow_incorrect_1', 'teacher_yellow_incorrect_2', 'teacher_yellow_incorrect_3',
+      'teacher_annabelle_guide_7', 'teacher_annabelle_guide_8',
+    ],
+  };
+  private readonly preloadedTeacherGroups = new Set<number>();
 
-    assetUrls.forEach((url) => {
+  /**
+   * Warms only the pictures of the kingdom being played (about 17 instead of all 45 at start-up).
+   * Called from render(): the next kingdom's teacher loads when the pupil reaches it, during the
+   * kingdom entry animation, so nothing pops in.
+   */
+  private preloadTeacherAssets(kingdom: number = 0) {
+    if (this.preloadedTeacherGroups.has(kingdom)) return;
+    this.preloadedTeacherGroups.add(kingdom);
+    for (const name of StudentArcadeGame.TEACHER_ASSETS[kingdom] ?? []) {
       const img = new Image();
-      img.src = url;
-      if ('decode' in img) {
-        img.decode().catch(() => {});
-      }
-    });
+      img.decoding = 'async';
+      img.src = `/assets/guide/${name}.png`;
+      img.decode?.().catch(() => undefined);
+    }
   }
 
 
@@ -1560,6 +1543,7 @@ class StudentArcadeGame {
 
   private render() {
     this.preloadQuestionImage();
+    if (this.state.currentData?.data?.map) this.preloadTeacherAssets(this.currentKingdomId());
     if (
       this.mapRenderer &&
       this.state.screen !== 'world_map' &&

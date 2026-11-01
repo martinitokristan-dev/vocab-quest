@@ -165,6 +165,13 @@ export class QuestionScreen {
       initialTeacherAnimClass = 'idle';
     }
 
+    // Same question re-rendered (e.g. after a wrong answer): keep the already decoded picture
+    // element so it does not blink while the rest of the screen updates.
+    const keptPicture =
+      this.enteredQuestionId === question.id
+        ? (this.container.querySelector('.question-visual-clue-img') as HTMLImageElement | null)
+        : null;
+
     this.container.innerHTML = `
       <!-- Top-Left Player Profile & Star HUD (Fixed Top Left) -->
       <div class="candy-hud-top-left">
@@ -332,6 +339,10 @@ export class QuestionScreen {
         </div>
       </div>
     `;
+    if (keptPicture?.complete && keptPicture.src) {
+      const fresh = this.container.querySelector('.question-visual-clue-img');
+      if (fresh && (fresh as HTMLImageElement).src === keptPicture.src) fresh.replaceWith(keptPicture);
+    }
     this.enteredQuestionId = question.id;
 
     this.attachEventListeners(question, isReview, isIdentification, submitResult, wrongAnswerIds, submitting);
@@ -547,8 +558,16 @@ export class QuestionScreen {
    * Update props and re-render
    */
   updateProps(newProps: Partial<QuestionScreenProps>): void {
+    // Nothing the screen shows changed (e.g. the same question data came back from a refresh):
+    // keep the DOM as it is instead of rebuilding it, so the picture and teacher do not flash.
+    const changed = (Object.keys(newProps) as Array<keyof QuestionScreenProps>).some((k) => {
+      const a = this.props[k];
+      const b = newProps[k];
+      if (Array.isArray(a) && Array.isArray(b)) return a.length !== b.length || a.some((v, i) => v !== b[i]);
+      return a !== b;
+    });
     this.props = { ...this.props, ...newProps };
-    this.render();
+    if (changed) this.render();
   }
 
   /**
