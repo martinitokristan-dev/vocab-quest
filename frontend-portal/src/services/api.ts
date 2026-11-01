@@ -1,4 +1,5 @@
 // API Client Service for Teacher Portal (architecture.md Â§7)
+import { compressImage } from '../utils/compressImage';
 
 const RAW_URL = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim();
 export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
@@ -315,7 +316,7 @@ class ApiClient {
       const formData = new FormData();
       if (payload.title) formData.append('title', payload.title);
       if (payload.order_index !== undefined) formData.append('order_index', String(payload.order_index));
-      formData.append('background_image', payload.background_image);
+      formData.append('background_image', await compressImage(payload.background_image));
       if (payload.background_url) formData.append('background_url', payload.background_url);
 
       const token = this.getToken();
@@ -341,7 +342,7 @@ class ApiClient {
       const formData = new FormData();
       if (payload.title) formData.append('title', payload.title);
       if (payload.order_index !== undefined) formData.append('order_index', String(payload.order_index));
-      formData.append('background_image', payload.background_image);
+      formData.append('background_image', await compressImage(payload.background_image));
       if (payload.background_url) formData.append('background_url', payload.background_url);
       formData.append('_method', 'PUT');
 
@@ -419,7 +420,7 @@ class ApiClient {
       if (payload.context_clue) formData.append('context_clue', payload.context_clue);
       formData.append('has_context_highlight', payload.has_context_highlight ? '1' : '0');
       formData.append('has_image', (payload.image_file || payload.image_url) ? '1' : '0');
-      if (payload.image_file) formData.append('image_file', payload.image_file);
+      if (payload.image_file) formData.append('image_file', await compressImage(payload.image_file));
       if (payload.image_url) formData.append('image_url', payload.image_url);
 
       if (payload.voice_audio_file) {
@@ -480,7 +481,7 @@ class ApiClient {
       if (payload.sentence !== undefined) formData.append('sentence', payload.sentence);
       if (payload.highlighted_word !== undefined) formData.append('highlighted_word', payload.highlighted_word);
       if (payload.context_clue !== undefined) formData.append('context_clue', payload.context_clue || '');
-      if (payload.image_file) formData.append('image_file', payload.image_file);
+      if (payload.image_file) formData.append('image_file', await compressImage(payload.image_file));
       if (payload.image_url !== undefined) formData.append('image_url', payload.image_url || '');
 
       if (payload.voice_audio_file) {

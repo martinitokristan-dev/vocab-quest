@@ -1,4 +1,5 @@
 import { networkManager } from './networkManager';
+import { optimizeImageUrl } from './utils/cloudinaryImage';
 
 const RAW_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000').trim();
 export const BACKEND_ORIGIN = RAW_URL.replace(/\/api\/?$/, '');
@@ -270,12 +271,16 @@ class StudentGameApiClient {
   }
 
   async getCurrentQuestion(): Promise<CurrentQuestionResponse> {
-    return this.request<CurrentQuestionResponse>(`/game/question?_t=${Date.now()}`, {
+    const res = await this.request<CurrentQuestionResponse>(`/game/question?_t=${Date.now()}`, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
       },
     });
+    // Ask Cloudinary for a resized, compressed copy of the picture (see optimizeImageUrl).
+    const question = res?.data?.question;
+    if (question?.image_url) question.image_url = optimizeImageUrl(question.image_url);
+    return res;
   }
 
   async getGameStatus(): Promise<GameStatusResponse> {

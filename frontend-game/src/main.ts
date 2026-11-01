@@ -38,6 +38,7 @@ import { loadFeedbackAudios, selectPraiseClip, selectCheerUpClip, type FeedbackA
 import { bindGlobalKeyboard } from './utils/keyboardHandler';
 import { initRouter, syncUrl, type ScreenType } from './utils/router';
 import { subscribeSync } from './utils/realtimeSync';
+import { initInstallPrompt, setInstallPromptScreen } from './pwaInstall';
 
 // Suppress unhandled performance observer or browser extension errors (e.g. reportAllChanges reading 'startTime')
 window.addEventListener('error', (event) => {
@@ -1542,6 +1543,7 @@ class StudentArcadeGame {
   }
 
   private render() {
+    setInstallPromptScreen(this.state.screen);
     this.preloadQuestionImage();
     if (this.state.currentData?.data?.map) this.preloadTeacherAssets(this.currentKingdomId());
     if (
@@ -2573,3 +2575,12 @@ class StudentArcadeGame {
 }
 
 new StudentArcadeGame();
+
+// PWA: install the service worker after the page has loaded, so it never slows the first start.
+// Production builds only (the dev server serves unhashed files that must not be cached).
+initInstallPrompt();
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+  });
+}

@@ -2591,6 +2591,12 @@ export class World3D {
     return true;
   }
 
+  /** Length of the arrival jump (ms), so the map can wait for the landing before the question opens. */
+  get jumpMs(): number {
+    const jump = this.actions['Jump'];
+    return jump ? Math.min(1600, jump.getClip().duration * 1000) : 0;
+  }
+
   private play(name: string, once = false, fade = 0.25): void {
     const next = this.actions[name];
     if (!next || this.currentClip === name) return;
@@ -2637,7 +2643,8 @@ export class World3D {
       const run = smoothstep(220, 380, this.speed);
       root.rotation.x += (run * 0.12 - root.rotation.x) * Math.min(1, dt * 8);
     } else if (this.wasWalking) {
-      this.play('Wave', true);
+      // arrival: hop onto the level (user request: a jump, not a wave)
+      this.play('Jump', true, 0.12);
     } else if (!this.currentClip || this.currentClip === 'Walk') {
       this.play('Idle');
     }

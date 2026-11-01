@@ -40,9 +40,13 @@ const THREE_FRONT_PITCH = 0.6;
 
 /** After this long without movement the map draws at half rate to save battery. */
 const IDLE_HALF_RATE_MS = 1500;
-/** Camera tilt (radians, about 43°) for every walk: lower than the 50° default for a closer POV,
- *  high enough that the next level buttons stay visible. */
-const WALK_VIEW_PITCH = 0.75;
+/** Fixed high-angle camera tilt (radians, about 55°) used for every walk and whenever the pupil
+ *  comes back to the map after a level (user request: fixed high POV that clearly shows the walk). */
+const WALK_VIEW_PITCH = 0.96;
+/** Fixed camera zoom while walking (closer = student bigger on screen). */
+const WALK_ZOOM = 1.72;
+/** 3D idle stand spot relative to the level (map px before the 1.7 depth factor; - = behind). */
+const STAND_OFFSET_3D = -14;
 
 const PATH_TOP_Y = 400;
 const PATH_BOT_Y = 8000;
@@ -2229,6 +2233,16 @@ export class ModernWorldMap implements MapRenderer {
         user-select: none;
         -webkit-user-select: none;
         touch-action: none;
+      }
+
+      /* No blue tap square on Android/iOS when the kingdom building, padlock or a level is tapped
+         (the browser's default tap highlight showed the invisible tap areas). */
+      .vq-modern-map-root,
+      .vq-modern-map-root * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      .vq-modern-map-root *:focus:not(:focus-visible) {
+        outline: none;
       }
 
       .vq-node-btn {
@@ -4994,6 +5008,8 @@ export class ModernWorldMap implements MapRenderer {
 
   /** Last time something moved (see the battery saver in frame()). */
   private lastActiveTime = 0;
+  /** End time (performance.now) of the arrival jump; the map stays at full frame rate meanwhile. */
+  private arrivalJumpUntil = 0;
 
   /** True while the pupil or an animation moves the map: full 60 fps. */
   private isMapActive(): boolean {
@@ -5010,7 +5026,8 @@ export class ModernWorldMap implements MapRenderer {
       Math.abs(this.orbitVelPitch) > 0.02 ||
       Math.abs(this.inertiaVY) > 0.3 ||
       Math.abs(this.targetViewY - this.viewY) > 0.5 ||
-      Math.abs(this.avatarStandOffsetY + 28) > 0.5
+      Math.abs(this.avatarStandOffsetY - (this.world3d ? STAND_OFFSET_3D : -28)) > 0.5 ||
+      performance.now() < this.arrivalJumpUntil
     );
   }
 
@@ -5078,8 +5095,8 @@ export class ModernWorldMap implements MapRenderer {
 
       // Follow avatar smoothly if walking with dynamic deep zoom-in
       if (this.avatarWalking) {
-        // Deep focus zoom-in while running (target 1.72) so character is close and prominent
-        const targetZoom = 1.72;
+        // Deep focus zoom-in while running so character is close and prominent
+        const targetZoom = WALK_ZOOM;
         this.zoom += (targetZoom - this.zoom) * Math.min(1, dtSec * 3.5);
 
         const targetY = this.avatarY - this.viewportH / (2 * this.zoom);
@@ -5129,6 +5146,17 @@ export class ModernWorldMap implements MapRenderer {
             this.isPostWalkZoomEasing = true;
             this.walkPath = [];
             this.walkBubbleText = '';
+            // 3D: the student jumps onto the level; whatever comes next (the question) waits
+            // until the jump has been seen and the student has landed.
+            const jumpMs = this.use3DAvatar && this.world3d?.avatarReady ? this.world3d.jumpMs : 0;
+            if (jumpMs > 0 && this.walkCallback) {
+              const cb = this.walkCallback;
+              this.walkCallback = null;
+              this.arrivalJumpUntil = performance.now() + jumpMs;
+              window.setTimeout(() => {
+                if (!this.destroyed) cb();
+              }, jumpMs);
+            }
             if (this.walkCallback) {
               const cb = this.walkCallback;
               this.walkCallback = null;
@@ -6164,8 +6192,11 @@ export class ModernWorldMap implements MapRenderer {
       return;
     }
 
-    // Target vertical offset: -28px when idle on a node (perched proudly on top), 0px when walking along road
-    const targetOffset = this.avatarWalking ? 0 : -28;
+    // Target vertical offset: perched on the level when idle, 0px when walking along the road.
+    // 3D: the jump lands the student ON the level button (just behind its middle so the number
+    // stays readable); this offset eases in during the jump, so the hop carries it onto the level.
+    const standOffset = this.world3d ? STAND_OFFSET_3D : -28;
+    const targetOffset = this.avatarWalking ? 0 : standOffset;
     this.avatarStandOffsetY += (targetOffset - this.avatarStandOffsetY) * 0.15;
 
     const feetX = this.avatarX;
@@ -6226,6 +6257,13 @@ export class ModernWorldMap implements MapRenderer {
       this.resizeCanvas();
       this.updateNodePositions();
       this.updateAvatarDOM();
+    }
+    // Back on the map after a level: the camera always comes back to the same fixed high view
+    // (any turn/tilt dragged before is reset). The pupil can still drag it again.
+    if (this.world3d && !this.avatarAtFront) {
+      this.orbitVelYaw = 0;
+      this.orbitVelPitch = 0;
+      this.orbitGoal = { yaw: 0, pitch: WALK_VIEW_PITCH };
     }
   }
 
