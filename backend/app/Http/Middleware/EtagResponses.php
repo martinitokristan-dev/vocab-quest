@@ -30,7 +30,12 @@ class EtagResponses
         $response->headers->set('ETag', $etag);
         $response->headers->set('Cache-Control', 'private, no-cache');
 
-        $sent = array_map('trim', explode(',', (string) $request->headers->get('If-None-Match')));
+        // The proxy on Render gzips responses and turns the ETag into a weak one (W/"..."), and the
+        // browser sends that weak form back: compare without the W/ prefix (weak comparison).
+        $sent = array_map(
+            fn ($t) => preg_replace('#^W/#', '', trim($t)),
+            explode(',', (string) $request->headers->get('If-None-Match'))
+        );
         if (in_array($etag, $sent, true)) {
             $response->setNotModified();
         }
