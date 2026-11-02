@@ -1,6 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Phone with Chrome "Desktop site" on (html.vq-desktop-phone, set in index.html): the page is
+   980px wide and shrunk to the phone, so the desktop layout looked tiny. The sm/md/lg/xl
+   breakpoints are switched off there and the whole page is zoomed (--vqz = width / 412),
+   so the teacher gets the same layout as on a normal phone. */
+@custom-variant sm {
+  @media (width >= 40rem) {
+    &:where(html:not(.vq-desktop-phone) *) {
+      @slot;
+    }
+  }
+}
+@custom-variant md {
+  @media (width >= 48rem) {
+    &:where(html:not(.vq-desktop-phone) *) {
+      @slot;
+    }
+  }
+}
+@custom-variant lg {
+  @media (width >= 64rem) {
+    &:where(html:not(.vq-desktop-phone) *) {
+      @slot;
+    }
+  }
+}
+@custom-variant xl {
+  @media (width >= 80rem) {
+    &:where(html:not(.vq-desktop-phone) *) {
+      @slot;
+    }
+  }
+}
+
+html.vq-desktop-phone {
+  zoom: var(--vqz, 1);
+}
+
+html.vq-desktop-phone .h-screen {
+  height: calc(100vh / var(--vqz, 1));
+}
+
+html.vq-desktop-phone .min-h-screen,
+html.vq-desktop-phone body {
+  min-height: calc(100vh / var(--vqz, 1));
+}
+
 :root {
   --font-sans: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -193,3 +239,36 @@ input:-webkit-autofill:active {
   color: #B91C1C;
   border: 1px solid #FECACA;
 }
+
+/* Phones: readable small print and finger-size buttons (teachers use the portal on their phone) */
+@media (max-width: 639px) {
+  .text-\[10px\] { font-size: 11.5px; }
+  .text-\[11px\] { font-size: 12px; }
+  .text-xs { font-size: 12.5px; }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    min-height: 40px;
+  }
+}
+
+html.vq-desktop-phone .text-\[10px\] { font-size: 11.5px; }
+html.vq-desktop-phone .text-\[11px\] { font-size: 12px; }
+html.vq-desktop-phone .text-xs { font-size: 12.5px; }
+
+html.vq-desktop-phone .btn-primary,
+html.vq-desktop-phone .btn-secondary,
+html.vq-desktop-phone .btn-danger {
+  min-height: 40px;
+}
+/* Phones: menu (☰) button and sidebar links big enough for a finger */
+@media (max-width: 639px) {
+  header button[aria-label="Open navigation menu"] { min-width: 42px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; }
+  aside nav button, aside button.w-full { min-height: 44px; font-size: 14px; }
+  aside button[aria-label] { min-width: 40px; min-height: 40px; }
+}
+html.vq-desktop-phone header button[aria-label="Open navigation menu"] { min-width: 42px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; }
+html.vq-desktop-phone aside nav button,
+html.vq-desktop-phone aside button.w-full { min-height: 44px; font-size: 14px; }
+html.vq-desktop-phone aside button[aria-label] { min-width: 40px; min-height: 40px; }

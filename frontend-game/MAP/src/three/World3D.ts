@@ -30,6 +30,8 @@ import { SkyLife } from './Sky3D';
 export { AVATAR_HEAD_H, avatarModelUrl, hasWebGL, isLowEndDevice } from './shared';
 
 export const U = 0.01;
+/** Arrival twirl length (s): one full turn with a small bounce. */
+const TWIRL_S = 0.85;
 const PITCH = THREE.MathUtils.degToRad(50);
 /** Drag-tilt limits: low enough to read the building fronts, never under the map. */
 const PITCH_MIN = THREE.MathUtils.degToRad(16);
@@ -74,6 +76,10 @@ export interface AvatarState {
   y: number;
   walking: boolean;
   visible: boolean;
+  /** Black hole entry/exit: height above the ground (units), size (1 = normal) and extra turn (rad). */
+  lift?: number;
+  scale?: number;
+  spin?: number;
 }
 
 /* ── Small deterministic helpers ───────────────────────────────────── */
@@ -2591,10 +2597,19 @@ export class World3D {
     return true;
   }
 
-  /** Length of the arrival jump (ms), so the map can wait for the landing before the question opens. */
+  /** Length of the arrival move (ms), so the map can wait for it before the question opens. */
   get jumpMs(): number {
-    const jump = this.actions['Jump'];
-    return jump ? Math.min(1600, jump.getClip().duration * 1000) : 0;
+    return Math.round(TWIRL_S * 1000);
+  }
+  /** Arrival twirl: seconds into it (-1 = none). */
+  private twirlT = -1;
+  /** Counts arrivals (the map uses it to burst stars at the level). */
+  arrivals = 0;
+
+  /** Plays the Jump clip once (e.g. leaping into / out of the black hole), even if it just played. */
+  playJump(): void {
+    if (this.currentClip === 'Jump') this.currentClip = '';
+    this.play('Jump', true, 0.12);
   }
 
   private play(name: string, once = false, fade = 0.25): void {
@@ -2618,20 +2633,54 @@ export class World3D {
       this.avatarShadow.visible = false;
       return false;
     }
-    const h = this.feetHeight(a.x, a.y);
+    const ground = this.feetHeight(a.x, a.y);
+    const lift = a.lift ?? 0;
+    const fxScale = Math.max(0.001, a.scale ?? 1);
+    const h = ground + lift;
     root.position.set(this.X(a.x), h + 0.03, this.Z(a.y));
-    this.avatarShadow.visible = true;
-    this.avatarShadow.position.set(root.position.x, h + 0.035, root.position.z);
+    root.scale.setScalar(AVATAR_SCALE * fxScale);
+    // no ground shadow while flying into (or out of) the black hole
+    this.avatarShadow.visible = lift < 0.08 && fxScale > 0.6;
+    this.avatarShadow.position.set(root.position.x, ground + 0.035, root.position.z);
     const dx = a.x - this.lastAvatar.x;
     const dy = a.y - this.lastAvatar.y;
     const moved = Number.isFinite(dx) ? Math.hypot(dx, dy) : 0;
     // smoothed ground speed (map px / s) drives the step rate, so feet match the movement
     if (dt > 0) this.speed += (Math.min(900, moved / dt) - this.speed) * Math.min(1, dt * 6);
     if (a.walking && moved > 0.3) this.heading = Math.atan2(dx, dy);
-    if (!a.walking) this.heading = this.yaw; // stand facing the camera, whichever way it is turned
-    let diff = this.heading - root.rotation.y;
-    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-    root.rotation.y += diff * Math.min(1, dt * (a.walking ? 9 : 6));
+    // stand facing the camera, whichever way it is turned (not while flying into the black hole)
+    if (!a.walking && a.spin === undefined) this.heading = this.yaw;
+    // Vocab Quest's own arrival move (not Tala-Salitaan's jump/wave): a full twirl with a small bounce
+    let twirl = 0;
+    let bounce = 0;
+    let squash = 0;
+    if (this.twirlT >= 0 && !a.walking && a.spin === undefined) {
+      this.twirlT += dt;
+      const p = Math.min(1, this.twirlT / TWIRL_S);
+      const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      twirl = e * Math.PI * 2;
+      bounce = Math.sin(Math.PI * Math.min(1, p / 0.8)) * 0.16;
+      // a little squash when it lands at the end
+      squash = p > 0.78 ? Math.sin(Math.PI * ((p - 0.78) / 0.22)) : 0;
+      if (p >= 1) this.twirlT = -1;
+    } else if (a.walking) {
+      this.twirlT = -1;
+    }
+    if (twirl || bounce || squash) {
+      root.position.y += bounce;
+      const s = AVATAR_SCALE * fxScale;
+      root.scale.set(s * (1 + 0.07 * squash), s * (1 - 0.09 * squash), s * (1 + 0.07 * squash));
+    }
+    if (a.spin !== undefined) {
+      // being pulled into the black hole: the spin is added on top of the heading
+      root.rotation.y = this.heading + a.spin;
+    } else if (twirl) {
+      root.rotation.y = this.heading + twirl;
+    } else {
+      let diff = this.heading - root.rotation.y;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      root.rotation.y += diff * Math.min(1, dt * (a.walking ? 9 : 6));
+    }
     this.lastAvatar = { x: a.x, y: a.y };
 
     if (a.walking) {
@@ -2643,8 +2692,10 @@ export class World3D {
       const run = smoothstep(220, 380, this.speed);
       root.rotation.x += (run * 0.12 - root.rotation.x) * Math.min(1, dt * 8);
     } else if (this.wasWalking) {
-      // arrival: hop onto the level (user request: a jump, not a wave)
-      this.play('Jump', true, 0.12);
+      // arrival: Vocab Quest's own twirl (above) on the Idle pose; Tala-Salitaan jumps instead
+      this.play('Idle', false, 0.15);
+      this.twirlT = 0;
+      this.arrivals++;
     } else if (!this.currentClip || this.currentClip === 'Walk') {
       this.play('Idle');
     }
@@ -2654,6 +2705,7 @@ export class World3D {
 
     // Small canvas around the character: same camera, cropped with a view offset.
     const feet = this.project(a.x, a.y, h);
+    if (fxScale < 0.01) return false;
     if (!feet.visible) return false;
     const W = this.charBoxW;
     const H = this.charBoxH;

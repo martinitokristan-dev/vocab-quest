@@ -1269,6 +1269,8 @@ class StudentArcadeGame {
                       ...res.data.map,
                       id: prevMapId,
                       order_index: prevMapId,
+                      // the finished kingdom's own level count (the black hole stays after its last level)
+                      total_questions: questionOrder,
                     },
                   },
                 },
@@ -2106,6 +2108,11 @@ class StudentArcadeGame {
   // ─────────────────────────────────────────────────────────────────────────────
   private renderCompletedScreen() {
     const totalStars = this.state.history.reduce((acc, h) => acc + (h.stars ?? 0), 0);
+    // stars per kingdom for the three kingdom flags on the finish screen
+    const kingdoms = [1, 2, 3].map((id) => {
+      const items = this.state.history.filter((h) => (h.mapId ?? h.orderIndex) === id);
+      return { id, stars: items.reduce((a, h) => a + (h.stars ?? 0), 0), maxStars: items.length * 3 };
+    });
 
     if (!this.completedScreen) {
       this.completedScreen = new CompletedScreen(this.appEl, {
@@ -2113,6 +2120,7 @@ class StudentArcadeGame {
         score: this.state.score,
         totalStars,
         historyLength: this.state.history.length,
+        kingdoms,
         onRestartClick: () => {
           soundManager.stopSpeech();
           this.lastNarratedQuestionId = null;
@@ -2156,7 +2164,8 @@ class StudentArcadeGame {
         playerName: this.state.playerName,
         score: this.state.score,
         totalStars,
-        historyLength: this.state.history.length
+        historyLength: this.state.history.length,
+        kingdoms,
       });
     }
     this.completedScreen.render();

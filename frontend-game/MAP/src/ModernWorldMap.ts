@@ -24,8 +24,32 @@ import type {
 import { AVATAR_HEAD_H, hasWebGL, isLowEndDevice, isMobileDevice } from './three/shared';
 import { levelStatus } from './core/status';
 import type { World3D } from './three/World3D';
+import { drawBlackHole } from './blackHole';
 
 /* ── Constants ───────────────────────────────────────────────────────── */
+
+/** Black hole portal to the next kingdom: radius (map px) and the height of its middle (3D units). */
+const HOLE_R = 62;
+const HOLE_H = 1.0;
+/** 2D map: the hole's middle is drawn this many map px above its ground point. */
+const HOLE_LIFT_2D = 95;
+/** Distance along the road from the last level to the hole, and to where the student takes off. */
+const HOLE_AFTER_LEVEL = 150;
+const HOLE_TAKEOFF = 70;
+/** sessionStorage key: the student was looking at the kingdom building (kingdom:level). */
+const FRONT_KEY = 'vq_map_student_at_front';
+
+function easeInOut(p: number): number {
+  return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+}
+function easeOut(p: number): number {
+  return 1 - Math.pow(1 - p, 3);
+}
+/** 0 before a, 1 after b, smooth in between. */
+function smooth01(a: number, b: number, p: number): number {
+  const t = Math.min(1, Math.max(0, (p - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
 
 const LEVELS_PER_KINGDOM = 40;
 
@@ -1610,310 +1634,6 @@ export function drawRealisticPadlock(ctx: CanvasRenderingContext2D, x: number, y
   ctx.restore();
 }
 
-/* ── Grand Kingdom Gate Portal Drawing ──────────────────────────────── */
-
-function drawKingdomGatePortal(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  isLocked: boolean,
-  nextKingdomName: string,
-  _theme: KingdomTheme,
-  time: number
-) {
-  ctx.save();
-  ctx.translate(x, y);
-
-  // 1. Grand Stone Courtyard / Threshold Step Foundation
-  ctx.fillStyle = '#0F172A';
-  ctx.beginPath();
-  ctx.ellipse(0, 18, 125, 34, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  const stepGrad = ctx.createLinearGradient(0, -10, 0, 24);
-  stepGrad.addColorStop(0, '#E2E8F0');
-  stepGrad.addColorStop(0.5, '#CBD5E1');
-  stepGrad.addColorStop(1, '#94A3B8');
-  ctx.fillStyle = stepGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 14, 115, 28, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#64748B';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Flagstone paving lines on the threshold
-  ctx.strokeStyle = 'rgba(71, 85, 105, 0.4)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-70, 12); ctx.lineTo(70, 12);
-  ctx.moveTo(-45, 4); ctx.lineTo(-45, 22);
-  ctx.moveTo(0, 4); ctx.lineTo(0, 22);
-  ctx.moveTo(45, 4); ctx.lineTo(45, 22);
-  ctx.stroke();
-
-  // 2. Ground Light Pool (Radiant spill from the portal interior onto the ground)
-  const poolGrad = ctx.createRadialGradient(0, 10, 8, 0, 10, 105);
-  poolGrad.addColorStop(0, isLocked ? 'rgba(99, 102, 241, 0.45)' : 'rgba(56, 189, 248, 0.60)');
-  poolGrad.addColorStop(0.6, isLocked ? 'rgba(59, 130, 246, 0.22)' : 'rgba(14, 165, 233, 0.28)');
-  poolGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = poolGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 10, 105, 32, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 3. ARCH INTERIOR PORTAL DOORWAY (Framed by the stone arch)
-  // Arch opening dimensions: Width 110px (-55 to +55), Height 180px (-180 to 0)
-  ctx.save();
-  ctx.beginPath();
-  // Semi-circular arch top + rectangular lower doorway
-  ctx.arc(0, -95, 54, Math.PI, 0, false);
-  ctx.lineTo(54, 10);
-  ctx.lineTo(-54, 10);
-  ctx.closePath();
-  ctx.clip();
-
-  // Deep starry void background
-  const voidGrad = ctx.createLinearGradient(0, -160, 0, 10);
-  if (isLocked) {
-    voidGrad.addColorStop(0, '#0F172A');
-    voidGrad.addColorStop(0.5, '#1E1B4B');
-    voidGrad.addColorStop(1, '#312E81');
-  } else {
-    voidGrad.addColorStop(0, '#082F49');
-    voidGrad.addColorStop(0.4, '#0369A1');
-    voidGrad.addColorStop(0.8, '#0284C7');
-    voidGrad.addColorStop(1, '#38BDF8');
-  }
-  ctx.fillStyle = voidGrad;
-  ctx.fill();
-
-  // Swirling Gateway Vortex
-  const vortexGrad = ctx.createRadialGradient(0, -85, 4, 0, -85, 60);
-  if (isLocked) {
-    vortexGrad.addColorStop(0, '#FFFFFF');
-    vortexGrad.addColorStop(0.25, '#A78BFA');
-    vortexGrad.addColorStop(0.65, '#6366F1');
-    vortexGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
-  } else {
-    vortexGrad.addColorStop(0, '#FFFFFF');
-    vortexGrad.addColorStop(0.2, '#BAE6FD');
-    vortexGrad.addColorStop(0.55, '#38BDF8');
-    vortexGrad.addColorStop(0.85, '#0284C7');
-    vortexGrad.addColorStop(1, 'rgba(3, 105, 161, 0)');
-  }
-  ctx.fillStyle = vortexGrad;
-  ctx.beginPath();
-  ctx.arc(0, -85, 58, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Rotating Celestial Gateway Runes & Sparkle Rings
-  ctx.save();
-  ctx.translate(0, -85);
-  ctx.rotate(time * 0.001);
-  ctx.strokeStyle = isLocked ? 'rgba(196, 181, 253, 0.7)' : 'rgba(254, 240, 138, 0.85)';
-  ctx.lineWidth = 2.5;
-  ctx.setLineDash([10, 14, 4, 14]);
-  ctx.beginPath();
-  ctx.arc(0, 0, 44, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(0, -85);
-  ctx.rotate(-time * 0.0016);
-  ctx.strokeStyle = isLocked ? 'rgba(167, 139, 250, 0.6)' : 'rgba(125, 211, 252, 0.8)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 10]);
-  ctx.beginPath();
-  ctx.arc(0, 0, 32, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  // Ascending vertical light rays streaming upwards through gateway
-  const numRays = 5;
-  for (let r = 0; r < numRays; r++) {
-    const rx = -38 + r * 19 + Math.sin(time * 0.003 + r) * 4;
-    const rayA = 0.25 + Math.sin(time * 0.004 + r * 1.5) * 0.18;
-    ctx.strokeStyle = isLocked ? `rgba(167, 139, 250, ${rayA})` : `rgba(255, 255, 255, ${rayA})`;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(rx, 10);
-    ctx.lineTo(rx + Math.sin(time * 0.002 + r) * 6, -170);
-    ctx.stroke();
-  }
-
-  // If Locked: Heavy Ornamental Portcullis Iron Lattice sealed across the opening
-  if (isLocked) {
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 3.5;
-    for (let barX = -44; barX <= 44; barX += 14) {
-      ctx.beginPath();
-      ctx.moveTo(barX, -160);
-      ctx.lineTo(barX, 10);
-      ctx.stroke();
-    }
-    for (let barY = -150; barY <= 0; barY += 26) {
-      ctx.beginPath();
-      ctx.moveTo(-54, barY);
-      ctx.lineTo(54, barY);
-      ctx.stroke();
-    }
-  }
-
-  ctx.restore(); // end clipped arch interior
-
-  // 4. ARCHITECTURAL GRAND GATE STRUCTURE (Left & Right Pillars + Arch + Pediment)
-  const pillarGrad = ctx.createLinearGradient(-80, 0, 0, 0);
-  pillarGrad.addColorStop(0, '#94A3B8');
-  pillarGrad.addColorStop(0.3, '#E2E8F0');
-  pillarGrad.addColorStop(0.7, '#CBD5E1');
-  pillarGrad.addColorStop(1, '#64748B');
-
-  // Left Stone Pillar
-  ctx.fillStyle = pillarGrad;
-  ctx.fillRect(-82, -18, 30, 28);
-  ctx.strokeStyle = '#475569';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(-82, -18, 30, 28);
-  ctx.fillRect(-78, -150, 22, 132);
-  ctx.strokeRect(-78, -150, 22, 132);
-  ctx.fillStyle = 'rgba(100, 116, 139, 0.35)';
-  ctx.fillRect(-74, -145, 4, 122);
-  ctx.fillRect(-66, -145, 4, 122);
-  ctx.fillStyle = '#E2E8F0';
-  ctx.fillRect(-84, -164, 34, 14);
-  ctx.strokeRect(-84, -164, 34, 14);
-
-  // Right Stone Pillar
-  const rightPillarGrad = ctx.createLinearGradient(0, 0, 80, 0);
-  rightPillarGrad.addColorStop(0, '#64748B');
-  rightPillarGrad.addColorStop(0.3, '#CBD5E1');
-  rightPillarGrad.addColorStop(0.7, '#E2E8F0');
-  rightPillarGrad.addColorStop(1, '#94A3B8');
-  ctx.fillStyle = rightPillarGrad;
-  ctx.fillRect(52, -18, 30, 28);
-  ctx.strokeRect(52, -18, 30, 28);
-  ctx.fillRect(56, -150, 22, 132);
-  ctx.strokeRect(56, -150, 22, 132);
-  ctx.fillStyle = 'rgba(100, 116, 139, 0.35)';
-  ctx.fillRect(60, -145, 4, 122);
-  ctx.fillRect(68, -145, 4, 122);
-  ctx.fillStyle = '#E2E8F0';
-  ctx.fillRect(50, -164, 34, 14);
-  ctx.strokeRect(50, -164, 34, 14);
-
-  // 5. Grand Stone Archway Molding (Curved Arch spanning across top)
-  ctx.strokeStyle = '#CBD5E1';
-  ctx.lineWidth = 14;
-  ctx.beginPath();
-  ctx.arc(0, -95, 62, Math.PI, 0, false);
-  ctx.stroke();
-
-  ctx.strokeStyle = '#475569';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, -95, 69, Math.PI, 0, false);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, -95, 55, Math.PI, 0, false);
-  ctx.stroke();
-
-  // Carved Keystone at Apex
-  ctx.fillStyle = '#F59E0B';
-  ctx.strokeStyle = '#D97706';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-12, -166);
-  ctx.lineTo(12, -166);
-  ctx.lineTo(16, -144);
-  ctx.lineTo(-16, -144);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Star on Keystone
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('⭐', 0, -155);
-
-  // 6. Classical Pediment / Roof Entablature above Arch
-  const roofGrad = ctx.createLinearGradient(0, -210, 0, -170);
-  roofGrad.addColorStop(0, '#B45309');
-  roofGrad.addColorStop(0.5, '#D97706');
-  roofGrad.addColorStop(1, '#92400E');
-  ctx.fillStyle = roofGrad;
-  ctx.beginPath();
-  ctx.moveTo(-96, -170);
-  ctx.lineTo(0, -215);
-  ctx.lineTo(96, -170);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#78350F';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Golden Apex Finial
-  ctx.fillStyle = '#FBBF24';
-  ctx.beginPath();
-  ctx.arc(0, -220, 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#D97706';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // 7. Brass Lantern Torches mounted on Pillars
-  const drawLantern = (lx: number, ly: number) => {
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx > 0 ? lx + 12 : lx - 12, ly - 8);
-    ctx.lineTo(lx > 0 ? lx + 12 : lx - 12, ly + 6);
-    ctx.stroke();
-
-    const torchX = lx > 0 ? lx + 12 : lx - 12;
-    const flameGlow = ctx.createRadialGradient(torchX, ly, 2, torchX, ly, 24);
-    flameGlow.addColorStop(0, 'rgba(251, 191, 36, 0.95)');
-    flameGlow.addColorStop(0.4, 'rgba(245, 158, 11, 0.6)');
-    flameGlow.addColorStop(1, 'rgba(245, 158, 11, 0)');
-    ctx.fillStyle = flameGlow;
-    ctx.beginPath();
-    ctx.arc(torchX, ly, 24, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#F59E0B';
-    ctx.fillRect(torchX - 5, ly - 7, 10, 14);
-    ctx.strokeStyle = '#78350F';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(torchX - 5, ly - 7, 10, 14);
-  };
-  drawLantern(-78, -80);
-  drawLantern(78, -80);
-
-  // 8. Gate Portal Floating Banner Sign Plaque
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, -95, -192, 190, 26, 13);
-  ctx.fill();
-  ctx.strokeStyle = isLocked ? '#A855F7' : '#38BDF8';
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-
-  ctx.fillStyle = isLocked ? '#F3E8FF' : '#E0F2FE';
-  ctx.font = '900 11px Inter, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(
-    isLocked ? `\uD83D\uDD12 GATEWAY TO ${nextKingdomName.toUpperCase()}` : `\u2728 GATEWAY TO ${nextKingdomName.toUpperCase()}`,
-    0,
-    -179
-  );
-
-  ctx.restore();
-}
-
 /* ====================================================================== *
  *  ModernWorldMap Class
  * ====================================================================== */
@@ -1961,6 +1681,16 @@ export class ModernWorldMap implements MapRenderer {
   /* -- Portal Transition & 50% Dark Overlay ---------------------------- */
   private portalOverlay: HTMLDivElement | null = null;
   private activePortalPos: { x: number; y: number } | null = null;
+  /** Black hole swirl angle (integrated so speeding up never jumps) and how hard it pulls (0..1). */
+  private holeSpin = 0;
+  private holeSuck = 0;
+  private holeSignAlpha = 1;
+  /** Student being pulled into / pushed out of the black hole (lift in 3D units, scale, spin rad). */
+  private avatarFx: { lift: number; scale: number; spin: number } | null = null;
+  /** Levels the backend serves per kingdom (from setAvailability); the black hole comes after the last. */
+  private levelAvail: Partial<Record<KingdomId, number>> = {};
+  /** True while the black hole entry runs (from the jump until the next kingdom is shown). */
+  private portalRunning = false;
 
   /* -- Camera ---------------------------------------------------------- */
   private viewX = 0;
@@ -2158,7 +1888,7 @@ export class ModernWorldMap implements MapRenderer {
     this.portalOverlay = document.createElement('div');
     this.portalOverlay.className = 'vq-portal-dark-overlay';
     this.portalOverlay.style.cssText =
-      'position:absolute;inset:0;background:rgba(0,0,0,0.5);opacity:0;pointer-events:none;z-index:45;transition:opacity 0.85s ease-in-out;';
+      'position:absolute;inset:0;background:#05020f;opacity:0;pointer-events:none;z-index:45;will-change:opacity;';
     this.root.appendChild(this.portalOverlay);
 
     // Padlock layer: DOM padlock strictly in FRONT of the 70% dark overlay at z-index: 50
@@ -2203,11 +1933,15 @@ export class ModernWorldMap implements MapRenderer {
 
     // Initial camera: if kingdom not entered yet, focus on entrance gate & padlock with zoom 1.25!
     this.resizeCanvas();
+    // After a reload the camera comes back to where the student is (user request), not just the kingdom:
+    // in front of the building (kingdom not opened yet, or it was looking at the building), or on its level.
+    if (this.isKingdomEntered(this.currentKingdom) && this.readFrontFlag()) this.avatarAtFront = true;
+    this.placeAvatarForState();
     if (!this.isKingdomEntered(this.currentKingdom)) {
-      this.zoom = 1.25;
-      const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
-      this.centerOnLocation(bx, by);
+      this.centerOnLockedKingdom();
+    } else if (this.avatarAtFront) {
+      this.zoom = 1.2;
+      this.centerOnLocation(this.avatarX, this.avatarY - 110);
     } else {
       this.zoom = 1.45;
       this.centerOnLevel(this.currentLevel, false);
@@ -2467,14 +2201,19 @@ export class ModernWorldMap implements MapRenderer {
       .vq-gate-btn {
         position: absolute;
         pointer-events: auto;
-        width: 180px;
-        height: 120px;
+        width: 140px;
+        height: 140px;
         transform: translate(-50%, -50%);
         cursor: pointer;
         z-index: 4;
         background: none;
         border: none;
+        border-radius: 50%;
         padding: 0;
+      }
+      /* levels after the kingdom's last level: hidden, the black hole to the next kingdom is there */
+      .vq-node-btn.vq-node-beyond {
+        display: none !important;
       }
 
       /* ── High-Fidelity 2.5D Isometric HTML / SVG Kingdom Landmarks ── */
@@ -2783,6 +2522,8 @@ export class ModernWorldMap implements MapRenderer {
       this.resizeCanvas();
       this.build3D(this.currentKingdom);
       if (!this.world3d) return;
+      // reloaded while looking at the building: face its front again
+      if (this.avatarAtFront) this.orbitGoal = { yaw: 0, pitch: THREE_FRONT_PITCH };
       this.updateNodeStates();
       this.updateKingdomLockVisuals();
       this.updateNodePositions();
@@ -2803,6 +2544,9 @@ export class ModernWorldMap implements MapRenderer {
     this.world3d = null;
     this.pending3D = false;
     this.use3DAvatar = false;
+    this.avatarAtFront = false;
+    this.avatarFx = null;
+    if (!this.avatarWalking) this.placeAvatarForState();
     this.avatarEl?.classList.remove('is-3d');
     this.root.classList.remove('vq-3d');
     const ctx = this.canvas.getContext('2d');
@@ -4805,6 +4549,9 @@ export class ModernWorldMap implements MapRenderer {
       });
     }
 
+    // Levels after the kingdom's last real level are not shown (the black hole is there instead).
+    const count = this.levelCount(this.currentKingdom);
+
     // Update DOM classes
     for (const [level, el] of this.nodeEls) {
       const state = this.nodeStates.get(level);
@@ -4812,6 +4559,7 @@ export class ModernWorldMap implements MapRenderer {
 
       el.className = 'vq-node-btn';
       el.classList.add(`node-${state.status}`);
+      if (level > count) el.classList.add('vq-node-beyond');
 
       // Stars display
       let starsHtml = '';
@@ -4893,12 +4641,18 @@ export class ModernWorldMap implements MapRenderer {
 
     // Gate button
     const gateBtn = this.nodeLayer.querySelector('[data-gate="next"]') as HTMLElement | null;
-    if (gateBtn && this.currentKingdom < 3) {
-      const gx = MAP_W / 2;
-      const gy = PATH_TOP_Y - 100;
-      const sp = this.toScreen(gx, gy);
+    const holeAt = this.holeSpot();
+    if (gateBtn && holeAt) {
+      // tap area over the black hole
+      const sp = this.world3d
+        ? this.toScreen(holeAt.x, holeAt.y, HOLE_H)
+        : { x: (holeAt.x - this.viewX) * this.zoom, y: (holeAt.y - HOLE_LIFT_2D - this.viewY) * this.zoom, s: this.zoom };
+      const d = Math.max(56, HOLE_R * 2.3 * sp.s);
       gateBtn.style.left = `${sp.x}px`;
       gateBtn.style.top = `${sp.y}px`;
+      gateBtn.style.width = `${d}px`;
+      gateBtn.style.height = `${d}px`;
+      gateBtn.style.display = this.portalRunning ? 'none' : '';
     }
 
     // 3D HTML Landmark Building (centered at entrance, strictly below Node 1)
@@ -4951,10 +4705,8 @@ export class ModernWorldMap implements MapRenderer {
     this.updateKingdomLockVisuals();
 
     if (!this.isKingdomEntered(kingdom)) {
-      this.zoom = 1.25;
-      const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
-      this.centerOnLocation(bx, by);
+      this.placeAvatarForState();
+      this.centerOnLockedKingdom();
       this.updateAvatarDOM();
     } else {
       const startNode = this.pathNodes[this.currentLevel - 1];
@@ -5149,6 +4901,8 @@ export class ModernWorldMap implements MapRenderer {
             // 3D: the student jumps onto the level; whatever comes next (the question) waits
             // until the jump has been seen and the student has landed.
             const jumpMs = this.use3DAvatar && this.world3d?.avatarReady ? this.world3d.jumpMs : 0;
+            // Vocab Quest's arrival: a ring of gold stars pops out around the student while it twirls
+            if (!this.portalRunning) this.burstStars(this.avatarX, this.avatarY);
             if (jumpMs > 0 && this.walkCallback) {
               const cb = this.walkCallback;
               this.walkCallback = null;
@@ -5233,6 +4987,9 @@ export class ModernWorldMap implements MapRenderer {
       this.updatePadlockPosition();
     }
 
+    // Black hole swirl (faster while it swallows the student)
+    this.holeSpin = (this.holeSpin + dtSec * (this.holeLocked() ? 0.45 : 1.15 + this.holeSuck * 7)) % (Math.PI * 200);
+
     // Particles update
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -5274,7 +5031,6 @@ export class ModernWorldMap implements MapRenderer {
 
   /** 3D frame: three.js draws the world and the student; the 2D canvas only adds the gate portal and sparkles. */
   private draw3D(w: World3D): void {
-    const theme = KINGDOM_THEMES[this.currentKingdom];
     w.viewingBuilding = this.avatarAtFront && !this.avatarWalking;
     w.setView(this.viewX, this.viewY, this.zoom);
     try {
@@ -5282,7 +5038,11 @@ export class ModernWorldMap implements MapRenderer {
         x: this.avatarX,
         y: this.avatar3DY(),
         walking: this.avatarWalking,
-        visible: this.use3DAvatar && this.isKingdomEntered(this.currentKingdom),
+        // also shown in front of a kingdom that is not opened yet (it waits there after the black hole)
+        visible: this.use3DAvatar && (this.isKingdomEntered(this.currentKingdom) || this.waitsAtGate() || !!this.avatarFx),
+        lift: this.avatarFx?.lift,
+        scale: this.avatarFx?.scale,
+        spin: this.avatarFx?.spin,
       });
     } catch (err) {
       console.error('3D render failed, using the 2D map', err);
@@ -5293,22 +5053,17 @@ export class ModernWorldMap implements MapRenderer {
     const ctx = this.ctx;
     const dpr = this.dpr;
 
-    // Gate portal as a standing billboard at its ground point.
-    let portal: { x: number; y: number; locked: boolean; name: string } | null = null;
-    if (this.activePortalPos) {
-      const nextK = Math.min(3, this.currentKingdom + 1) as KingdomId;
-      portal = { x: this.activePortalPos.x, y: this.activePortalPos.y, locked: false, name: KINGDOM_THEMES[nextK].name };
-    } else if (this.currentKingdom < 3) {
-      const nextK = (this.currentKingdom + 1) as KingdomId;
-      portal = { x: MAP_W / 2, y: PATH_TOP_Y - 100, locked: !this.isKingdomUnlocked(nextK), name: KINGDOM_THEMES[nextK].name };
-    }
-    let portalScreen: { x: number; y: number; s: number } | null = null;
-    if (portal) {
-      const p = this.toScreen(portal.x, portal.y);
-      if (p.x > -600 && p.x < this.viewportW + 600 && p.y > -600 && p.y < this.viewportH + 600) portalScreen = p;
+    // Black hole to the next kingdom, floating over the road after the last level.
+    const hole = this.holeSpot();
+    let holeScreen: { c: { x: number; y: number; s: number }; g: { x: number; y: number; s: number } } | null = null;
+    if (hole) {
+      const c = this.toScreen(hole.x, hole.y, HOLE_H);
+      if (c.x > -300 && c.x < this.viewportW + 300 && c.y > -300 && c.y < this.viewportH + 300) {
+        holeScreen = { c, g: this.toScreen(hole.x, hole.y, 0) };
+      }
     }
     // Nothing to draw on the overlay: leave the (already clear) canvas alone.
-    if (!portalScreen && !this.particles.length) {
+    if (!holeScreen && !this.particles.length) {
       if (this.overlayDrawn) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -5319,13 +5074,11 @@ export class ModernWorldMap implements MapRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.overlayDrawn = true;
-    if (portal && portalScreen) {
-      const p = portalScreen;
-      ctx.setTransform(dpr * p.s, 0, 0, dpr * p.s, dpr * (p.x - p.s * portal.x), dpr * (p.y - p.s * portal.y));
-      drawKingdomGatePortal(ctx, portal.x, portal.y, portal.locked, portal.name, theme, this.time);
-    }
-
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (holeScreen) {
+      const { c, g } = holeScreen;
+      this.drawHole(ctx, c.x, c.y, HOLE_R * c.s, g.x, g.y, g.s);
+    }
     for (const pt of this.particles) {
       const alpha = pt.life / pt.maxLife;
       const sp = this.toScreen(pt.x, pt.y, 0.25);
@@ -5480,15 +5233,16 @@ export class ModernWorldMap implements MapRenderer {
       }
     }
 
-    // Grand Gate Portal at top level (or active transition portal)
-    if (this.activePortalPos) {
-      const nextK = (Math.min(3, this.currentKingdom + 1)) as KingdomId;
-      const nextTheme = KINGDOM_THEMES[nextK];
-      drawKingdomGatePortal(ctx, this.activePortalPos.x, this.activePortalPos.y, false, nextTheme.name, theme, this.time);
-    } else if (this.currentKingdom < 3) {
-      const nextK = (this.currentKingdom + 1) as KingdomId;
-      const nextTheme = KINGDOM_THEMES[nextK];
-      drawKingdomGatePortal(ctx, MAP_W / 2, PATH_TOP_Y - 100, !this.isKingdomUnlocked(nextK), nextTheme.name, theme, this.time);
+    // Black hole to the next kingdom (world transform: map px). Drawn in screen px for the shared sprites.
+    const hole = this.holeSpot();
+    if (hole) {
+      ctx.save();
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      const z = this.zoom;
+      const sx = (hole.x - this.viewX) * z;
+      const sy = (hole.y - this.viewY) * z;
+      this.drawHole(ctx, sx, sy - HOLE_LIFT_2D * z, HOLE_R * z, sx, sy, z);
+      ctx.restore();
     }
 
     // Particles
@@ -5544,22 +5298,42 @@ export class ModernWorldMap implements MapRenderer {
     if (!stayAtFront) this.avatarAtFront = false;
 
     // Move avatar to current level ONLY if not walking and not in walking_to_question phase
-    if (!stayAtFront && !this.avatarWalking && this.flowOpts?.mapPhase !== 'walking_to_question') {
-      const node = this.pathNodes[this.currentLevel - 1];
-      if (node) {
-        this.avatarX = node.x;
-        this.avatarY = node.y;
-      }
+    if (!stayAtFront && !this.avatarWalking && !this.avatarFx && !this.portalRunning && this.flowOpts?.mapPhase !== 'walking_to_question') {
+      this.placeAvatarForState();
     }
   }
 
   setMapFlowOptions(o: MapFlowOptions): void {
+    const wasWaiting = this.waitsAtGate();
+    const wasEntered = this.isKingdomEntered(this.currentKingdom);
     this.flowOpts = o;
+    const idle = !this.avatarWalking && !this.avatarFx && !this.portalRunning && !this.inputLocked;
+    // a kingdom that is now shown as not opened: the student waits in front of its building
+    if (!wasWaiting && this.waitsAtGate() && idle) this.placeAvatarForState();
+    // After a reload the game only learns a bit later that this kingdom is already open; the camera was
+    // still on the building. Go to the student (its level, or the building front) instead (user request).
+    if (!wasEntered && this.isKingdomEntered(this.currentKingdom) && idle && !this.isPostWalkZoomEasing) {
+      if (this.readFrontFlag() && (this.world3d || this.pending3D)) this.avatarAtFront = true;
+      this.placeAvatarForState();
+      if (this.avatarAtFront) {
+        this.zoom = 1.2;
+        this.centerOnLocation(this.avatarX, this.avatarY - 110);
+      } else {
+        this.zoom = 1.45;
+        this.centerOnLevel(this.currentLevel, false);
+      }
+    }
     this.updateNodeStates();
     this.updateKingdomLockVisuals();
   }
 
-  setAvailability(_a: Record<number, number>): void {
+  setAvailability(a: Record<number, number>): void {
+    // Levels each kingdom really has: the black hole to the next kingdom comes after the last one.
+    for (const [k, n] of Object.entries(a)) {
+      const id = Number(k) as KingdomId;
+      if (id >= 1 && id <= 3 && Number.isFinite(n) && n > 0) this.levelAvail[id] = Math.min(LEVELS_PER_KINGDOM, Math.round(n));
+    }
+    this.holeCache = null;
     this.updateNodeStates();
   }
 
@@ -5774,6 +5548,17 @@ export class ModernWorldMap implements MapRenderer {
       this.unlockOverlay.style.transition = 'opacity 0.65s ease-out';
       this.unlockOverlay.style.opacity = '0';
 
+      // 3D: the student waited in front of the building; it now walks the road to Level 1
+      // (the camera follows it) instead of appearing there.
+      const startNode = this.pathNodes[this.currentLevel - 1];
+      if (this.world3d && this.use3DAvatar && startNode && Math.hypot(this.avatarX - startNode.x, this.avatarY - startNode.y) > 40) {
+        await new Promise<void>((resolve) => {
+          this.walkAlongRoad({ x: startNode.x, y: startNode.y }, resolve, 2.4);
+        });
+        this.unlockOverlay.style.display = 'none';
+        return;
+      }
+
       const glideStartZoom = this.zoom;
       const glideTargetZoom = 1.45;
       const glideStartViewX = this.viewX;
@@ -5824,66 +5609,200 @@ export class ModernWorldMap implements MapRenderer {
   }
 
   async playPortalEntryAnimation(targetPos?: { x: number; y: number }): Promise<void> {
+    if (this.portalRunning) return;
+    this.portalRunning = true;
     this.inputLocked = true;
     try {
-      const px = targetPos?.x ?? (this.pathNodes[this.currentLevel - 1]?.x ?? MAP_W / 2);
-      const py = targetPos?.y ?? (this.pathNodes[this.currentLevel - 1]?.y ?? PATH_TOP_Y - 100);
-
-      // Active portal location (draw portal right at avatar position)
-      this.activePortalPos = { x: px, y: py - 40 };
-
-      // Avatar enters portal
-      this.avatarX = px;
-      this.avatarY = py - 30;
-      this.walkBubbleText = 'ENTERING PORTAL...';
-      this.updateAvatarDOM();
-
-      // Sound
-      this.hooks.whoosh?.();
-
-      // Camera zoom & 50% dark overlay fade
-      const startZoom = this.zoom;
-      const targetZoom = Math.min(1.5, startZoom * 1.6);
-      const startTime = performance.now();
-      const duration = 850;
-
-      if (this.portalOverlay) {
-        this.portalOverlay.style.opacity = '1';
-      }
-
-      await new Promise<void>((resolve) => {
-        const stepAnim = (now: number) => {
-          const elapsed = now - startTime;
-          const p = Math.min(1, elapsed / duration);
-          const easeP = 0.5 - Math.cos(p * Math.PI) / 2; // smooth cosine ease
-
-          this.zoom = startZoom + (targetZoom - startZoom) * easeP;
-          this.centerOnLocation(px, py - 30);
-
-          if (p < 1) {
-            requestAnimationFrame(stepAnim);
-          } else {
-            resolve();
+      // The level just finished (nearest level to the given spot): the black hole is right after it.
+      let level = this.currentLevel;
+      if (targetPos) {
+        let bd = Infinity;
+        for (const n of this.pathNodes) {
+          const d = (n.x - targetPos.x) ** 2 + (n.y - targetPos.y) ** 2;
+          if (d < bd) {
+            bd = d;
+            level = n.level;
           }
+        }
+      }
+      this.levelAvail[this.currentKingdom] = level;
+      this.holeCache = null;
+      const hole = this.pointAfterLevel(level, HOLE_AFTER_LEVEL);
+      const takeoff = this.pointAfterLevel(level, HOLE_TAKEOFF);
+      this.activePortalPos = hole;
+      this.holeSignAlpha = 1;
+      this.holeSuck = 0;
+      this.walkBubbleText = '';
+      this.updateNodeStates();
+
+      // 1. A few steps along the road to the edge of the hole.
+      const node = this.pathNodes[level - 1];
+      if (node && !this.avatarWalking) {
+        this.avatarX = node.x;
+        this.avatarY = node.y;
+      }
+      if (this.world3d) {
+        this.walkAlongRoad(takeoff, () => {});
+      } else {
+        this.animateWalkingPath([{ x: this.avatarX, y: this.avatarY }, takeoff], '', () => {});
+      }
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (!this.avatarWalking || this.destroyed) resolve();
+          else requestAnimationFrame(check);
         };
-        requestAnimationFrame(stepAnim);
+        check();
+      });
+      this.isPostWalkZoomEasing = false;
+
+      // 2. Jump in: up in an arc, spinning and shrinking into the middle while the hole swirls
+      //    faster and the darkness closes in on it.
+      this.hooks.whoosh?.();
+      const is3D = !!this.world3d && this.use3DAvatar;
+      const off = 10 - this.avatarStandOffsetY * 1.7; // avatar3DY() = avatarY - off
+      const fromX = this.avatarX;
+      const fromY = is3D ? this.avatar3DY() : this.avatarY;
+      const toY2D = hole.y - HOLE_LIFT_2D * 0.6;
+      const z0 = this.zoom;
+      const z1 = Math.min(2.4, z0 * 1.3);
+      const fx0 = this.viewX + this.viewportW / (2 * z0);
+      const fy0 = this.viewY + this.viewportH / (2 * z0);
+      const focusY = hole.y - (this.world3d ? 40 : HOLE_LIFT_2D);
+      if (is3D) this.avatarFx = { lift: 0, scale: 1, spin: 0 };
+
+      await this.tween(1250, (p) => {
+        const e = easeInOut(p);
+        const scale = Math.max(0, 1 - smooth01(0.3, 1, p));
+        this.avatarX = fromX + (hole.x - fromX) * e;
+        if (is3D) {
+          this.avatarY = fromY + (hole.y - fromY) * e + off;
+          // the middle of the body ends in the middle of the hole; a small hop at the start
+          const mid = 0.55 * 1.15 * scale;
+          const hop = Math.sin(Math.PI * Math.min(1, p * 1.6)) * 0.3 * (1 - p);
+          const lift = Math.max(0, (HOLE_H - mid) * easeInOut(Math.min(1, p * 1.25)) + hop);
+          this.avatarFx = { lift, scale, spin: p * p * Math.PI * 5 };
+          // fades into the black middle as it shrinks
+          if (this.world3d) this.world3d.charCanvas.style.opacity = String(Math.min(1, scale * 1.6));
+        } else {
+          this.avatarY = fromY + (toY2D - fromY) * e;
+          if (this.avatarEl) this.avatarEl.style.opacity = String(scale);
+        }
+        this.holeSuck = smooth01(0.05, 0.6, p);
+        this.holeSignAlpha = 1 - smooth01(0, 0.3, p);
+        this.zoom = z0 + (z1 - z0) * e;
+        this.centerOnLocation(fx0 + (hole.x - fx0) * e, fy0 + (focusY - fy0) * e);
+        const c = this.holeCentreOnScreen(hole);
+        this.setPortalDark(smooth01(0.4, 1, p), c.x, c.y);
       });
 
-      // Brief hold at 50% dark overlay
-      await new Promise((r) => setTimeout(r, 200));
+      // 3. Fully dark for a moment; the game then shows the next kingdom (clearPortalOverlay).
+      this.setPortalDark(1, 0, 0);
+      await new Promise((r) => setTimeout(r, 220));
+    } catch (err) {
+      console.warn('Black hole animation failed', err);
+      this.setPortalDark(1, 0, 0);
     } finally {
       this.inputLocked = false;
     }
   }
 
-  clearPortalOverlay(): void {
-    if (this.portalOverlay) {
-      this.portalOverlay.style.opacity = '0';
+  /** Runs `step(p)` once per frame for `ms` milliseconds (p goes 0..1). */
+  private tween(ms: number, step: (p: number) => void): Promise<void> {
+    return new Promise((resolve) => {
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        if (this.destroyed) {
+          resolve();
+          return;
+        }
+        const p = Math.min(1, Math.max(0, (now - t0) / ms));
+        step(p);
+        if (p < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  private holeCentreOnScreen(hole: { x: number; y: number }): { x: number; y: number } {
+    if (this.world3d) return this.toScreen(hole.x, hole.y, HOLE_H);
+    return { x: (hole.x - this.viewX) * this.zoom, y: (hole.y - HOLE_LIFT_2D - this.viewY) * this.zoom };
+  }
+
+  /** Darkness closing in on (or opening from) a screen point: 0 = clear, 1 = fully dark. */
+  private setPortalDark(amount: number, sx: number, sy: number): void {
+    const o = this.portalOverlay;
+    if (!o) return;
+    if (amount <= 0.002) {
+      o.style.opacity = '0';
+      o.style.background = 'transparent';
+      return;
     }
+    o.style.opacity = '1';
+    if (amount >= 0.998) {
+      o.style.background = '#05020f';
+      return;
+    }
+    const maxR = Math.hypot(this.viewportW, this.viewportH);
+    const clear = (1 - amount) * maxR;
+    const edge = 0.5 + 0.5 * amount;
+    o.style.background = `radial-gradient(circle at ${Math.round(sx)}px ${Math.round(sy)}px, rgba(5,2,15,0) ${Math.round(clear * 0.45)}px, rgba(5,2,15,${edge.toFixed(3)}) ${Math.round(clear + 60)}px)`;
+  }
+
+  /** Called by the game once the next kingdom is set: the student pops out of the dark in front of its building. */
+  clearPortalOverlay(): void {
+    const running = this.portalRunning || !!this.activePortalPos;
     this.activePortalPos = null;
+    this.holeCache = null;
+    this.holeSuck = 0;
+    this.holeSignAlpha = 1;
     this.walkBubbleText = '';
-    this.zoom = 1.45;
-    this.centerOnActiveLocation();
+    if (!running) {
+      this.setPortalDark(0, 0, 0);
+      this.avatarFx = null;
+      this.centerOnActiveLocation();
+      return;
+    }
+    void this.revealAfterPortal();
+  }
+
+  private async revealAfterPortal(): Promise<void> {
+    this.inputLocked = true;
+    try {
+      this.updateNodeStates();
+      const is3D = !!this.world3d && this.use3DAvatar;
+      if (is3D) this.avatarFx = { lift: 0.9, scale: 0, spin: 0 };
+      if (this.avatarEl) this.avatarEl.style.opacity = '';
+      if (this.world3d) this.world3d.charCanvas.style.opacity = '';
+      this.placeAvatarForState();
+      if (this.isKingdomEntered(this.currentKingdom)) {
+        this.zoom = 1.45;
+        this.centerOnLevel(this.currentLevel, false);
+      } else {
+        this.centerOnLockedKingdom();
+      }
+      // let the new kingdom draw while it is still dark (no hitch during the fade)
+      await this.tween(60, () => {});
+      await this.tween(60, () => {});
+      this.hooks.whoosh?.();
+      await this.tween(950, (p) => {
+        const c = this.toScreen(this.avatarX, this.avatar3DY(), is3D ? 0.6 : 0);
+        this.setPortalDark(1 - smooth01(0, 0.8, p), c.x, c.y);
+        if (is3D) {
+          const grow = smooth01(0.05, 0.55, p);
+          const scale = grow * (1 + 0.12 * Math.sin(Math.PI * grow)); // tiny bounce
+          this.avatarFx = { lift: 0.9 * (1 - easeOut(Math.min(1, p * 1.4))), scale, spin: (1 - grow) * (1 - grow) * Math.PI * 3 };
+        }
+      });
+    } finally {
+      this.avatarFx = null;
+      if (this.world3d) this.world3d.charCanvas.style.opacity = '';
+      if (this.avatarEl) this.avatarEl.style.opacity = '';
+      this.setPortalDark(0, 0, 0);
+      this.portalRunning = false;
+      this.inputLocked = false;
+      this.updateNodePositions();
+    }
   }
 
   centerOnLocation(x: number, y: number): void {
@@ -5909,10 +5828,8 @@ export class ModernWorldMap implements MapRenderer {
       this.inertiaVY = 0;
       this.isPostWalkZoomEasing = false;
       if (!this.isKingdomEntered(k)) {
-        this.zoom = 1.25;
-        const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-        const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
-        this.centerOnLocation(bx, by);
+        if (!this.avatarWalking && !this.avatarFx) this.placeAvatarForState();
+        this.centerOnLockedKingdom();
         this.createPadlockElement();
         this.updateAvatarDOM();
       } else {
@@ -5928,11 +5845,14 @@ export class ModernWorldMap implements MapRenderer {
     this.inertiaVY = 0;
     this.isPostWalkZoomEasing = false;
     if (!this.isKingdomEntered(this.currentKingdom)) {
-      this.zoom = 1.25;
-      const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
-      const by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
-      this.centerOnLocation(bx, by);
+      if (!this.avatarWalking && !this.avatarFx) this.placeAvatarForState();
+      this.centerOnLockedKingdom();
       this.createPadlockElement();
+      this.updateAvatarDOM();
+    } else if (this.avatarAtFront && this.world3d) {
+      // the student is at the building: the "where am I" button goes there, not to its level
+      this.zoom = 1.2;
+      this.centerOnLocation(this.avatarX, this.avatarY - 110);
       this.updateAvatarDOM();
     } else {
       this.zoom = 1.45;
@@ -6031,6 +5951,7 @@ export class ModernWorldMap implements MapRenderer {
     this.walkSpeed = total > 520 ? Math.min(420, Math.max(160, total / 2.6)) : 160;
 
     this.avatarAtFront = false;
+    this.writeFrontFlag(false);
     this.postWalkZoom = 1.45;
     this.postWalkFocusDY = 0;
     this.walkPath = finalPath;
@@ -6060,6 +5981,161 @@ export class ModernWorldMap implements MapRenderer {
     this.hooks.whoosh?.();
   }
 
+  /** Number of levels this kingdom really has (the black hole to the next kingdom comes after the last). */
+  private levelCount(k: KingdomId): number {
+    let done = 0;
+    for (const h of this.starsHistory) {
+      const id = h.mapId ?? h.orderIndex;
+      if (id === k && h.questionIndex) done = Math.max(done, h.questionIndex);
+    }
+    const active = this.flowOpts?.activeMapId ?? k;
+    const avail = this.levelAvail[k];
+    if (k < active && done > 0) return Math.min(LEVELS_PER_KINGDOM, done);
+    if (avail) return Math.max(avail, Math.min(LEVELS_PER_KINGDOM, done));
+    return LEVELS_PER_KINGDOM;
+  }
+
+  /** Point `dist` map px further along the road (towards the next levels) from a level. */
+  private pointAfterLevel(level: number, dist: number): { x: number; y: number } {
+    const node = this.pathNodes[level - 1] ?? this.pathNodes[this.pathNodes.length - 1];
+    if (!node) return { x: MAP_W / 2, y: PATH_TOP_Y - 100 };
+    const road = this.world3d?.roadPath() ?? [];
+    if (road.length > 1) {
+      let best = 0;
+      let bd = Infinity;
+      for (let i = 0; i < road.length; i++) {
+        const d = (road[i].x - node.x) ** 2 + (road[i].y - node.y) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      }
+      let left = dist;
+      for (let i = best; i < road.length - 1; i++) {
+        const a = road[i];
+        const b = road[i + 1];
+        const seg = Math.hypot(b.x - a.x, b.y - a.y);
+        if (seg >= left) {
+          const t = seg > 0 ? left / seg : 0;
+          return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+        }
+        left -= seg;
+      }
+      return { x: road[road.length - 1].x, y: road[road.length - 1].y };
+    }
+    // 2D: straight towards the next level (or up to the top of the map after the last one)
+    const next = this.pathNodes[level] ?? { x: MAP_W / 2, y: PATH_TOP_Y - 100 };
+    const dx = next.x - node.x;
+    const dy = next.y - node.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const d = Math.min(dist, len * 0.8);
+    return { x: node.x + (dx / len) * d, y: node.y + (dy / len) * d };
+  }
+
+  /** Ground point of the black hole in this kingdom (none in the last kingdom). */
+  private holeSpot(): { x: number; y: number } | null {
+    if (this.activePortalPos) return this.activePortalPos;
+    if (this.currentKingdom >= 3) return null;
+    const n = this.levelCount(this.currentKingdom);
+    const key = `${this.currentKingdom}:${n}:${this.world3d?.roadPath().length ?? 0}`;
+    if (this.holeCache?.key !== key) this.holeCache = { key, p: this.pointAfterLevel(n, HOLE_AFTER_LEVEL) };
+    return this.holeCache.p;
+  }
+  private holeCache: { key: string; p: { x: number; y: number } } | null = null;
+
+  /** A small ring of gold and white sparks around a map point (arrival on a level). */
+  private burstStars(x: number, y: number): void {
+    const n = 16;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const sp = 70 + (i % 3) * 25;
+      this.particles.push({
+        x: x + Math.cos(a) * 10,
+        y: y + Math.sin(a) * 6,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp * 0.6 - 25,
+        life: 0.9,
+        maxLife: 0.9,
+        size: i % 2 ? 4.5 : 3,
+        color: i % 4 === 0 ? '#FFFFFF' : '#FACC15',
+      });
+    }
+  }
+
+  /** The black hole is dim (locked) until the next kingdom is unlocked. */
+  private holeLocked(): boolean {
+    if (this.activePortalPos) return false;
+    const nextK = Math.min(3, this.currentKingdom + 1) as KingdomId;
+    return !this.isKingdomUnlocked(nextK);
+  }
+
+  /** Draws the black hole (CSS px; the context has the plain dpr transform). */
+  private drawHole(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, gx: number, gy: number, gs: number): void {
+    const locked = this.holeLocked();
+    const nextK = Math.min(3, this.currentKingdom + 1) as KingdomId;
+    drawBlackHole(ctx, {
+      cx,
+      cy,
+      r,
+      gx,
+      gy,
+      gs,
+      locked,
+      spin: this.holeSpin,
+      suck: this.holeSuck,
+      timeMs: this.time,
+      title: locked ? '\uD83D\uDD12 ENTER TO THE NEXT KINGDOM' : 'ENTER TO THE NEXT KINGDOM',
+      sub: locked ? 'Finish all the levels first' : `\u2728 ${KINGDOM_THEMES[nextK].name} \u2728`,
+      signAlpha: this.holeSignAlpha,
+    });
+  }
+
+  /** 3D, kingdom not opened yet: the student waits in front of the building (it came out of the black hole there). */
+  private waitsAtGate(): boolean {
+    return (!!this.world3d || this.pending3D) && !this.isKingdomEntered(this.currentKingdom);
+  }
+
+  /** Puts the student where it belongs right now: in front of the building, or on its level. */
+  private placeAvatarForState(): void {
+    if (this.waitsAtGate() || (this.avatarAtFront && (this.world3d || this.pending3D))) {
+      const f = this.kingdomFrontSpot();
+      this.avatarX = f.x;
+      this.avatarY = f.y;
+      return;
+    }
+    const node = this.pathNodes[this.currentLevel - 1];
+    if (node) {
+      this.avatarX = node.x;
+      this.avatarY = node.y;
+    }
+  }
+
+  /** Camera on a kingdom that is not opened yet: the building, and in 3D also the student waiting in front of it. */
+  private centerOnLockedKingdom(): void {
+    this.zoom = 1.25;
+    const bx = this.pathNodes[0]?.x ?? MAP_W / 2;
+    let by = (this.pathNodes[0]?.y ?? PATH_BOT_Y) + 310 + this.lmShift();
+    if (this.world3d || this.pending3D) by += 150;
+    this.centerOnLocation(bx, by);
+  }
+
+  private readFrontFlag(): boolean {
+    try {
+      return sessionStorage.getItem(FRONT_KEY) === `${this.currentKingdom}:${this.currentLevel}`;
+    } catch {
+      return false;
+    }
+  }
+
+  private writeFrontFlag(on: boolean): void {
+    try {
+      if (on) sessionStorage.setItem(FRONT_KEY, `${this.currentKingdom}:${this.currentLevel}`);
+      else sessionStorage.removeItem(FRONT_KEY);
+    } catch {
+      /* private mode: no memory, the student just starts on its level */
+    }
+  }
+
   /** Where the student stands to look at the kingdom building: on the school yard, in front of the steps. */
   private kingdomFrontSpot(): { x: number; y: number } {
     const p0 = this.pathNodes[0];
@@ -6072,7 +6148,7 @@ export class ModernWorldMap implements MapRenderer {
    * 3D: walks (or runs) the student along the drawn road from where it stands to `to`
    * (a level, or the front of the kingdom building), then calls `onArrival`.
    */
-  private walkAlongRoad(to: { x: number; y: number }, onArrival: () => void): void {
+  private walkAlongRoad(to: { x: number; y: number }, onArrival: () => void, maxSeconds = 5): void {
     const road = this.world3d?.roadPath() ?? [];
     const from = { x: this.avatarX, y: this.avatarY };
     const nearest = (p: { x: number; y: number }) => {
@@ -6101,7 +6177,7 @@ export class ModernWorldMap implements MapRenderer {
     // long trips run faster so even level 45 reaches the building in about 8 s
     let total = 0;
     for (let i = 1; i < path.length; i++) total += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
-    if (total > 520) this.walkSpeed = Math.min(900, Math.max(160, total / 5));
+    if (total > 520 || total / 160 > maxSeconds) this.walkSpeed = Math.min(900, Math.max(160, total / maxSeconds));
   }
 
   /** 3D tap on the kingdom building: go to its front to look at it, or (already there) walk back to the current level. */
@@ -6118,6 +6194,7 @@ export class ModernWorldMap implements MapRenderer {
     }
     this.walkAlongRoad(this.kingdomFrontSpot(), () => {
       this.avatarAtFront = true;
+      this.writeFrontFlag(true);
       // turn the camera to face the building's front and pull back a little so all of it shows
       this.orbitGoal = { yaw: 0, pitch: THREE_FRONT_PITCH };
     });
@@ -6187,7 +6264,13 @@ export class ModernWorldMap implements MapRenderer {
     if (!this.avatarEl) return;
 
     // Hide avatar if current kingdom has not been entered yet (no character on Level 1 before unlock)
-    if (!this.isKingdomEntered(this.currentKingdom)) {
+    // (3D: it does wait in front of the building, so its YOU badge shows there)
+    if (!this.isKingdomEntered(this.currentKingdom) && !(this.use3DAvatar && this.waitsAtGate())) {
+      this.avatarEl.style.display = 'none';
+      return;
+    }
+    // flying into / out of the black hole: no badge
+    if (this.avatarFx) {
       this.avatarEl.style.display = 'none';
       return;
     }
@@ -6315,13 +6398,18 @@ export class ModernWorldMap implements MapRenderer {
       stars: c.stars,
     }));
     this.updateNodeStates();
-    this.avatarAtFront = false;
-    const node = this.pathNodes[this.currentLevel - 1];
-    if (node) {
-      this.avatarX = node.x;
-      this.avatarY = node.y;
+    if (this.avatarWalking || this.avatarFx || this.portalRunning) return;
+    // the student stays where it really is: at the building (not opened / looking at it) or on its level
+    this.avatarAtFront = this.isKingdomEntered(this.currentKingdom) && this.readFrontFlag() && (!!this.world3d || this.pending3D);
+    this.placeAvatarForState();
+    if (this.waitsAtGate() || !this.isKingdomEntered(this.currentKingdom)) {
+      this.centerOnLockedKingdom();
+    } else if (this.avatarAtFront) {
+      this.zoom = 1.2;
+      this.centerOnLocation(this.avatarX, this.avatarY - 110);
+    } else {
+      this.centerOnLevel(this.currentLevel, true);
     }
-    this.centerOnLevel(this.currentLevel, true);
     this.updateAvatarDOM();
   }
 

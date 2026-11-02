@@ -61,7 +61,13 @@ export const RoomControlPage: React.FC = () => {
   const [data, setData] = useState<RoomResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  // phones (and phones in "Desktop site") start on the cards view; the wide table needs a big screen
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() =>
+    typeof window !== 'undefined' &&
+    (window.innerWidth < 640 || document.documentElement.classList.contains('vq-desktop-phone'))
+      ? 'grid'
+      : 'table'
+  );
 
   const { showToast } = useToast();
   const [showResetModal, setShowResetModal] = useState(false);
@@ -228,13 +234,13 @@ export const RoomControlPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
       {/* Top Navigation & Session Controls */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4 print:hidden">
-        <button onClick={() => navigate('/rooms')} className="btn-secondary text-xs cursor-pointer shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4 print:hidden">
+        <button onClick={() => navigate('/rooms')} className="btn-secondary text-xs cursor-pointer shadow-xs self-start">
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Rooms</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 [&>button]:justify-center [&>button]:min-h-10 sm:[&>button]:min-h-0">
           <button
             onClick={() => setShowResetModal(true)}
             disabled={actionLoading}
@@ -440,7 +446,7 @@ export const RoomControlPage: React.FC = () => {
             <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/60">
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-md text-xs cursor-pointer transition-all ${
+                className={`p-2.5 sm:p-1.5 rounded-md text-xs cursor-pointer transition-all ${
                   viewMode === 'table' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-400 hover:text-slate-700'
                 }`}
                 title="Table View"
@@ -449,7 +455,7 @@ export const RoomControlPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md text-xs cursor-pointer transition-all ${
+                className={`p-2.5 sm:p-1.5 rounded-md text-xs cursor-pointer transition-all ${
                   viewMode === 'grid' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-400 hover:text-slate-700'
                 }`}
                 title="Cards Grid View"

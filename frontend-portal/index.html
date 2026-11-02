@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // Phone with Chrome "Desktop site" on: the page is drawn 980px wide and shrunk to the phone.
+      // Mark <html> so index.css switches to the phone layout and zooms it (--vqz = width / 412).
+      (function () {
+        function check() {
+          try {
+            var w = window.innerWidth, h = window.innerHeight, dpr = window.devicePixelRatio || 1;
+            var touch = (navigator.maxTouchPoints || 0) > 0;
+            var phoneScreen = (screen.width || 9999) < 820 || w * dpr <= 1600;
+            var on = touch && h > w && w >= 900 && phoneScreen;
+            var root = document.documentElement;
+            root.classList.toggle('vq-desktop-phone', on);
+            root.style.setProperty('--vqz', on ? String(Math.min(3, Math.max(1, w / 412))) : '1');
+          } catch (e) {}
+        }
+        check();
+        window.addEventListener('resize', check);
+      })();
+    </script>
     <title>EPCES Vocab - Teacher Portal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
