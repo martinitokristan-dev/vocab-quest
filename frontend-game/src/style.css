@@ -5562,3 +5562,242 @@ html.vq-desktop-phone .candy-avatar-img {
   width: 35px;
   height: 35px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ANDROID TEXT SCALING (e.g. POCO / Xiaomi with a bigger system font size).
+   Chrome on Android "boosts" long paragraphs (the question sentence) but not short
+   labels (the answers), so the sentence became huge and pushed the answers off screen.
+   The game already sets its own kid-size fonts, so turn that boosting off.
+───────────────────────────────────────────────────────────────────────────── */
+html {
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PHONE QUESTION SCREEN — one even spacing (10px) between teacher, picture, sentence
+   and answers, the same in every kingdom, with or without a picture.
+   `:is(.no-image-arena, *)` lifts these rules above the desktop "no image / kingdom 2"
+   rules (bigger font, 24-36px margins) that were also hitting phones.
+   Same values for a normal phone (<= 640px) and a phone in "Desktop site" (zoomed).
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* top bar: the player pill and REPLAY / MENU are one height and line up */
+  .candy-player-card {
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    padding: 3px 12px 3px 3px;
+    border-width: 2px;
+    border-bottom-width: 3.5px;
+    border-bottom-color: #0369A1;
+    box-shadow: 0 3px 10px rgba(2, 132, 199, 0.22);
+  }
+
+  .candy-avatar-circle {
+    width: 32px;
+    height: 32px;
+  }
+
+  .candy-avatar-img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .candy-star-count-num {
+    font-size: 17px;
+  }
+
+  .candy-zone-pill,
+  .candy-menu-btn,
+  .candy-replay-btn {
+    height: 42px;
+    min-height: 42px;
+    box-sizing: border-box;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) {
+    min-height: 0;
+    gap: 10px;
+    padding: 12px 12px 14px;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) > * {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .question-visual-clue-card {
+    height: clamp(110px, 21svh, 200px);
+    margin: 0;
+    background: #F1F5F9;
+  }
+
+  /* any picture shape (tall photo, wide drawing) fits without stretching */
+  .question-arena-card:is(.no-image-arena, *) .question-visual-clue-img {
+    object-fit: contain;
+    background: #F1F5F9;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .sentence-box {
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.45;
+    border-width: 1.5px;
+    border-radius: 16px;
+  }
+
+  /* no picture: a little bigger, there is room for it */
+  .question-arena-card.no-image-arena .sentence-box {
+    padding: 16px 16px;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.5;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .highlighted-word {
+    font-size: 1em;
+    padding: 1px 8px;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .underlined-clue {
+    text-underline-offset: 4px;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .answers-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 0;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .answer-card {
+    min-height: 54px;
+    padding: 10px 14px;
+    border-radius: 16px;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .answer-badge {
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
+    border-radius: 10px;
+  }
+
+  .question-arena-card:is(.no-image-arena, *) .answer-text {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.3;
+  }
+}
+
+html.vq-desktop-phone .candy-player-card {
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  padding: 3px 12px 3px 3px;
+  border-width: 2px;
+  border-bottom-width: 3.5px;
+  border-bottom-color: #0369A1;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.22);
+}
+
+html.vq-desktop-phone .candy-avatar-circle {
+  width: 32px;
+  height: 32px;
+}
+
+html.vq-desktop-phone .candy-avatar-img {
+  width: 28px;
+  height: 28px;
+}
+
+html.vq-desktop-phone .candy-star-count-num {
+  font-size: 17px;
+}
+
+html.vq-desktop-phone .candy-zone-pill,
+html.vq-desktop-phone .candy-menu-btn,
+html.vq-desktop-phone .candy-replay-btn {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) {
+  min-height: 0;
+  gap: 10px;
+  padding: 12px 12px 14px;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .question-visual-clue-card {
+  height: calc(21vh / var(--vqz, 1));
+  min-height: 110px;
+  max-height: 200px;
+  margin: 0;
+  background: #F1F5F9;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .question-visual-clue-img {
+  object-fit: contain;
+  background: #F1F5F9;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .sentence-box {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  border-width: 1.5px;
+  border-radius: 16px;
+}
+
+html.vq-desktop-phone .question-arena-card.no-image-arena .sentence-box {
+  padding: 16px 16px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .highlighted-word {
+  font-size: 1em;
+  padding: 1px 8px;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .answers-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .answer-card {
+  min-height: 54px;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .answer-badge {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+  border-radius: 10px;
+}
+
+html.vq-desktop-phone .question-arena-card:is(.no-image-arena, *) .answer-text {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+/* "Desktop site": the small notice toast at phone size too, under the top bar */
+html.vq-desktop-phone .game-toast-container {
+  zoom: var(--vqz, 1);
+  top: calc(64px + env(safe-area-inset-top, 0px));
+}
