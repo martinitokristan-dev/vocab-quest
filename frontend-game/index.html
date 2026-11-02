@@ -36,6 +36,26 @@
         };
       })();
     </script>
+    <script>
+      // Phone with Chrome "Desktop site" on: the page is drawn 980px wide and scaled down, so the
+      // game looks tiny. Detect it (touch, portrait, wide CSS viewport but a phone-sized physical
+      // screen) and mark <html> so style.css enlarges the cards and buttons (--vqz = 980/412 ~ 2.4).
+      (function () {
+        function check() {
+          try {
+            var w = window.innerWidth, h = window.innerHeight, dpr = window.devicePixelRatio || 1;
+            var touch = (navigator.maxTouchPoints || 0) > 0;
+            var phoneScreen = (screen.width || 9999) < 820 || w * dpr <= 1600;
+            var on = touch && h > w && w >= 900 && phoneScreen;
+            var root = document.documentElement;
+            root.classList.toggle('vq-desktop-phone', on);
+            root.style.setProperty('--vqz', on ? String(Math.min(3, Math.max(1, w / 412))) : '1');
+          } catch (e) {}
+        }
+        check();
+        window.addEventListener('resize', check);
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -57,28 +77,6 @@
   </head>
   <body>
     <div id="app"></div>
-    <script>
-      // Phone/tablet with Chrome "Desktop site" on: the browser ignores the mobile viewport and
-      // draws a 980px desktop page, so every button and text looks tiny. Tell the pupil once per
-      // tab how to switch it off (big text, because the page itself is drawn scaled down).
-      (function () {
-        try {
-          var touch = (navigator.maxTouchPoints || 0) > 0;
-          var small = (screen.width || 9999) < 820;
-          if (!touch || !small || window.innerWidth < 960 || sessionStorage.getItem('vq_desktop_hint')) return;
-          var box = document.createElement('div');
-          box.setAttribute('role', 'alert');
-          box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#FEF3C7;color:#78350F;border-bottom:6px solid #F59E0B;padding:28px 36px;font:700 40px/1.35 system-ui,sans-serif;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.3)';
-          box.innerHTML = 'The game looks small because <b>Desktop site</b> is on.<br>Tap <b>&#8942;</b> (top right) and turn off <b>Desktop site</b>.' +
-            '<br><button type="button" style="margin-top:18px;font:800 40px system-ui,sans-serif;padding:14px 48px;border:0;border-radius:18px;background:#16A34A;color:#fff">OK</button>';
-          box.querySelector('button').onclick = function () {
-            sessionStorage.setItem('vq_desktop_hint', '1');
-            box.remove();
-          };
-          document.body.appendChild(box);
-        } catch (e) {}
-      })();
-    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

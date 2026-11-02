@@ -510,7 +510,7 @@ export const RoomControlPage: React.FC = () => {
                       </td>
                       <td className="py-3.5 px-4 text-center font-mono">
                         <span className="font-semibold text-slate-800">{answeredCount}</span>
-                        <span className="text-slate-400 text-[11px]"> / 15</span>
+                        <span className="text-slate-400 text-[11px]"> / {student.total_game_questions ?? '?'}</span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center justify-center gap-1 font-mono font-semibold text-slate-800">
@@ -584,7 +584,7 @@ export const RoomControlPage: React.FC = () => {
                         <span>{student.current_map_title || `Kingdom ${student.current_map_order || 1}`}</span>
                       </span>
                       <span className="font-mono text-slate-600">
-                        {answeredCount} / 15
+                        {answeredCount} / {student.total_game_questions ?? '?'}
                       </span>
                     </div>
 

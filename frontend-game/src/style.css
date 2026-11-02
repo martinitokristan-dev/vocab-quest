@@ -5397,3 +5397,168 @@ a,
     transition: opacity 0.2s ease;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PHONE WITH "DESKTOP SITE" ON (html.vq-desktop-phone, set in index.html).
+   The browser draws the page 980px wide and shrinks it to the phone, so everything looked
+   tiny. The cards, HUD and buttons are drawn at phone size and enlarged with zoom
+   (--vqz = viewport width / 412), so they fill the screen like on a normal phone.
+───────────────────────────────────────────────────────────────────────────── */
+html.vq-desktop-phone .candy-hud-top-left,
+html.vq-desktop-phone .candy-hud-top-right {
+  zoom: var(--vqz, 1);
+}
+
+html.vq-desktop-phone .candy-hud-top-right {
+  max-width: calc(100vw / var(--vqz, 1) - 150px);
+}
+
+/* Question screen: phone-size card, zoomed to the full width */
+html.vq-desktop-phone .question-scene-container {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: calc(70px * var(--vqz, 1));
+}
+
+html.vq-desktop-phone .question-arena-card {
+  zoom: var(--vqz, 1);
+  width: calc(94vw / var(--vqz, 1));
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+html.vq-desktop-phone .question-arena-card .mobile-teacher-avatar-box {
+  width: 64px;
+  height: 64px;
+}
+
+html.vq-desktop-phone .question-arena-card .mobile-teacher-author {
+  font-size: 13.5px;
+}
+
+html.vq-desktop-phone .question-arena-card .mobile-teacher-speech-text {
+  font-size: 15px;
+}
+
+html.vq-desktop-phone .question-arena-card .question-visual-clue-card {
+  height: 190px;
+}
+
+html.vq-desktop-phone .question-arena-card .answers-grid {
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+
+html.vq-desktop-phone .question-arena-card .answer-card {
+  min-height: 52px;
+}
+
+html.vq-desktop-phone .question-arena-card .answer-badge {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+html.vq-desktop-phone .question-arena-card .answer-text {
+  font-size: 16px;
+}
+
+/* Teacher dialogue: phone-size card and teacher, zoomed */
+html.vq-desktop-phone .dialogue-wrapper {
+  zoom: var(--vqz, 1);
+  width: calc(94vw / var(--vqz, 1));
+  max-width: none;
+}
+
+html.vq-desktop-phone .dialogue-char-stage {
+  height: 210px;
+}
+
+html.vq-desktop-phone .dialogue-header {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+html.vq-desktop-phone .dialogue-header-actions {
+  margin-left: auto;
+}
+
+/* Join card and level-complete stars/buttons */
+html.vq-desktop-phone .join-voxel-card {
+  zoom: var(--vqz, 1);
+  max-width: calc(94vw / var(--vqz, 1));
+}
+
+/* the stars + banner are wider than a phone card, so a smaller zoom keeps them on screen */
+html.vq-desktop-phone .lc-stage {
+  zoom: calc(var(--vqz, 1) * 0.72);
+  max-width: calc(100vw / (var(--vqz, 1) * 0.72));
+}
+
+html.vq-desktop-phone .lc-btn-ring {
+  width: 72px;
+  height: 72px;
+}
+
+html.vq-desktop-phone .lc-btn-continue .lc-btn-ring {
+  width: 84px;
+  height: 84px;
+}
+
+html.vq-desktop-phone .lc-btn-label {
+  font-size: 14px;
+}
+
+html.vq-desktop-phone .lc-actions {
+  gap: 18px;
+}
+
+html.vq-desktop-phone .candy-replay-btn,
+html.vq-desktop-phone .candy-menu-btn {
+  min-height: 0;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 13px;
+}
+
+/* the player pill overlapped REPLAY: drop the "STARS" word, the star icon already says it */
+html.vq-desktop-phone .candy-star-count-label {
+  display: none;
+}
+
+/* map HUD: same compact top bar as a normal phone, so the map pill and MENU fit */
+html.vq-desktop-phone .candy-player-name {
+  display: none;
+}
+
+html.vq-desktop-phone .candy-zone-pill,
+html.vq-desktop-phone .candy-menu-btn,
+html.vq-desktop-phone .candy-replay-btn {
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 5px;
+}
+
+html.vq-desktop-phone .candy-zone-pill svg,
+html.vq-desktop-phone .candy-menu-btn svg,
+html.vq-desktop-phone .candy-replay-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+html.vq-desktop-phone .candy-player-card {
+  padding: 4px 10px 4px 4px;
+  gap: 6px;
+}
+
+html.vq-desktop-phone .candy-avatar-circle {
+  width: 40px;
+  height: 40px;
+}
+
+html.vq-desktop-phone .candy-avatar-img {
+  width: 35px;
+  height: 35px;
+}

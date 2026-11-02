@@ -19,7 +19,12 @@ class GetRoomResultsAction
 
         $totalPlayers = $sessions->count();
         $completedStudents = $sessions->where('is_completed', true)->count();
-        $totalQuestionsInGame = Question::count();
+        // Only this room's teacher's published maps are played (AdvanceMapProgressionAction),
+        // so count just those questions — not every teacher's questions in the database.
+        $totalQuestionsInGame = Question::whereHas('map', fn ($q) => $q
+            ->where('teacher_id', $room->teacher_id)
+            ->where('published', true))
+            ->count();
 
         // 1. Batch query all student answers for the entire room in 1 query
         $allAnswers = StudentAnswer::whereIn('game_session_id', $sessions->pluck('id'))
@@ -38,6 +43,7 @@ class GetRoomResultsAction
 
         // 3. Aggregate question accuracy breakdown ascending by Stage/Map and question order (Q1 through Q15)
         $allQuestions = Question::with('map')
+            ->whereHas('map', fn ($q) => $q->where('teacher_id', $room->teacher_id))
             ->get()
             ->sortBy([
                 fn ($a, $b) => ($a->map?->order_index ?? 0) <=> ($b->map?->order_index ?? 0),
