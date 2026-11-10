@@ -173,17 +173,40 @@ test('deleting a non-existent or already-deleted question returns friendly 404 j
         ]);
 });
 
-test('question creation fails when map already has 40 questions (422)', function () {
+test('question creation works up to the 25th question of a map (201)', function () {
     $teacher = User::factory()->create();
     $map     = Map::factory()->create(['teacher_id' => $teacher->id]);
 
-    for ($i = 1; $i <= 40; $i++) {
+    for ($i = 1; $i <= 24; $i++) {
         Question::factory()->create(['map_id' => $map->id, 'order_index' => $i]);
     }
 
     $this->actingAs($teacher)
         ->postJson("/api/maps/{$map->id}/questions", [
-            'order_index'      => 41,
+            'order_index'      => 25,
+            'sentence'         => 'The last question.',
+            'highlighted_word' => 'last',
+            'answers'          => [
+                ['text' => 'Final', 'is_correct' => true],
+                ['text' => 'First', 'is_correct' => false],
+            ],
+        ])
+        ->assertCreated();
+
+    expect($map->questions()->count())->toBe(25);
+});
+
+test('question creation fails when map already has 25 questions (422)', function () {
+    $teacher = User::factory()->create();
+    $map     = Map::factory()->create(['teacher_id' => $teacher->id]);
+
+    for ($i = 1; $i <= 25; $i++) {
+        Question::factory()->create(['map_id' => $map->id, 'order_index' => $i]);
+    }
+
+    $this->actingAs($teacher)
+        ->postJson("/api/maps/{$map->id}/questions", [
+            'order_index'      => 26,
             'sentence'         => 'The extra question.',
             'highlighted_word' => 'extra',
             'answers'          => [

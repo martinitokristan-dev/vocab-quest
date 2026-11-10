@@ -1,8 +1,10 @@
 import { soundManager } from '../soundManager';
 
 interface KeyboardHandlerConfig {
-  onNextDialogueSlide: () => void;
-  onCloseDialogue: () => void;
+  /** Enter / Space in the teacher dialogue: CONTINUE / BEGIN (only works on the last slide). */
+  onDialogueBegin: () => void;
+  /** Esc in the teacher dialogue: SKIP to the last slide. */
+  onDialogueSkip: () => void;
   onTogglePauseMenu: () => void;
   onCloseModals: () => void;
   isDialogueOpen: () => boolean;
@@ -26,11 +28,13 @@ export function bindGlobalKeyboard(config: KeyboardHandlerConfig): void {
     if (config.isDialogueOpen()) {
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
-        config.onNextDialogueSlide();
+        soundManager.resumeOnUserGesture();
+        if (!e.repeat) config.onDialogueBegin();
         return;
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        config.onCloseDialogue();
+        soundManager.resumeOnUserGesture();
+        if (!e.repeat) config.onDialogueSkip();
         return;
       }
     }

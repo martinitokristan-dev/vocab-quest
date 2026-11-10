@@ -93,6 +93,12 @@ class StudentArcadeGame {
 
   // Overlay components
   private dialogueOverlay: DialogueOverlay | null = null;
+  /** dialogue:kingdom:audioUrl of the voiceover auto-played for the open dialogue (null = none). */
+  private dialogueAudioKey: string | null = null;
+  /** Reading-time fallback timer for the open dialogue slide (armDialogueWatchdog). */
+  private dialogueWatchdog: number | null = null;
+  /** The last slide's voice has finished: CONTINUE / BEGIN pulses. */
+  private dialogueBeginReady = false;
   private unsubscribeSync: (() => void) | null = null;
 
   private state: StudentGameAppState = {
@@ -359,8 +365,8 @@ class StudentArcadeGame {
 
   private bindGlobalKeyboard() {
     bindGlobalKeyboard({
-      onNextDialogueSlide: () => this.nextDialogueSlide(),
-      onCloseDialogue: () => this.closeKingdomDialogue(),
+      onDialogueBegin: () => this.beginDialogue(),
+      onDialogueSkip: () => this.skipDialogueToLastSlide(),
       onTogglePauseMenu: () => {
         const nextPauseState = !this.state.isPauseMenuOpen;
         this.setState({ isPauseMenuOpen: nextPauseState });
@@ -2380,23 +2386,71 @@ class StudentArcadeGame {
     return KINGDOM_DIALOGUES[this.state.dialogueKingdomId] || KINGDOM_DIALOGUES[1];
   }
 
-  private nextDialogueSlide() {
+  private isLastDialogueSlide(): boolean {
+    return this.state.dialogueSlideIndex >= this.getActiveDialogue().slides.length - 1;
+  }
+
+  /** SKIP (button or Esc): jump to the last slide, which holds CONTINUE / BEGIN. Never closes the
+   *  dialogue by itself, so one accidental tap can't lose the guide (it is marked "seen" on close). */
+  private skipDialogueToLastSlide() {
+    if (!this.state.isDialogueOpen) return;
+    const last = this.getActiveDialogue().slides.length - 1;
+    if (this.state.dialogueSlideIndex >= last) return;
+    soundManager.playClick();
+    this.setState({ dialogueSlideIndex: last });
+  }
+
+  /** CONTINUE / BEGIN (button, or Enter/Space on the last slide): close the dialogue. */
+  private beginDialogue() {
+    if (!this.state.isDialogueOpen || !this.isLastDialogueSlide()) return;
+    this.closeDialogue();
+  }
+
+  /** Reading time for a slide when its voice can't play: slower than the teacher (~16 chars/s). */
+  private static dialogueReadingMs(text: string): number {
+    return Math.max(6000, Math.round((text.length / 12 + 2) * 1000));
+  }
+
+  /**
+   * Safety net, because there is no NEXT button: if the voice can't play (file error, a phone that
+   * can't play the format, autoplay blocked, sound muted), the slide still turns after a reading
+   * time. While the voice is really playing, the voice decides and this only checks again later.
+   * On the last slide it starts the CONTINUE / BEGIN pulse instead of turning.
+   */
+  private armDialogueWatchdog(delayMs?: number): void {
+    this.clearDialogueWatchdog();
+    if (!this.state.isDialogueOpen) return;
     const kd = this.getActiveDialogue();
-    if (this.state.dialogueSlideIndex < kd.slides.length - 1) {
-      soundManager.playClick();
-      const nextIdx = this.state.dialogueSlideIndex + 1;
-      this.setState({ dialogueSlideIndex: nextIdx });
-    } else {
-      this.closeDialogue();
+    const idx = this.state.dialogueSlideIndex;
+    const slide = kd.slides[idx];
+    if (!slide) return;
+    const key = `${this.state.dialogueType}:${this.state.dialogueKingdomId}:${idx}`;
+    this.dialogueWatchdog = window.setTimeout(() => {
+      this.dialogueWatchdog = null;
+      const nowKey = `${this.state.dialogueType}:${this.state.dialogueKingdomId}:${this.state.dialogueSlideIndex}`;
+      if (!this.state.isDialogueOpen || nowKey !== key) return;
+      if (soundManager.isDialogueAudioPlaying()) {
+        this.armDialogueWatchdog(1500);
+        return;
+      }
+      if (idx < kd.slides.length - 1) {
+        this.setState({ dialogueSlideIndex: idx + 1 });
+      } else {
+        this.setDialogueBeginReady(true);
+      }
+    }, delayMs ?? StudentArcadeGame.dialogueReadingMs(slide.text));
+  }
+
+  private clearDialogueWatchdog(): void {
+    if (this.dialogueWatchdog !== null) {
+      window.clearTimeout(this.dialogueWatchdog);
+      this.dialogueWatchdog = null;
     }
   }
 
-  private prevDialogueSlide() {
-    if (this.state.dialogueSlideIndex > 0) {
-      soundManager.playClick();
-      const prevIdx = this.state.dialogueSlideIndex - 1;
-      this.setState({ dialogueSlideIndex: prevIdx });
-    }
+  private setDialogueBeginReady(ready: boolean): void {
+    this.dialogueBeginReady = ready;
+    this.dialogueOverlay?.setReady(ready && this.isLastDialogueSlide());
   }
 
   private isKingdomDialogueSeen(kingdomId: number): boolean {
@@ -2406,6 +2460,7 @@ class StudentArcadeGame {
   }
 
   private closeDialogue() {
+    this.clearDialogueWatchdog();
     soundManager.playSuccess();
     soundManager.stopSpeech();
     const pin = this.state.pin || 'default';
@@ -2450,13 +2505,111 @@ class StudentArcadeGame {
     });
   }
 
-  /** @deprecated use closeDialogue */
-  private closeKingdomDialogue() {
-    this.closeDialogue();
+  /**
+   * Voice for the current dialogue slide. Several slides may share one recording (Provincial Capitol
+   * slides 1-3); slides with `audioStart` say where their part begins:
+   *  - the voice keeps playing when the slide changes, and the slide turns by itself when the voice
+   *    reaches the next slide's part (or, at the end of the recording, moves to the next slide);
+   *  - SKIP moves the voice to the last slide's part, so voice and text always match.
+   * @param restart Listen button: play this slide's part again from its start.
+   */
+  private syncDialogueAudio(restart: boolean): void {
+    const kd = this.getActiveDialogue();
+    const idx = this.state.dialogueSlideIndex;
+    const slide = kd.slides[idx] || kd.slides[0];
+    const url = slide?.audioUrl;
+    this.setDialogueBeginReady(false);
+    if (!url) {
+      this.dialogueAudioKey = null;
+      soundManager.stopSpeech();
+      return;
+    }
+    const key = `${this.state.dialogueType}:${this.state.dialogueKingdomId}:${url}`;
+    const timed = slide.audioStart !== undefined;
+    const start = slide.audioStart ?? 0;
+
+    if (!restart && key === this.dialogueAudioKey) {
+      // same recording as the previous slide
+      if (!timed) return; // keep playing (or stay finished)
+      const next = kd.slides[idx + 1];
+      const end = next && next.audioUrl === url && next.audioStart !== undefined ? next.audioStart : Infinity;
+      const t = soundManager.getDialogueTime();
+      if (t !== null && t >= start - 0.3 && t < end) return; // already on this slide's part
+      if (t !== null && soundManager.seekDialogueAudio(start)) return;
+      // the recording already ended: play this slide's part again below
+    }
+
+    this.dialogueAudioKey = key;
+    soundManager.playDialogueAudio(
+      url,
+      // voice finished, failed or is muted: on the last slide, CONTINUE / BEGIN starts to pulse
+      () => {
+        // (a stopped recording also lands here, e.g. on LISTEN; then the new one is already playing)
+        if (
+          this.state.isDialogueOpen &&
+          key === this.dialogueAudioKey &&
+          this.isLastDialogueSlide() &&
+          !soundManager.isDialogueAudioPlaying()
+        ) {
+          this.dialogueOverlay?.setProgress(1);
+          this.setDialogueBeginReady(true);
+        }
+      },
+      {
+        startAt: timed ? start : 0,
+        onTimeUpdate: (t) => {
+          if (timed) this.autoTurnDialogue(key, t);
+          this.updateDialogueProgress(key, t);
+        },
+        onEnded: timed ? () => this.autoTurnDialogueAtEnd(key) : undefined,
+      },
+    );
+  }
+
+  /** Fills the current slide's dot with how far the voice is through that slide's part. */
+  private updateDialogueProgress(key: string, t: number): void {
+    if (!this.state.isDialogueOpen || key !== this.dialogueAudioKey) return;
+    const kd = this.getActiveDialogue();
+    const idx = this.state.dialogueSlideIndex;
+    const slide = kd.slides[idx];
+    if (!slide) return;
+    const next = kd.slides[idx + 1];
+    const start = slide.audioStart ?? 0;
+    const end =
+      next && next.audioUrl === slide.audioUrl && next.audioStart !== undefined
+        ? next.audioStart
+        : soundManager.getDialogueDuration();
+    if (end === null || end <= start) return;
+    this.dialogueOverlay?.setProgress((t - start) / (end - start));
+  }
+
+  /** The shared recording reached the next slide's part: show that slide (no click sound). */
+  private autoTurnDialogue(key: string, t: number): void {
+    if (!this.state.isDialogueOpen || key !== this.dialogueAudioKey) return;
+    const kd = this.getActiveDialogue();
+    const idx = this.state.dialogueSlideIndex;
+    const slide = kd.slides[idx];
+    const next = kd.slides[idx + 1];
+    if (!slide || !next || next.audioUrl !== slide.audioUrl || next.audioStart === undefined) return;
+    if (t >= next.audioStart) this.setState({ dialogueSlideIndex: idx + 1 });
+  }
+
+  /** The shared recording ended on its last slide: move on to the next slide (it plays its own voice). */
+  private autoTurnDialogueAtEnd(key: string): void {
+    if (!this.state.isDialogueOpen || key !== this.dialogueAudioKey) return;
+    const kd = this.getActiveDialogue();
+    const idx = this.state.dialogueSlideIndex;
+    const slide = kd.slides[idx];
+    const next = kd.slides[idx + 1];
+    if (slide?.audioStart !== undefined && next && next.audioUrl !== slide.audioUrl) {
+      this.setState({ dialogueSlideIndex: idx + 1 });
+    }
   }
 
   private renderDialogueOverlay() {
     if (!this.state.isDialogueOpen) {
+      this.clearDialogueWatchdog();
+      this.dialogueAudioKey = null;
       soundManager.stopSpeech();
       const existingOverlay = document.getElementById('dialogueOverlayContainer');
       if (existingOverlay) {
@@ -2469,39 +2622,25 @@ class StudentArcadeGame {
       return;
     }
 
-    const kd = this.getActiveDialogue();
-    const slide = kd.slides[this.state.dialogueSlideIndex] || kd.slides[0];
-    if (slide?.audioUrl) {
-      soundManager.playDialogueAudio(slide.audioUrl);
-    } else {
-      soundManager.stopSpeech();
-    }
+    this.syncDialogueAudio(false);
+    this.armDialogueWatchdog();
 
-    if (!this.dialogueOverlay) {
-      this.dialogueOverlay = new DialogueOverlay({
-        isOpen: this.state.isDialogueOpen,
-        dialogueType: this.state.dialogueType,
-        dialogueKingdomId: this.state.dialogueKingdomId,
-        dialogueSlideIndex: this.state.dialogueSlideIndex,
-        playerName: this.state.playerName,
-        onNextSlide: () => this.nextDialogueSlide(),
-        onPrevSlide: () => this.prevDialogueSlide(),
-        onClose: () => this.closeKingdomDialogue()
-      });
-    } else {
-      // Update props for re-render
-      this.dialogueOverlay = new DialogueOverlay({
-        isOpen: this.state.isDialogueOpen,
-        dialogueType: this.state.dialogueType,
-        dialogueKingdomId: this.state.dialogueKingdomId,
-        dialogueSlideIndex: this.state.dialogueSlideIndex,
-        playerName: this.state.playerName,
-        onNextSlide: () => this.nextDialogueSlide(),
-        onPrevSlide: () => this.prevDialogueSlide(),
-        onClose: () => this.closeKingdomDialogue()
-      });
-    }
+    // New props on every slide change; render() updates the open overlay in place.
+    this.dialogueOverlay = new DialogueOverlay({
+      isOpen: this.state.isDialogueOpen,
+      dialogueType: this.state.dialogueType,
+      dialogueKingdomId: this.state.dialogueKingdomId,
+      dialogueSlideIndex: this.state.dialogueSlideIndex,
+      playerName: this.state.playerName,
+      onSkip: () => this.skipDialogueToLastSlide(),
+      onBegin: () => this.beginDialogue(),
+      onListen: () => {
+        this.syncDialogueAudio(true);
+        this.armDialogueWatchdog();
+      },
+    });
     this.dialogueOverlay.render();
+    this.dialogueOverlay.setReady(this.dialogueBeginReady && this.isLastDialogueSlide());
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

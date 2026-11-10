@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\GameSession;
+use App\Models\Map;
 use App\Models\Question;
 use App\Models\Room;
 use App\Models\StudentAnswer;
@@ -21,10 +22,14 @@ class GetRoomResultsAction
         $completedStudents = $sessions->where('is_completed', true)->count();
         // Only this room's teacher's published maps are played (AdvanceMapProgressionAction),
         // so count just those questions — not every teacher's questions in the database.
-        $totalQuestionsInGame = Question::whereHas('map', fn ($q) => $q
+        // Each kingdom plays at most Map::MAX_QUESTIONS (older kingdoms may hold more).
+        $totalQuestionsInGame = (int) Question::whereHas('map', fn ($q) => $q
             ->where('teacher_id', $room->teacher_id)
             ->where('published', true))
-            ->count();
+            ->selectRaw('map_id, COUNT(*) as total')
+            ->groupBy('map_id')
+            ->pluck('total')
+            ->sum(fn ($n) => min((int) $n, Map::MAX_QUESTIONS));
 
         // 1. Batch query all student answers for the entire room in 1 query
         $allAnswers = StudentAnswer::whereIn('game_session_id', $sessions->pluck('id'))
@@ -36,8 +41,10 @@ class GetRoomResultsAction
         $activeMapIds = $sessions->pluck('current_map_id')->filter()->unique();
         $mapQuestions = Question::whereIn('map_id', $activeMapIds)
             ->orderBy('order_index')
+            ->orderBy('id')
             ->get()
-            ->groupBy('map_id');
+            ->groupBy('map_id')
+            ->map(fn ($qs) => $qs->take(Map::MAX_QUESTIONS)->values());
 
         $mapQuestionCounts = $mapQuestions->map->count();
 
@@ -48,7 +55,11 @@ class GetRoomResultsAction
             ->sortBy([
                 fn ($a, $b) => ($a->map?->order_index ?? 0) <=> ($b->map?->order_index ?? 0),
                 fn ($a, $b) => $a->order_index <=> $b->order_index,
+                fn ($a, $b) => $a->id <=> $b->id,
             ])
+            // only the questions the game plays (the first Map::MAX_QUESTIONS of each kingdom)
+            ->groupBy('map_id')
+            ->flatMap(fn ($qs) => $qs->take(Map::MAX_QUESTIONS))
             ->values();
         $answersByQuestion = $allAnswers->groupBy('question_id');
         

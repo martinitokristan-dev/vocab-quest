@@ -26,12 +26,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 2. Create Map 1 (EPCES - 40 Questions)
+        // 2. Create Map 1 (EPCES - up to 25 Questions)
         $map1 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 1],
             [
                 'title'                          => 'EPCES Adventure Entrance',
-                'question_count'                 => 40,
+                'question_count'                 => Map::MAX_QUESTIONS,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_1',
@@ -48,12 +48,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 3. Create Map 2 (Bayan ng Prosperidad - 40 Questions)
+        // 3. Create Map 2 (Bayan ng Prosperidad - up to 25 Questions)
         $map2 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 2],
             [
                 'title'                          => 'Bayan ng Prosperidad',
-                'question_count'                 => 40,
+                'question_count'                 => Map::MAX_QUESTIONS,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_2',
@@ -70,12 +70,12 @@ class TeacherSeeder extends Seeder
             ]
         );
 
-        // 4. Create Map 3 (Provincial Capitol - 40 Questions)
+        // 4. Create Map 3 (Provincial Capitol - up to 25 Questions)
         $map3 = Map::updateOrCreate(
             ['teacher_id' => $teacher->id, 'order_index' => 3],
             [
                 'title'                          => 'Provincial Capitol',
-                'question_count'                 => 40,
+                'question_count'                 => Map::MAX_QUESTIONS,
                 'published'                      => true,
                 'background_url'                 => null,
                 'background_cloudinary_public_id' => 'map_bg_3',

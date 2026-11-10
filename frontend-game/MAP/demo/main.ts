@@ -15,8 +15,10 @@ import { buildTransitionPlan, computeWalkPath, getStepRef } from '../src/flow/fl
  *   ?compare=1      1774x887 reference compare skeleton with an overlay slider (dev only)
  */
 const params = new URLSearchParams(location.search);
+/** Levels per kingdom on the live map (LEVELS_PER_KINGDOM in ModernWorldMap.ts). */
+const LEVELS = 25;
 const k0 = Math.min(3, Math.max(1, Number(params.get('k')) || 1)) as KingdomId;
-const l0 = Math.min(45, Math.max(1, Number(params.get('l')) || 1));
+const l0 = Math.min(LEVELS, Math.max(1, Number(params.get('l')) || 1));
 const active0 = Math.min(3, Math.max(k0, Number(params.get('active')) || k0));
 const quality = (params.get('quality') ?? 'auto') as QualityTier | 'auto';
 const compare = params.get('compare') === '1';
@@ -59,7 +61,7 @@ const state: DemoState = {
   k: k0,
   l: l0,
   stars: new Map(),
-  avail: 45,
+  avail: LEVELS,
   active: active0,
   entered: initialEntered,
   phase: initialEntered.includes(k0) ? 'kingdom_active' : 'awaiting_kingdom_click',
@@ -77,13 +79,13 @@ if (params.get('reduced') === '1') {
 }
 map.jumpToNode(k0, l0);
 
-const globalOf = (k: number, l: number): number => (k - 1) * 45 + l;
+const globalOf = (k: number, l: number): number => (k - 1) * LEVELS + l;
 
 function apply(): void {
   map.setAvailability({ 1: state.avail, 2: state.avail, 3: state.avail });
   map.setMapFlowOptions({ activeMapId: state.active, enteredKingdomIds: state.entered.slice(), mapPhase: state.phase });
   const completed: Array<{ kingdom: KingdomId; level: number; stars: number }> = [];
-  for (const [g, s] of state.stars) completed.push({ kingdom: (Math.floor((g - 1) / 45) + 1) as KingdomId, level: ((g - 1) % 45) + 1, stars: s });
+  for (const [g, s] of state.stars) completed.push({ kingdom: (Math.floor((g - 1) / LEVELS) + 1) as KingdomId, level: ((g - 1) % LEVELS) + 1, stars: s });
   map.setProgress({ currentKingdom: state.k, currentLevel: state.l, completedLevels: completed });
   readout();
 }
@@ -98,7 +100,7 @@ function readout(): void {
 function jump(k: KingdomId, l: number): void {
   if (map.isInputLocked()) return;
   state.k = k;
-  state.l = Math.min(45, Math.max(1, l));
+  state.l = Math.min(LEVELS, Math.max(1, l));
   state.active = Math.max(state.active, k);
   for (let i = 1; i <= k; i++) if (!state.entered.includes(i)) state.entered.push(i);
   state.phase = 'kingdom_active';
@@ -110,9 +112,9 @@ function completeLevel(): void {
   if (map.isInputLocked()) return;
   const k = state.k;
   const l = state.l;
-  const last = Math.min(45, state.avail);
+  const last = Math.min(LEVELS, state.avail);
   state.stars.set(globalOf(k, l), 1 + Math.floor(Math.random() * 3));
-  const from = getStepRef(k, Math.min(l, 45));
+  const from = getStepRef(k, Math.min(l, LEVELS));
   if (!from) return;
   if (l < last) {
     const to = getStepRef(k, l + 1);
@@ -225,10 +227,10 @@ $('btn-toggle-lock').addEventListener('click', () => {
 $('btn-unlock-all').addEventListener('click', () => {
   state.active = 3;
   state.entered = [1, 2, 3];
-  state.avail = 45;
+  state.avail = LEVELS;
   state.phase = 'kingdom_active';
   for (let k = 1; k <= 3; k++) {
-    for (let l = 1; l <= 45; l++) {
+    for (let l = 1; l <= LEVELS; l++) {
       state.stars.set(globalOf(k, l), 3);
     }
   }

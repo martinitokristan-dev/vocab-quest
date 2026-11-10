@@ -31,6 +31,15 @@ export const Icons = {
     </svg>
   `,
 
+  /** Fast-forward (two triangles + bar): the dialogue SKIP button. */
+  skipForward: (size = 18, className = '') => `
+    <svg class="${className}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="3 5 11 12 3 19 3 5" fill="currentColor"></polygon>
+      <polygon points="11 5 19 12 11 19 11 5" fill="currentColor"></polygon>
+      <line x1="21" y1="5" x2="21" y2="19"></line>
+    </svg>
+  `,
+
   stop: (size = 18, className = '') => `
     <svg class="${className}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"></rect>

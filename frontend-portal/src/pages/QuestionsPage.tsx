@@ -22,6 +22,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+/** Questions (= map levels) per kingdom. Same as Map::MAX_QUESTIONS in the backend. */
+const MAX_QUESTIONS_PER_KINGDOM = 25;
+const LIMIT_MESSAGE = `Each kingdom stage is limited to a maximum of ${MAX_QUESTIONS_PER_KINGDOM} questions.`;
+
 // Teacher and Kingdom information for elementary school teachers & students
 const TEACHER_GUIDES: Record<number, { teacher: string; kingdomName: string }> = {
   1: { teacher: 'Teacher Faith', kingdomName: 'EPCES Elementary & Riverside' },
@@ -253,8 +257,8 @@ export const QuestionsPage: React.FC = () => {
   };
 
   const openCreateModal = () => {
-    if (questions.length >= 40) {
-      showToast('Each kingdom stage is limited to a maximum of 40 questions.', 'warning');
+    if (questions.length >= MAX_QUESTIONS_PER_KINGDOM) {
+      showToast(LIMIT_MESSAGE, 'warning');
       return;
     }
     resetForm();
@@ -522,9 +526,9 @@ export const QuestionsPage: React.FC = () => {
     e.preventDefault();
     if (!selectedMapId) return;
 
-    if (!editingQuestion && questions.length >= 40) {
-      setFormError('Each kingdom stage is limited to a maximum of 40 questions.');
-      showToast('Each kingdom stage is limited to a maximum of 40 questions.', 'warning');
+    if (!editingQuestion && questions.length >= MAX_QUESTIONS_PER_KINGDOM) {
+      setFormError(LIMIT_MESSAGE);
+      showToast(LIMIT_MESSAGE, 'warning');
       return;
     }
 

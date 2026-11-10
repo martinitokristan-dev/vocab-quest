@@ -6,6 +6,7 @@ use App\Actions\AdvanceMapProgressionAction;
 use App\Http\Resources\StudentQuestionResource;
 use App\Models\Answer;
 use App\Models\GameSession;
+use App\Models\Map;
 use App\Models\Question;
 use App\Models\StudentAnswer;
 use Illuminate\Http\JsonResponse;
@@ -57,11 +58,14 @@ class GameQuestionController extends Controller
             ]);
         }
 
-        // Retrieve static stage questions from in-memory file cache (1ms response)
+        // Retrieve static stage questions from in-memory file cache (1ms response).
+        // Only the first Map::MAX_QUESTIONS are played (one per map level).
         $mapQuestions = Cache::remember("map_questions_{$session->current_map_id}", 3600, function () use ($session) {
             return Question::where('map_id', $session->current_map_id)
                 ->with('answers')
                 ->orderBy('order_index')
+                ->orderBy('id')
+                ->limit(Map::MAX_QUESTIONS)
                 ->get();
         });
 
@@ -258,9 +262,13 @@ class GameQuestionController extends Controller
                 ->where('is_correct', true)
                 ->pluck('question_id');
 
-            $remaining = Question::where('map_id', $session->current_map_id)
-                ->whereNotIn('id', $answeredIds)
-                ->count();
+            $playableIds = Question::where('map_id', $session->current_map_id)
+                ->orderBy('order_index')
+                ->orderBy('id')
+                ->limit(Map::MAX_QUESTIONS)
+                ->pluck('id');
+
+            $remaining = $playableIds->diff($answeredIds)->count();
 
             if ($remaining === 0) {
                 app(AdvanceMapProgressionAction::class)->execute($session);

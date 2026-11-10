@@ -2347,7 +2347,11 @@ export class World3D {
     }
 
     // Fill the whole world with forest (denser outside the play area, like the ring around Tala's maps).
-    const tries = this.lite ? 4200 : 9000;
+    // Counts were tuned for an 8800-tall map (40 levels); scale them with the map so the density stays the same.
+    const ringScale = Math.min(1, (inp.mapH + 2800) / 11600);
+    const meadowScale = Math.min(1, inp.mapH / 8800);
+    const count = (n: number, scale: number) => Math.round(n * scale);
+    const tries = count(this.lite ? 4200 : 9000, ringScale);
     const cx = inp.mapW / 2;
     for (let i = 0; i < tries; i++) {
       const x = -1400 + rnd() * (inp.mapW + 2800);
@@ -2363,7 +2367,7 @@ export class World3D {
         (r < 0.25 ? flowerBushes : r < 0.5 ? ferns : bushes).push(b);
       }
     }
-    for (let i = 0; i < (this.lite ? 90 : 200); i++) {
+    for (let i = 0; i < count(this.lite ? 90 : 200, meadowScale); i++) {
       const x = -900 + rnd() * (inp.mapW + 1800);
       const y = rnd() * inp.mapH;
       if (!ok(x, y, 90, 5)) continue;
@@ -2371,19 +2375,19 @@ export class World3D {
       const it = { x, y, s: 0.4 + rnd() * 0.6, rot: rnd() * 6.28, tint: rockTint() };
       (r < 0.2 ? mossy : r < 0.3 ? boulders : rocks).push(it);
     }
-    for (let i = 0; i < (this.lite ? 160 : 320); i++) {
+    for (let i = 0; i < count(this.lite ? 160 : 320, meadowScale); i++) {
       const x = rnd() * inp.mapW;
       const y = rnd() * inp.mapH;
       if (!ok(x, y, 58, 0, 0)) continue;
       flowers.push({ x, y, s: 1, rot: 0, tint: new THREE.Color(['#ffffff', '#ffd23f', '#ff8fb8', '#b48cff'][i % 4]) });
     }
     // Low plants and grass tufts in the meadow beside the road (cheap, no shadows).
-    for (let i = 0; i < (this.lite ? 110 : 220); i++) {
+    for (let i = 0; i < count(this.lite ? 110 : 220, meadowScale); i++) {
       const x = -200 + rnd() * (inp.mapW + 400);
       const y = rnd() * inp.mapH;
       if (ok(x, y, 70, 5, 10) && !nearHut(x, y, 70)) ferns.push({ x, y, s: 0.7 + rnd() * 0.5, rot: rnd() * 6.28, tint: leaf() });
     }
-    for (let i = 0; i < (this.lite ? 500 : 1100); i++) {
+    for (let i = 0; i < count(this.lite ? 500 : 1100, meadowScale); i++) {
       const x = -300 + rnd() * (inp.mapW + 600);
       const y = rnd() * inp.mapH;
       if (ok(x, y, 60, 0, 0)) tufts.push({ x, y, s: 0.8 + rnd() * 0.7, rot: rnd() * 6.28, tint: leaf() });

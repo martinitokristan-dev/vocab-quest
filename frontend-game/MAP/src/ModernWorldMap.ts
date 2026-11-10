@@ -1,7 +1,7 @@
 /**
  * ModernWorldMap – Isometric 2.5D RPG-style map renderer
  *
- * Renders a single kingdom at a time (45 levels each) with:
+ * Renders a single kingdom at a time (25 levels each) with:
  * - Canvas-rendered isometric terrain, path, trees, water, clouds
  * - DOM-positioned level nodes with animations
  * - Smooth scrolling / follow camera
@@ -51,12 +51,22 @@ function smooth01(a: number, b: number, p: number): number {
   return t * t * (3 - 2 * t);
 }
 
-const LEVELS_PER_KINGDOM = 40;
+/** Levels (= questions) per kingdom. Same as Map::MAX_QUESTIONS in the backend and
+ *  MODERN_LEVELS_PER_KINGDOM in src/mapFlowController.ts. */
+const LEVELS_PER_KINGDOM = 25;
+/** Road distance between two levels (map px); kept from the old 40-level map so walks feel the same. */
+const LEVEL_SPACING = 195;
+/** Road wiggle: sin(t * ROAD_WAVE) * 260 from level 1 (t=0) to the last level (t=1). Two full S-bends. */
+const ROAD_WAVE = Math.PI * 4;
 
 /** Map viewport in "world" pixels (the canvas draws at this logical size). */
 const MAP_W = 1200;
-/** Total scrollable height for one kingdom. */
-const MAP_H = 8800;
+const PATH_TOP_Y = 400;
+const PATH_BOT_Y = PATH_TOP_Y + (LEVELS_PER_KINGDOM - 1) * LEVEL_SPACING; // 5080
+/** Total scrollable height for one kingdom (room for the kingdom building below level 1). */
+const MAP_H = PATH_BOT_Y + 800; // 5880
+/** Scenery counts were tuned for the old 8800-tall map; scale them so the density stays the same. */
+const SCENERY_SCALE = MAP_H / 8800;
 const NODES_PER_ROW = 5;
 
 /** 3D camera tilt (radians, about 34°) used when the student looks at the kingdom building's front. */
@@ -71,9 +81,6 @@ const WALK_VIEW_PITCH = 0.96;
 const WALK_ZOOM = 1.72;
 /** 3D idle stand spot relative to the level (map px before the 1.7 depth factor; - = behind). */
 const STAND_OFFSET_3D = -14;
-
-const PATH_TOP_Y = 400;
-const PATH_BOT_Y = 8000;
 
 /** Kingdom theme palettes. */
 const KINGDOM_THEMES: Record<KingdomId, KingdomTheme> = {
@@ -198,7 +205,7 @@ function generatePathNodes(_kingdom: KingdomId): PathNode[] {
     const t = i / (LEVELS_PER_KINGDOM - 1);
     const y = PATH_BOT_Y - t * (PATH_BOT_Y - PATH_TOP_Y);
     // Smooth centered serpentine curve, starts at 600, ends at 600
-    const x = centerX + Math.sin(t * Math.PI * 6) * 260;
+    const x = centerX + Math.sin(t * ROAD_WAVE) * 260;
 
     const row = Math.floor(i / NODES_PER_ROW);
     const col = i % NODES_PER_ROW;
@@ -262,11 +269,11 @@ function generateScenery(kingdom: KingdomId, pathNodes: PathNode[]): SceneryItem
   const items: SceneryItem[] = [];
 
   // Traditional Filipino Bahay Kubo (Nipa Huts) placed on the side of the road
-  // Naturally spaced out across the 40 levels (~1,200px - 1,500px apart) so they feel like
+  // Naturally spaced out across the 25 levels (~1,100px - 1,300px apart) so they feel like
   // charming, organic countryside hamlets rather than a repetitive programmatic grid.
   // Alternates Left, then Right, then Left, then Right with natural offsets.
   const placedKubos: Array<{ x: number; y: number }> = [];
-  const targetLevels = [5, 12, 19, 26, 33, 38];
+  const targetLevels = [4, 10, 16, 22];
 
   for (let z = 0; z < targetLevels.length; z++) {
     const baseLvl = targetLevels[z];
@@ -321,7 +328,7 @@ function generateScenery(kingdom: KingdomId, pathNodes: PathNode[]): SceneryItem
   }
 
   // Small 2.5D Voxel Mountains placed on the flanks (strictly avoiding road & kubos)
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < Math.round(24 * SCENERY_SCALE); i++) {
     // Alternate left meadow (60..280) and right meadow (920..1140)
     const isLeft = i % 2 === 0;
     const x = isLeft ? 50 + rng() * 220 : 930 + rng() * 220;
@@ -347,7 +354,7 @@ function generateScenery(kingdom: KingdomId, pathNodes: PathNode[]): SceneryItem
   }
 
   // Trees scattered around the map (avoiding path by 90px & avoiding kubos)
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < Math.round(160 * SCENERY_SCALE); i++) {
     const x = rng() * MAP_W;
     const y = 200 + rng() * (MAP_H - 400);
     if (distToPath(x, y, pathNodes) < 90) continue;
@@ -368,7 +375,7 @@ function generateScenery(kingdom: KingdomId, pathNodes: PathNode[]): SceneryItem
   }
 
   // Bushes
-  for (let i = 0; i < 110; i++) {
+  for (let i = 0; i < Math.round(110 * SCENERY_SCALE); i++) {
     const x = rng() * MAP_W;
     const y = 200 + rng() * (MAP_H - 400);
     if (distToPath(x, y, pathNodes) < 70) continue;
@@ -453,7 +460,7 @@ function generateWater(kingdom: KingdomId, pathNodes: PathNode[]): WaterBody[] {
         h,
         hasWaterfall: rng() > 0.45,
       });
-      if (bodies.length >= 5) break;
+      if (bodies.length >= Math.max(3, Math.round(5 * SCENERY_SCALE))) break;
     }
   }
 
@@ -3040,7 +3047,7 @@ export class ModernWorldMap implements MapRenderer {
     if (k === 1) return true;
     if (this.flowOpts?.activeMapId && this.flowOpts.activeMapId >= k) return true;
     if (this.flowOpts?.enteredKingdomIds?.includes(k)) return true;
-    // Unlocked if previous kingdom has all 45 levels completed
+    // Unlocked if previous kingdom has all its levels completed
     const prevKingdom = (k - 1) as KingdomId;
     let completedInPrev = 0;
     for (const h of this.starsHistory) {
@@ -5882,7 +5889,7 @@ export class ModernWorldMap implements MapRenderer {
     }
   }
 
-  /** Generate smooth intermediate waypoints along the road curve between two levels (1..45). */
+  /** Generate smooth intermediate waypoints along the road curve between two levels (1..LEVELS_PER_KINGDOM). */
   private generateRoadSegmentPath(fromLevel: number, toLevel: number): Array<{ x: number; y: number }> {
     const lA = Math.max(1, Math.min(LEVELS_PER_KINGDOM, fromLevel));
     const lB = Math.max(1, Math.min(LEVELS_PER_KINGDOM, toLevel));
@@ -5897,7 +5904,7 @@ export class ModernWorldMap implements MapRenderer {
       const p = i / steps;
       const t = tA + (tB - tA) * p;
       const y = PATH_BOT_Y - t * (PATH_BOT_Y - PATH_TOP_Y);
-      const x = centerX + Math.sin(t * Math.PI * 6) * 260;
+      const x = centerX + Math.sin(t * ROAD_WAVE) * 260;
       path.push({ x, y });
     }
     return path;

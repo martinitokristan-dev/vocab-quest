@@ -2401,46 +2401,10 @@ button.candy-zone-pill:active,
   text-transform: uppercase;
 }
 
-.dialogue-skip-btn {
-  background: #F1F5F9;
-  border: 1.5px solid #CBD5E1;
-  color: #64748B;
-  font-family: var(--font-primary, 'Fredoka', sans-serif);
-  font-size: 13px;
-  font-weight: 800;
-  padding: 5px 14px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.dialogue-skip-btn:hover {
-  background: #E2E8F0;
-  color: #0F172A;
-  border-color: #94A3B8;
-}
-
-.dialogue-audio-btn {
-  background: #ECFDF5;
-  border: 1.5px solid #10B981;
-  color: #065F46;
-  font-family: var(--font-primary, 'Fredoka', sans-serif);
-  font-size: 13px;
-  font-weight: 800;
-  padding: 5px 14px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.dialogue-audio-btn:hover {
-  background: #D1FAE5;
-  border-color: #059669;
-  color: #047857;
-  transform: translateY(-1px);
+/* the header only holds the teacher name and the title now (LISTEN / SKIP moved to the footer) */
+.dialogue-header .dialogue-badge-sub {
+  min-width: 0;
+  text-align: right;
 }
 
 /* Speech Text Body */
@@ -2495,73 +2459,125 @@ button.candy-zone-pill:active,
   transition: all 0.25s ease;
 }
 
-.dialogue-dot.active {
-  width: 26px;
+.dialogue-dot.done {
   background: #0284C7;
-  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+}
+
+/* the current slide: a short bar that fills while the teacher's voice reads this slide */
+.dialogue-dot.active {
+  width: 44px;
+  background: #BAE6FD;
+  position: relative;
+  overflow: hidden;
+}
+
+.dialogue-dot-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: #0284C7;
+  border-radius: inherit;
+  transition: width 0.25s linear;
+}
+
+.dialogue-footer {
+  flex-wrap: wrap;
 }
 
 .dialogue-footer-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
-.dialogue-btn-prev {
-  background: #F1F5F9;
-  border: none;
-  border-bottom: 3.5px solid #CBD5E1;
-  border-radius: 14px;
-  color: #475569;
-  font-family: var(--font-primary, 'Fredoka', sans-serif);
-  font-size: 17px;
-  font-weight: 800;
-  padding: 11px 28px;
-  cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+/* Footer buttons: blue LISTEN, orange SKIP, green CONTINUE / BEGIN (last slide, same spot as SKIP).
+   White text on these shades passes the 3:1 contrast for large bold text. */
+.dialogue-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-}
-
-.dialogue-btn-prev:hover {
-  background: #E2E8F0;
-  color: #0F172A;
-  transform: translateY(-2px);
-}
-
-.dialogue-btn-prev:active {
-  transform: translateY(1px);
-  border-bottom-width: 1px;
-}
-
-/* Refined Action Button */
-.dialogue-btn-action {
-  background: #22C55E;
+  min-height: 52px;
+  padding: 10px 22px;
   border: none;
-  border-bottom: 4px solid #15803D;
-  border-radius: 14px;
+  border-radius: 16px;
   color: #FFFFFF;
   font-family: var(--font-primary, 'Fredoka', sans-serif);
   font-size: 17px;
   font-weight: 800;
-  padding: 11px 32px;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  white-space: nowrap;
   cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.15s ease;
+}
+
+.dialogue-btn-icon {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  flex-shrink: 0;
 }
 
-.dialogue-btn-action:hover {
+.dialogue-btn:hover {
   transform: translateY(-2px);
-  background: #16A34A;
+  filter: brightness(1.07);
 }
 
-.dialogue-btn-action:active {
-  transform: translateY(1px);
-  border-bottom-width: 1px;
+.dialogue-btn:active {
+  transform: translateY(2px) scale(0.98);
+  border-bottom-width: 2px;
+}
+
+.dialogue-btn:focus-visible {
+  outline: 3px solid #FDE047;
+  outline-offset: 2px;
+}
+
+.dialogue-btn-listen {
+  background: #2563EB;
+  border-bottom: 4px solid #1E3A8A;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.dialogue-btn-skip {
+  background: #EA580C;
+  border-bottom: 4px solid #9A3412;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
+}
+
+.dialogue-btn-begin {
+  background: #16A34A;
+  border-bottom: 4px solid #14532D;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4);
+  padding: 10px 28px;
+}
+
+/* the last slide's voice is done: a gentle pulse says "tap me" */
+.dialogue-btn-begin.is-ready {
+  animation: dialogue-begin-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dialogue-begin-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4), 0 0 0 0 rgba(22, 163, 74, 0.45);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(22, 163, 74, 0.5), 0 0 0 10px rgba(22, 163, 74, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialogue-btn-begin.is-ready {
+    animation: none;
+    outline: 3px solid #86EFAC;
+    outline-offset: 2px;
+  }
 }
 
 /* Character Portrait Stage (Right Side - Tall, Crisp, & Harmoniously Scaled) */
@@ -2715,14 +2731,6 @@ button.candy-zone-pill:active,
     letter-spacing: 0.5px;
   }
 
-  .dialogue-skip-btn {
-    min-height: 44px;
-    padding: 6px 14px;
-    font-size: 12px;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-
   .dialogue-speech-text {
     font-size: 15.5px;
     line-height: 1.5;
@@ -2734,22 +2742,91 @@ button.candy-zone-pill:active,
     gap: 10px;
   }
 
-  .dialogue-btn-prev,
-  .dialogue-btn-action {
+  .dialogue-btn {
     min-height: 50px;
-    padding: 12px 24px;
-    font-size: 15.5px;
-    font-weight: 800;
+    padding: 10px 20px;
+    font-size: 16px;
     border-radius: 14px;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
+  }
+}
+
+/* Phones in portrait (and phones in Chrome "Desktop site", whose zoomed card is phone-size):
+   dots on their own row, buttons share the full width. On the last slide LISTEN and a long
+   label like BEGIN FINAL QUEST don't fit side by side on a 360px phone, so they wrap onto
+   two full-width rows instead of being cut off. */
+@media (max-width: 480px) {
+  .dialogue-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
-  .dialogue-btn-prev:active,
-  .dialogue-btn-action:active {
-    transform: translateY(2px) scale(0.98);
+  .dialogue-step-dots {
+    justify-content: center;
   }
+
+  .dialogue-footer-actions {
+    margin-left: 0;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .dialogue-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 12px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* last slide: LISTEN becomes a compact icon with its word under it, so a long label like
+     BEGIN FINAL QUEST keeps the rest of the row (it may wrap onto 2 lines inside the button) */
+  .dialogue-footer-actions.is-final .dialogue-btn-listen {
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+  }
+}
+
+/* short portrait phones (360x640 and similar): a smaller teacher keeps the whole card on screen */
+@media (orientation: portrait) and (max-height: 720px) {
+  .dialogue-char-stage {
+    height: clamp(120px, 21vh, 190px);
+  }
+}
+
+html.vq-desktop-phone .dialogue-footer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+html.vq-desktop-phone .dialogue-step-dots {
+  justify-content: center;
+}
+
+html.vq-desktop-phone .dialogue-footer-actions {
+  margin-left: 0;
+  width: 100%;
+  gap: 10px;
+}
+
+html.vq-desktop-phone .dialogue-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 12px;
+  white-space: normal;
+  text-align: center;
+}
+
+html.vq-desktop-phone .dialogue-footer-actions.is-final .dialogue-btn-listen {
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  font-size: 12.5px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -4984,10 +5061,6 @@ button.candy-zone-pill:active,
     margin-bottom: 6px;
   }
 
-  .dialogue-skip-btn {
-    min-height: 40px;
-  }
-
   .dialogue-speech-text {
     font-size: 14.5px;
     line-height: 1.4;
@@ -4996,12 +5069,17 @@ button.candy-zone-pill:active,
   .dialogue-footer {
     margin-top: 8px;
     padding-top: 8px;
+    gap: 8px;
   }
 
-  .dialogue-btn-prev,
-  .dialogue-btn-action {
-    min-height: 44px;
-    padding: 8px 20px;
+  .dialogue-footer-actions {
+    gap: 8px;
+  }
+
+  .dialogue-btn {
+    min-height: 48px;
+    padding: 8px 16px;
+    font-size: 15px;
   }
 
   .game-toast-container {
@@ -5066,10 +5144,6 @@ button.candy-zone-pill:active,
 
 .dialogue-badge-sub {
   font-size: 12.5px;
-}
-
-.dialogue-audio-btn {
-  min-height: 44px;
 }
 
 /* No blue tap square anywhere in the game on Android/iOS (buttons keep their own pressed look). */
@@ -5478,10 +5552,41 @@ html.vq-desktop-phone .dialogue-char-stage {
 html.vq-desktop-phone .dialogue-header {
   flex-wrap: wrap;
   row-gap: 8px;
+  margin-bottom: 12px;
 }
 
-html.vq-desktop-phone .dialogue-header-actions {
-  margin-left: auto;
+/* the zoomed card used the 23px desktop text, so on a tall phone the LISTEN / BEGIN buttons
+   ended below the screen (headless 980x2120 check): use the phone sizes, the zoom enlarges them */
+html.vq-desktop-phone .dialogue-card {
+  padding: 22px 20px 18px;
+  min-height: auto;
+  border-radius: 24px;
+}
+
+html.vq-desktop-phone .dialogue-speaker-tag {
+  font-size: 13.5px;
+  padding: 5px 14px;
+}
+
+html.vq-desktop-phone .dialogue-speech-text {
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+
+html.vq-desktop-phone .dialogue-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+html.vq-desktop-phone .dialogue-btn {
+  min-height: 50px;
+  font-size: 16px;
+  border-radius: 14px;
+}
+
+/* safety net: if a card is ever taller than the screen, it scrolls instead of hiding the buttons */
+html.vq-desktop-phone .dialogue-overlay-backdrop {
+  overflow-y: auto;
 }
 
 /* Join card and level-complete stars/buttons */

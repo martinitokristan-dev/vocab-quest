@@ -19,6 +19,8 @@ class SoundManager {
   };
 
   private currentVoiceAudio: HTMLMediaElement | null = null;
+  /** Last element started by playDialogueAudio (only "playing" while it is also currentVoiceAudio). */
+  private dialogueAudio: HTMLMediaElement | null = null;
   private bgmAudio: HTMLAudioElement | null = null;
   private bgmDesired: boolean = false;
   private defaultBgmSrc: string = '/assets/audio/BG-MUSIC-VQ.m4a';
@@ -630,7 +632,16 @@ class SoundManager {
   }
 
   // 8.2 Play Dialogue / Guide Audio (Intro & Kingdom Welcoming Instructions)
-  public playDialogueAudio(url: string, onEnd?: () => void) {
+  /**
+   * @param opts.startAt start this many seconds into the recording (one recording read over several slides)
+   * @param opts.onTimeUpdate called with the playback position while this recording is the current voice
+   * @param opts.onEnded called only when the recording plays to its end (not when stopped or on errors)
+   */
+  public playDialogueAudio(
+    url: string,
+    onEnd?: () => void,
+    opts: { startAt?: number; onTimeUpdate?: (t: number) => void; onEnded?: () => void } = {},
+  ) {
     if (typeof window === 'undefined') return;
     this.stopSpeech();
 
@@ -645,12 +656,23 @@ class SoundManager {
       audio.src = url;
       audio.volume = this.getEffectiveSfxVolume();
       this.currentVoiceAudio = audio;
+      this.dialogueAudio = audio;
+
+      if (opts.startAt && opts.startAt > 0) this.seekWhenReady(audio, opts.startAt);
+      if (opts.onTimeUpdate) {
+        const cb = opts.onTimeUpdate;
+        audio.ontimeupdate = () => {
+          if (this.currentVoiceAudio === audio) cb(audio.currentTime);
+        };
+      }
 
       audio.onended = () => {
-        if (this.currentVoiceAudio === audio) {
+        const wasCurrent = this.currentVoiceAudio === audio;
+        if (wasCurrent) {
           this.currentVoiceAudio = null;
         }
         if (onEnd) onEnd();
+        if (wasCurrent && opts.onEnded) opts.onEnded();
       };
       audio.onerror = (e) => {
         console.warn('Dialogue audio failed to load/play:', e);
@@ -681,6 +703,44 @@ class SoundManager {
       console.warn('Failed to play dialogue audio:', err);
       if (onEnd) onEnd();
     }
+  }
+
+  /** Position (seconds) of the dialogue recording that is still playing, or null if none is. */
+  public getDialogueTime(): number | null {
+    const a = this.dialogueAudio;
+    return a && this.currentVoiceAudio === a ? a.currentTime : null;
+  }
+
+  /** True while the dialogue recording is really making sound (not blocked, failed, finished or stopped). */
+  public isDialogueAudioPlaying(): boolean {
+    const a = this.dialogueAudio;
+    return !!a && this.currentVoiceAudio === a && !a.paused && !a.ended;
+  }
+
+  /** Length (seconds) of the current dialogue recording, or null before its length is known. */
+  public getDialogueDuration(): number | null {
+    const a = this.dialogueAudio;
+    if (!a || this.currentVoiceAudio !== a) return null;
+    return Number.isFinite(a.duration) && a.duration > 0 ? a.duration : null;
+  }
+
+  /** Moves the playing dialogue recording to `t` seconds. Returns false when no recording is playing. */
+  public seekDialogueAudio(t: number): boolean {
+    const a = this.dialogueAudio;
+    if (!a || this.currentVoiceAudio !== a) return false;
+    this.seekWhenReady(a, t);
+    if (a.paused && !this.pendingAudioOnGesture) a.play().catch(() => {});
+    return true;
+  }
+
+  private seekWhenReady(audio: HTMLMediaElement, t: number): void {
+    const seek = () => {
+      try {
+        audio.currentTime = t;
+      } catch (_) {}
+    };
+    if (audio.readyState >= 1) seek();
+    else audio.addEventListener('loadedmetadata', seek, { once: true });
   }
 
   // 9. Stop All Active Voice Audio

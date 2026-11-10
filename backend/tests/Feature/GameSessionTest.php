@@ -336,3 +336,42 @@ test('submitting 4th attempt awards 0 stars and saves correctly', function () {
     expect($sa->attempts)->toBe(4);
 });
 
+test('a kingdom with more than 25 questions plays only the first 25, then moves to the next kingdom', function () {
+    $env = setupGameRoom();
+
+    // Map 1 already has Q1; add 29 more (30 in total, e.g. saved before the 25 limit).
+    $questions = collect([$env['q1']]);
+    for ($i = 2; $i <= 30; $i++) {
+        $q = Question::factory()->create(['map_id' => $env['map1']->id, 'order_index' => $i]);
+        Answer::factory()->create(['question_id' => $q->id, 'is_correct' => true]);
+        Answer::factory()->create(['question_id' => $q->id, 'is_correct' => false]);
+        $questions->push($q);
+    }
+    $q2Map2 = Question::factory()->create(['map_id' => $env['map2']->id, 'order_index' => 1]);
+
+    $session = GameSession::factory()->create([
+        'room_id'        => $env['room']->id,
+        'current_map_id' => $env['map1']->id,
+    ]);
+
+    $this->withHeader('X-Game-Session-Token', $session->token)
+        ->getJson('/api/game/question')
+        ->assertOk()
+        ->assertJsonPath('data.map.total_questions', 25);
+
+    foreach ($questions->take(25) as $q) {
+        $correct = $q->answers()->where('is_correct', true)->first();
+        $this->withHeader('X-Game-Session-Token', $session->token)
+            ->postJson('/api/game/answer', ['question_id' => $q->id, 'answer_id' => $correct->id, 'stars' => 3])
+            ->assertOk()
+            ->assertJsonPath('is_correct', true);
+    }
+
+    // After the 25th answer the student is already on kingdom 2 (questions 26-30 are skipped).
+    expect($session->fresh()->current_map_id)->toBe($env['map2']->id);
+
+    $this->withHeader('X-Game-Session-Token', $session->token)
+        ->getJson('/api/game/question')
+        ->assertOk()
+        ->assertJsonPath('data.question.id', $q2Map2->id);
+});

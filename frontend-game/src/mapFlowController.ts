@@ -73,16 +73,18 @@ export const KINGDOM_TRANSITION_PATHS: Record<string, Array<{ x: number; y: numb
   ],
 };
 
-// ── Modern World Map (40 levels per kingdom, 1200x8800) ─────────────────────────
+// ── Modern World Map (25 levels per kingdom, 1200x5880) ─────────────────────────
+// Must match LEVELS_PER_KINGDOM / PATH_TOP_Y / PATH_BOT_Y / ROAD_WAVE in MAP/src/ModernWorldMap.ts
+// and Map::MAX_QUESTIONS in the backend.
 export const MODERN_MAP_W = 1200;
+export const MODERN_LEVELS_PER_KINGDOM = 25;
 export const MODERN_PATH_TOP_Y = 400;
-export const MODERN_PATH_BOT_Y = 8000;
-export const MODERN_LEVELS_PER_KINGDOM = 40;
+export const MODERN_PATH_BOT_Y = MODERN_PATH_TOP_Y + (MODERN_LEVELS_PER_KINGDOM - 1) * 195; // 5080
 
 export function getModernRoadPoint(t: number): { x: number; y: number } {
   const clampedT = Math.max(0, Math.min(1, t));
   const y = MODERN_PATH_BOT_Y - clampedT * (MODERN_PATH_BOT_Y - MODERN_PATH_TOP_Y);
-  const x = MODERN_MAP_W / 2 + Math.sin(clampedT * Math.PI * 6) * 260;
+  const x = MODERN_MAP_W / 2 + Math.sin(clampedT * Math.PI * 4) * 260;
   return { x, y };
 }
 

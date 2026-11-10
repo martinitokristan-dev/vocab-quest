@@ -13,6 +13,14 @@ class Map extends Model
 {
     use HasFactory;
 
+    /**
+     * Questions (= map levels) per kingdom. The teacher portal cannot add more, and the game
+     * plays only the first MAX_QUESTIONS by order_index (older kingdoms may still hold more).
+     * Keep in sync with LEVELS_PER_KINGDOM in frontend-game (ModernWorldMap.ts, mapFlowController.ts)
+     * and MAX_QUESTIONS_PER_KINGDOM in frontend-portal (QuestionsPage.tsx).
+     */
+    public const MAX_QUESTIONS = 25;
+
     protected $fillable = [
         'teacher_id',
         'order_index',
